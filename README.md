@@ -103,7 +103,8 @@ spec → plan → implementation cycle.
 | Phase | Name | Scope | Status |
 |------:|------|-------|--------|
 | **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
-| **2** | Profiles + launch-config generation | Save/load named sets of node→alternative selections (+ params); introduces the `sheppyd` supervisor daemon. | ⬜ Planned |
+| **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | 🔨 In progress |
+| **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ⬜ Planned |
 | **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
 | **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |
 
