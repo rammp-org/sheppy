@@ -1,9 +1,10 @@
 # sheppy/tui/app.py
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
-from textual.widgets import Header, Footer, Label, ListView, ListItem
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
 
-from sheppy.manifest import LoadResult, Node
+from sheppy.manifest import LoadResult, Node, Alternative
 from sheppy.selection import SelectionState
 
 
@@ -12,15 +13,37 @@ def _node_label(node: Node, selection: SelectionState | None) -> str:
     return f"{node.name}  [{chosen or '—'}]"
 
 
+def format_detail(alt: Alternative) -> str:
+    """Pure function: format an Alternative's fields as a multi-line string."""
+    lines = [f"id: {alt.id}", f"kind: {alt.kind}"]
+    if alt.kind == "executable":
+        lines.append(f"package/executable: {alt.package} / {alt.executable}")
+    elif alt.kind == "launch_file":
+        lines.append(f"package/launch_file: {alt.package} / {alt.launch_file}")
+    elif alt.kind == "process":
+        lines.append(f"command: {alt.command}")
+    lines.append(f"machine: {alt.machine or '—'}")
+    lines.append(f"params: {alt.params or '—'}")
+    lines.append(f"publishes: {', '.join(alt.publishes) or '—'}")
+    lines.append(f"subscribes: {', '.join(alt.subscribes) or '—'}")
+    return "\n".join(lines)
+
+
 class SheppyApp(App):
     CSS = """
     #nodes { width: 40%; border: solid $accent; }
-    #alternatives { width: 60%; border: solid $accent; }
+    #alternatives { height: 50%; border: solid $accent; }
+    #detail { height: 50%; border: solid $accent; padding: 0 1; }
+    #status { dock: bottom; height: 1; background: $panel; }
+    #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     """
+    BINDINGS = [("e", "toggle_errors", "Errors")]
+    show_errors = reactive(False)
 
-    def __init__(self, load_result: LoadResult) -> None:
+    def __init__(self, load_result: LoadResult, path: str | None = None) -> None:
         super().__init__()
         self.load_result = load_result
+        self.path = path
         self.manifest = load_result.manifest
         self.selection: SelectionState | None = (
             SelectionState(self.manifest) if self.manifest else None)
@@ -34,9 +57,35 @@ class SheppyApp(App):
                     ListItem(Label(_node_label(node, self.selection)), id=f"node-{i}"))
         yield Horizontal(
             ListView(*node_items, id="nodes"),
-            ListView(id="alternatives"),
+            Vertical(
+                ListView(id="alternatives"),
+                Static(id="detail"),
+            ),
         )
+        yield Static(self._status_text(), id="status")
+        errors = Static(self._errors_text(), id="errors")
+        errors.display = False
+        yield errors
         yield Footer()
+
+    def _status_text(self) -> str:
+        n = len(self.load_result.errors)
+        state = "ok" if n == 0 else f"{n} error(s)"
+        return f"{self.path or '<no file>'} — {state}"
+
+    def _errors_text(self) -> str:
+        if not self.load_result.errors:
+            return "no errors"
+        return "\n".join(f"{e.location}: {e.message}" for e in self.load_result.errors)
+
+    def action_toggle_errors(self) -> None:
+        self.show_errors = not self.show_errors
+
+    def watch_show_errors(self, value: bool) -> None:
+        try:
+            self.query_one("#errors").display = value
+        except Exception:
+            pass
 
     def _current_node(self) -> Node | None:
         if not self.manifest:
@@ -64,11 +113,24 @@ class SheppyApp(App):
             await alts.append(ListItem(Label(f"({marker}) {alt.id}  [{alt.kind}]"), id=f"alt-{j}"))
         alts.focus()
 
+    def _show_detail(self, node: Node) -> None:
+        idx = self.query_one("#alternatives", ListView).index
+        detail = self.query_one("#detail", Static)
+        if idx is None or not node.alternatives:
+            detail.update("")
+            return
+        detail.update(format_detail(node.alternatives[idx]))
+
     async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         if event.list_view.id == "nodes":
             node = self._current_node()
             if node:
                 await self._populate_alternatives(node)
+                self._show_detail(node)
+        elif event.list_view.id == "alternatives":
+            node = self._current_node()
+            if node:
+                self._show_detail(node)
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
         if event.list_view.id != "alternatives" or not self.selection:
