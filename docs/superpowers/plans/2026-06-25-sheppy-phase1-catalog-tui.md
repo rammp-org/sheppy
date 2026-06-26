@@ -46,7 +46,7 @@ def test_package_has_version():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `python -m pytest tests/test_smoke.py -v`
+Run: `uv run pytest tests/test_smoke.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'sheppy'`
 
 - [ ] **Step 3: Create the package and config**
@@ -105,7 +105,7 @@ build/
 
 - [ ] **Step 4: Install dev deps and run the test to verify it passes**
 
-Run: `pip install -e ".[dev]" && python -m pytest tests/test_smoke.py -v`
+Run: `uv sync && uv run pytest tests/test_smoke.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -161,7 +161,7 @@ def test_manifest_node_lookup():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `python -m pytest tests/manifest/test_models.py -v`
+Run: `uv run pytest tests/manifest/test_models.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'sheppy.manifest'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -226,7 +226,7 @@ __all__ = ["Machine", "Alternative", "Node", "Manifest"]
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `python -m pytest tests/manifest/test_models.py -v`
+Run: `uv run pytest tests/manifest/test_models.py -v`
 Expected: PASS (both tests)
 
 - [ ] **Step 5: Commit**
@@ -395,7 +395,7 @@ def test_load_valid_file(tmp_path):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest tests/manifest/test_loader.py -v`
+Run: `uv run pytest tests/manifest/test_loader.py -v`
 Expected: FAIL — `ImportError: cannot import name 'parse_manifest'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -548,7 +548,7 @@ __all__ = [
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest tests/manifest/test_loader.py -v`
+Run: `uv run pytest tests/manifest/test_loader.py -v`
 Expected: PASS (all tests)
 
 - [ ] **Step 5: Commit**
@@ -634,7 +634,7 @@ def test_change_listener_fires():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest tests/test_selection.py -v`
+Run: `uv run pytest tests/test_selection.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'sheppy.selection'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -684,7 +684,7 @@ class SelectionState:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest tests/test_selection.py -v`
+Run: `uv run pytest tests/test_selection.py -v`
 Expected: PASS (all tests)
 
 - [ ] **Step 5: Commit**
@@ -770,7 +770,7 @@ async def test_selecting_alternative_updates_state_and_label():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest tests/tui/test_app.py -v`
+Run: `uv run pytest tests/tui/test_app.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'sheppy.tui'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -866,7 +866,7 @@ class SheppyApp(App):
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest tests/tui/test_app.py -v`
+Run: `uv run pytest tests/tui/test_app.py -v`
 Expected: PASS (all three tests)
 
 - [ ] **Step 5: Commit**
@@ -950,7 +950,7 @@ async def test_error_overlay_toggles():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest tests/tui/test_app.py -v`
+Run: `uv run pytest tests/tui/test_app.py -v`
 Expected: FAIL — `ImportError: cannot import name 'format_detail'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -1090,7 +1090,7 @@ class SheppyApp(App):
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest tests/tui/test_app.py -v`
+Run: `uv run pytest tests/tui/test_app.py -v`
 Expected: PASS (all tests, old and new)
 
 - [ ] **Step 5: Commit**
@@ -1137,7 +1137,7 @@ def test_build_app_missing_file_is_graceful():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest tests/test_cli.py -v`
+Run: `uv run pytest tests/test_cli.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'sheppy.cli'`
 
 - [ ] **Step 3: Write minimal implementation and the example manifest**
@@ -1196,14 +1196,14 @@ nodes:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest tests/test_cli.py -v`
+Run: `uv run pytest tests/test_cli.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Run the full suite and the app manually**
 
-Run: `python -m pytest -v`
+Run: `uv run pytest -v`
 Expected: PASS (entire suite)
-Run (manual smoke, optional): `sheppy examples/system.yaml` — browse nodes/alternatives, press `enter` to select, `e` to toggle errors, `ctrl+c`/`q` to quit.
+Run (manual smoke, optional): `uv run sheppy examples/system.yaml` — browse nodes/alternatives, press `enter` to select, `e` to toggle errors, `ctrl+c`/`q` to quit.
 
 - [ ] **Step 6: Commit**
 
