@@ -1,0 +1,29 @@
+machines:
+  - {name: robot, host: 10.0.0.20, user: researcher, ros_setup: /opt/ros/humble/setup.bash}
+  - {name: workstation, host: 10.0.0.5, user: researcher}
+
+nodes:
+  - name: camera
+    description: "RGB-D source"
+    select: single
+    alternatives:
+      - id: realsense
+        kind: launch_file
+        package: realsense2_camera
+        launch_file: rs_launch.py
+        machine: robot
+        publishes: [/camera/color/image_raw, /camera/depth/points]
+      - id: mock_camera
+        kind: executable
+        package: our_mocks
+        executable: mock_camera
+        machine: workstation
+        publishes: [/camera/color/image_raw]
+
+  - name: sim_gui
+    select: single
+    alternatives:
+      - id: unreal
+        kind: process
+        command: "/opt/sim/UnrealEditor MyProject -game"
+        machine: workstation
