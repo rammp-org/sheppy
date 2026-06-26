@@ -33,8 +33,8 @@ def format_detail(alt: Alternative) -> str:
 class SheppyApp(App):
     CSS = """
     #nodes { width: 40%; border: solid $accent; }
-    #alternatives { height: 50%; border: solid $accent; }
-    #detail { height: 50%; border: solid $accent; padding: 0 1; }
+    #alternatives { height: auto; max-height: 50%; border: solid $accent; }
+    #detail { height: 1fr; border: solid $accent; padding: 0 1; }
     #status { dock: bottom; height: 1; background: $panel; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     """
