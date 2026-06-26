@@ -12,6 +12,9 @@ _KIND_REQUIRED = {
 
 
 def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) -> Alternative:
+    if not isinstance(raw, dict):
+        errors.append(ValidationError(loc, "alternative entry must be a mapping"))
+        return Alternative(id="", kind="")
     alt_id = raw.get("id")
     if not alt_id:
         errors.append(ValidationError(loc, "alternative is missing 'id'"))
@@ -39,6 +42,9 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
 
 
 def _build_node(raw: dict, loc: str, machine_names: set, errors: list) -> Node:
+    if not isinstance(raw, dict):
+        errors.append(ValidationError(loc, "node entry must be a mapping"))
+        return Node(name="", alternatives=[])
     name = raw.get("name")
     if not name:
         errors.append(ValidationError(loc, "node is missing 'name'"))
@@ -73,6 +79,9 @@ def parse_manifest(data: object) -> LoadResult:
         raw_machines = []
     machines = []
     for i, rm in enumerate(raw_machines):
+        if not isinstance(rm, dict):
+            errors.append(ValidationError(f"machines[{i}]", "machine entry must be a mapping"))
+            continue
         for required in ("name", "host", "user"):
             if not rm.get(required):
                 errors.append(ValidationError(f"machines[{i}]", f"machine missing '{required}'"))

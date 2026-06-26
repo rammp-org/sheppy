@@ -118,3 +118,61 @@ def test_load_valid_file(tmp_path):
     result = load_manifest(str(p))
     assert result.ok
     assert result.manifest.node("camera") is not None
+
+
+def test_non_dict_node_entry_does_not_crash():
+    result = parse_manifest({"nodes": [None, "oops"]})
+    assert result.manifest is not None
+    assert len(result.errors) >= 2
+
+
+def test_non_dict_alternative_entry_does_not_crash():
+    data = _valid_data()
+    data["nodes"][0]["alternatives"].append("not-a-mapping")
+    result = parse_manifest(data)
+    assert result.manifest is not None
+    assert any("mapping" in e.message for e in result.errors)
+
+
+def test_non_dict_machine_entry_does_not_crash():
+    result = parse_manifest({"machines": [None], "nodes": []})
+    assert result.manifest is not None
+    assert any(e.location == "machines[0]" for e in result.errors)
+
+
+def test_machines_not_a_list():
+    result = parse_manifest({"machines": "robot", "nodes": []})
+    assert any(e.location == "machines" for e in result.errors)
+    assert result.manifest is not None
+
+
+def test_nodes_not_a_list():
+    result = parse_manifest({"nodes": "camera"})
+    assert any(e.location == "nodes" for e in result.errors)
+    assert result.manifest is not None
+
+
+def test_machine_missing_fields():
+    result = parse_manifest({"machines": [{"name": "robot"}], "nodes": []})
+    assert any("host" in e.message for e in result.errors)
+
+
+def test_node_missing_name():
+    result = parse_manifest({"nodes": [{"alternatives": [
+        {"id": "x", "kind": "process", "command": "true"}]}]})
+    assert any("name" in e.message for e in result.errors)
+
+
+def test_alternative_missing_id():
+    data = _valid_data()
+    del data["nodes"][0]["alternatives"][0]["id"]
+    result = parse_manifest(data)
+    assert any("id" in e.message for e in result.errors)
+
+
+def test_non_list_alternatives_value():
+    data = _valid_data()
+    data["nodes"][0]["alternatives"] = "realsense"
+    result = parse_manifest(data)
+    assert any(e.location == "nodes[0]" for e in result.errors)
+    assert result.manifest is not None
