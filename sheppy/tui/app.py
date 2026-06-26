@@ -1,6 +1,7 @@
 # sheppy/tui/app.py
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
 
@@ -37,7 +38,10 @@ class SheppyApp(App):
     #status { dock: bottom; height: 1; background: $panel; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     """
-    BINDINGS = [("e", "toggle_errors", "Errors")]
+    BINDINGS = [
+        ("e", "toggle_errors", "Errors"),
+        ("escape", "focus_nodes", "Nodes"),
+    ]
     show_errors = reactive(False)
 
     def __init__(self, load_result: LoadResult, path: str | None = None) -> None:
@@ -81,10 +85,13 @@ class SheppyApp(App):
     def action_toggle_errors(self) -> None:
         self.show_errors = not self.show_errors
 
+    def action_focus_nodes(self) -> None:
+        self.query_one("#nodes").focus()
+
     def watch_show_errors(self, value: bool) -> None:
         try:
             self.query_one("#errors").display = value
-        except Exception:
+        except NoMatches:
             pass
 
     def _current_node(self) -> Node | None:
@@ -96,14 +103,15 @@ class SheppyApp(App):
         return self.manifest.nodes[idx]
 
     async def _populate_alternatives(self, node: Node) -> None:
-        """Rebuild the alternatives list for the given node and focus it.
+        """Rebuild the alternatives list for the given node.
 
         Awaits clear() and each append() so DOM mutations are complete before
         returning — important in Textual 8.2.7 where these return awaitables
         (AwaitRemove / AwaitMount).
 
-        After populating, focus is moved to the alternatives list so that a
-        subsequent enter keypress selects the highlighted alternative.
+        Focus is NOT moved here; it remains wherever it was during node browsing.
+        The caller (on_list_view_selected for the nodes list) is responsible for
+        moving focus to #alternatives when the user deliberately descends.
         """
         alts = self.query_one("#alternatives", ListView)
         await alts.clear()
@@ -111,7 +119,6 @@ class SheppyApp(App):
         for j, alt in enumerate(node.alternatives):
             marker = "•" if alt.id == chosen else " "
             await alts.append(ListItem(Label(f"({marker}) {alt.id}  [{alt.kind}]"), id=f"alt-{j}"))
-        alts.focus()
 
     def _show_detail(self, node: Node) -> None:
         idx = self.query_one("#alternatives", ListView).index
@@ -133,6 +140,10 @@ class SheppyApp(App):
                 self._show_detail(node)
 
     async def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if event.list_view.id == "nodes":
+            # Deliberate descent: move focus from the node list into alternatives.
+            self.query_one("#alternatives").focus()
+            return
         if event.list_view.id != "alternatives" or not self.selection:
             return
         node = self._current_node()
@@ -145,6 +156,6 @@ class SheppyApp(App):
         await self._populate_alternatives(node)
 
     def _refresh_node_label(self, node: Node) -> None:
-        idx = self.manifest.nodes.index(node)
+        idx = self.query_one("#nodes", ListView).index
         label = self.query_one(f"#node-{idx} Label", Label)
         label.update(_node_label(node, self.selection))

@@ -40,17 +40,45 @@ async def test_highlighting_node_populates_alternatives():
 async def test_selecting_alternative_updates_state_and_label():
     app = SheppyApp(_result())
     async with app.run_test() as pilot:
+        # Highlight node 0 (camera); focus stays on #nodes.
         app.query_one("#nodes").index = 0
         await pilot.pause()
-        alts = app.query_one("#alternatives")
-        alts.index = 1  # "mock"
+        # Deliberate descent: Enter on the node list focuses #alternatives.
+        await pilot.press("enter")
         await pilot.pause()
+        # Navigate to "mock" (index 1) in the alternatives list.
+        app.query_one("#alternatives").index = 1
+        await pilot.pause()
+        # Select the alternative via Enter on #alternatives.
         await pilot.press("enter")
         await pilot.pause()
         assert app.selection.selected("camera") == "mock"
         # Textual 8.2.7: Static/Label stores content via .content property, not .renderable
         first_label = str(app.query_one("#node-0 Label").content)
         assert "mock" in first_label
+
+
+async def test_node_list_navigation_keeps_focus():
+    """Arrow-key navigation on #nodes must NOT steal focus to #alternatives."""
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        nodes_lv = app.query_one("#nodes")
+        # On startup, focus should be on #nodes (first focusable widget).
+        assert nodes_lv.has_focus, (
+            f"Expected #nodes to have focus on startup, got {app.focused!r}"
+        )
+        # Press Down — advances the node highlight and repopulates alternatives.
+        await pilot.press("down")
+        await pilot.pause()
+        # Focus must still be on #nodes, not stolen by _populate_alternatives.
+        assert nodes_lv.has_focus, (
+            f"Expected #nodes to retain focus after Down, got {app.focused!r}"
+        )
+        # The highlight should have advanced to index 1 (planner).
+        assert nodes_lv.index == 1, (
+            f"Expected nodes index 1 after Down, got {nodes_lv.index}"
+        )
 
 
 # --- Task 6: format_detail pure-function tests ---
@@ -68,6 +96,14 @@ def test_format_detail_process():
     alt = Alternative(id="u", kind="process", command="/opt/sim/Unreal -game")
     text = format_detail(alt)
     assert "/opt/sim/Unreal -game" in text
+
+
+def test_format_detail_executable():
+    alt = Alternative(id="cam", kind="executable", package="our_mocks",
+                      executable="mock_camera")
+    text = format_detail(alt)
+    assert "our_mocks" in text
+    assert "mock_camera" in text
 
 
 # --- Task 6: app integration tests ---
