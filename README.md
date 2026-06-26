@@ -15,6 +15,64 @@ unifies them into one operator console. Sheppy does.
 - **Daemon:** `sheppyd`
 - **Restart a node:** `sheppy woof`
 
+## Getting Started
+
+> Phase 1 is the **catalog browser**: load a manifest, browse nodes and their
+> alternatives, and select one alternative (mock vs. real) per node. Launching,
+> the daemon, and introspection arrive in later phases.
+
+### Prerequisites
+
+- **Python 3.10+**
+- **[uv](https://docs.astral.sh/uv/)** for environment and dependency management
+  — install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+### Install
+
+```bash
+git clone <your-remote>/ros2-tooling.git
+cd ros2-tooling
+uv sync          # creates .venv and installs everything from uv.lock
+```
+
+### Run the TUI
+
+```bash
+uv run sheppy examples/system.yaml
+```
+
+Or point it at your own manifest:
+
+```bash
+uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+```
+
+**Keys:**
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Move through the node list (left pane) |
+| `Enter` (on a node) | Descend into that node's alternatives (right pane) |
+| `↑` / `↓` | Move through alternatives; the detail pane updates |
+| `Enter` (on an alternative) | Select it for the node (mock vs. real) |
+| `Esc` | Return focus to the node list |
+| `e` | Toggle the validation-error overlay |
+| `Ctrl+C` | Quit |
+
+A malformed manifest never crashes the app — errors are listed in the overlay
+(`e`) and the rest stays browsable.
+
+### Run the tests
+
+```bash
+uv run pytest          # full suite
+uv run pytest -v       # verbose
+uv run pytest tests/manifest        # just the manifest/loader tests
+```
+
+The model, loader/validator, and selection logic are pure Python and tested
+without the UI; the TUI is exercised end-to-end with Textual's async pilot.
+
 ## Architecture
 
 ```
@@ -44,7 +102,7 @@ spec → plan → implementation cycle.
 
 | Phase | Name | Scope | Status |
 |------:|------|-------|--------|
-| **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | 🔨 In progress |
+| **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
 | **2** | Profiles + launch-config generation | Save/load named sets of node→alternative selections (+ params); introduces the `sheppyd` supervisor daemon. | ⬜ Planned |
 | **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
 | **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |
