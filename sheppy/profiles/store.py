@@ -12,7 +12,7 @@ NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 @dataclass(frozen=True)
 class ProfileLoadResult:
     profile: "Profile | None"
-    errors: list
+    errors: list[str]
 
 
 class ProfileStore:
@@ -22,7 +22,7 @@ class ProfileStore:
     def _path(self, name: str) -> str:
         return os.path.join(self._dir, f"{name}.yaml")
 
-    def list_profiles(self) -> list:
+    def list_profiles(self) -> list[str]:
         if not os.path.isdir(self._dir):
             return []
         stems = [fn[:-5] for fn in os.listdir(self._dir) if fn.endswith(".yaml")]
@@ -37,11 +37,13 @@ class ProfileStore:
                 raw = yaml.safe_load(f)
         except yaml.YAMLError as e:
             return ProfileLoadResult(None, [f"invalid YAML in profile '{name}': {e}"])
+        except (OSError, UnicodeDecodeError) as e:
+            return ProfileLoadResult(None, [str(e)])
         if raw is None:
             raw = {}
         if not isinstance(raw, dict):
             return ProfileLoadResult(None, [f"profile '{name}' is not a mapping"])
-        errors: list = []
+        errors: list[str] = []
         selections = raw.get("selections") or {}
         overrides = raw.get("overrides") or {}
         description = raw.get("description") or ""
@@ -51,10 +53,18 @@ class ProfileStore:
         if not isinstance(overrides, dict):
             errors.append(f"profile '{name}': 'overrides' is not a mapping; ignored")
             overrides = {}
+        clean_overrides: dict = {}
+        for k, v in overrides.items():
+            if isinstance(v, dict):
+                clean_overrides[k] = dict(v)
+            else:
+                errors.append(
+                    f"profile '{name}': override '{k}' is not a mapping; ignored"
+                )
         profile = Profile(
             name=name,
             selections=dict(selections),
-            overrides={k: dict(v) for k, v in overrides.items() if isinstance(v, dict)},
+            overrides=clean_overrides,
             description=str(description),
         )
         return ProfileLoadResult(profile, errors)
@@ -76,5 +86,5 @@ class ProfileStore:
     def delete(self, name: str) -> None:
         try:
             os.remove(self._path(name))
-        except FileNotFoundError:
+        except OSError:
             pass

@@ -59,3 +59,35 @@ def test_empty_profile_round_trips(tmp_path):
     store.save(Profile(name="empty"))
     res = store.load("empty")
     assert res.profile == Profile(name="empty")
+
+
+def test_load_non_dict_toplevel_returns_error(tmp_path):
+    d = tmp_path / "profiles"
+    d.mkdir()
+    (d / "list.yaml").write_text("- a\n- b\n")
+    store = ProfileStore(str(d))
+    res = store.load("list")
+    assert res.profile is None
+    assert len(res.errors) == 1
+
+
+def test_load_non_dict_override_entry_records_error(tmp_path):
+    d = tmp_path / "profiles"
+    d.mkdir()
+    (d / "mixed.yaml").write_text(
+        "overrides:\n  camera: {fps: 30}\n  lidar: bad\n"
+    )
+    store = ProfileStore(str(d))
+    res = store.load("mixed")
+    assert res.profile is not None
+    assert "lidar" not in res.profile.overrides
+    assert res.profile.overrides == {"camera": {"fps": 30}}
+    assert len(res.errors) >= 1
+
+
+def test_delete_when_path_is_directory_does_not_raise(tmp_path):
+    d = tmp_path / "profiles"
+    d.mkdir()
+    (d / "victim.yaml").mkdir()      # path is a directory, not a file
+    store = ProfileStore(str(d))
+    store.delete("victim")           # must not raise (IsADirectoryError)
