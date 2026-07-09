@@ -136,3 +136,26 @@ tests/tui/test_profiles.py       # pilot tests for the profile flows
 - Launching a profile's processes and the `sheppyd` daemon (Phase 2b).
 - Per-node machine assignment overrides (Phase 3).
 - Undeclared/arbitrary params and typed param schemas.
+
+## 9. Forward-compatibility note (not built here)
+
+The ecosystem is trending toward containerized nodes, where "a demo is a config
+file." Sheppy should grow toward a model where **every alternative is launchable**
+and specific kinds gain **expanded capabilities** — a ROS node exposes graph
+introspection, a Docker container exposes lifecycle/logs/exec. The existing `kind`
+field (`executable | launch_file | process`) is already the seed of this: it is a
+launch-mechanism discriminator that a future plugin layer can hang behavior off.
+
+A key open question, deliberately **left open** here: launch mechanism (process /
+docker / launch_file) and runtime capabilities (ROS graph / health / logs) are
+plausibly **two orthogonal axes** — a ROS node running *inside* a container wants
+both. So the future plugin model may be a *launcher* + composable *capability*
+traits rather than a single `kind` enum. Relatedly, a "demo" may turn out to equal
+a profile, or be a larger bundle (containers/compose + a profile).
+
+**Constraint on 2a:** profiles are agnostic to how an alternative launches or what
+it exposes — they store node→alternative selections + declared-param overrides
+only. This design must not foreclose the launcher/capability split above. Nothing
+in the profile schema or `ProfileState` should assume a fixed set of `kind`s or a
+one-plugin-per-alternative model. These questions are resolved in Phase 2b/4, not
+here.
