@@ -6,11 +6,11 @@ from textual.reactive import reactive
 from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
 
 from sheppy.manifest import LoadResult, Node, Alternative
-from sheppy.selection import SelectionState
+from sheppy.profiles import ProfileState, ProfileStore
 
 
-def _node_label(node: Node, selection: SelectionState | None) -> str:
-    chosen = selection.selected(node.name) if selection else None
+def _node_label(node: Node, state: "ProfileState | None") -> str:
+    chosen = state.selected(node.name) if state else None
     return f"{node.name}  [{chosen or '—'}]"
 
 
@@ -37,6 +37,7 @@ class SheppyApp(App):
     #detail { height: 1fr; border: solid $accent; padding: 0 1; }
     #status { dock: bottom; height: 1; background: $panel; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
+    #profilebar { dock: top; height: 1; background: $boost; color: $text; padding: 0 1; }
     """
     BINDINGS = [
         ("e", "toggle_errors", "Errors"),
@@ -44,21 +45,25 @@ class SheppyApp(App):
     ]
     show_errors = reactive(False)
 
-    def __init__(self, load_result: LoadResult, path: str | None = None) -> None:
+    def __init__(self, load_result: LoadResult, path: str | None = None,
+                 profiles_dir: str | None = None) -> None:
         super().__init__()
         self.load_result = load_result
         self.path = path
         self.manifest = load_result.manifest
-        self.selection: SelectionState | None = (
-            SelectionState(self.manifest) if self.manifest else None)
+        self.state: "ProfileState | None" = (
+            ProfileState(self.manifest) if self.manifest else None)
+        self.store: "ProfileStore | None" = (
+            ProfileStore(profiles_dir) if profiles_dir else None)
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield Static(self._profile_bar_text(), id="profilebar")
         node_items = []
         if self.manifest:
             for i, node in enumerate(self.manifest.nodes):
                 node_items.append(
-                    ListItem(Label(_node_label(node, self.selection)), id=f"node-{i}"))
+                    ListItem(Label(_node_label(node, self.state)), id=f"node-{i}"))
         yield Horizontal(
             ListView(*node_items, id="nodes"),
             Vertical(
@@ -71,6 +76,19 @@ class SheppyApp(App):
         errors.display = False
         yield errors
         yield Footer()
+
+    def _profile_bar_text(self) -> str:
+        if not self.state:
+            return "Profile: <none>"
+        name = self.state.active_profile_name or "<none>"
+        dirty = " *" if self.state.is_dirty else ""
+        return f"Profile: {name}{dirty}"
+
+    def _refresh_profile_bar(self) -> None:
+        try:
+            self.query_one("#profilebar", Static).update(self._profile_bar_text())
+        except NoMatches:
+            pass
 
     def _status_text(self) -> str:
         n = len(self.load_result.errors)
@@ -115,7 +133,7 @@ class SheppyApp(App):
         """
         alts = self.query_one("#alternatives", ListView)
         await alts.clear()
-        chosen = self.selection.selected(node.name) if self.selection else None
+        chosen = self.state.selected(node.name) if self.state else None
         for j, alt in enumerate(node.alternatives):
             marker = "•" if alt.id == chosen else " "
             await alts.append(ListItem(Label(f"({marker}) {alt.id}  [{alt.kind}]"), id=f"alt-{j}"))
@@ -144,18 +162,19 @@ class SheppyApp(App):
             # Deliberate descent: move focus from the node list into alternatives.
             self.query_one("#alternatives").focus()
             return
-        if event.list_view.id != "alternatives" or not self.selection:
+        if event.list_view.id != "alternatives" or not self.state:
             return
         node = self._current_node()
         alt_idx = self.query_one("#alternatives", ListView).index
         if node is None or alt_idx is None:
             return
         alt = node.alternatives[alt_idx]
-        self.selection.select(node.name, alt.id)
+        self.state.select(node.name, alt.id)
         self._refresh_node_label(node)
+        self._refresh_profile_bar()
         await self._populate_alternatives(node)
 
     def _refresh_node_label(self, node: Node) -> None:
         idx = self.query_one("#nodes", ListView).index
         label = self.query_one(f"#node-{idx} Label", Label)
-        label.update(_node_label(node, self.selection))
+        label.update(_node_label(node, self.state))
