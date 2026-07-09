@@ -6,44 +6,42 @@ from sheppy.profiles.models import Profile
 
 @dataclass(frozen=True)
 class ReconcileResult:
-    selections: dict
-    overrides: dict
-    warnings: list
-
-
-def _selected_alt(manifest: Manifest, node_name: str, alt_id: str):
-    node = manifest.node(node_name)
-    if node is None:
-        return None
-    for a in node.alternatives:
-        if a.id == alt_id:
-            return a
-    return None
+    selections: dict[str, str]
+    overrides: dict[str, dict[str, object]]
+    warnings: list[str]
 
 
 def reconcile(profile: Profile, manifest: Manifest) -> ReconcileResult:
-    warnings: list = []
-    selections: dict = {}
-    for node_name, alt_id in profile.selections.items():
+    warnings: list[str] = []
+    selections: dict[str, str] = {}
+    selected_alts: dict = {}  # node_name -> resolved selected Alternative
+    raw_selections = profile.selections if isinstance(profile.selections, dict) else {}
+    for node_name, alt_id in raw_selections.items():
         node = manifest.node(node_name)
         if node is None:
             warnings.append(f"dropped selection: unknown node '{node_name}'")
             continue
-        if not any(a.id == alt_id for a in node.alternatives):
+        alt = next((a for a in node.alternatives if a.id == alt_id), None)
+        if alt is None:
             warnings.append(
                 f"dropped selection: node '{node_name}' has no alternative '{alt_id}'")
             continue
         selections[node_name] = alt_id
+        selected_alts[node_name] = alt
 
-    overrides: dict = {}
-    for node_name, params in profile.overrides.items():
+    overrides: dict[str, dict[str, object]] = {}
+    raw_overrides = profile.overrides if isinstance(profile.overrides, dict) else {}
+    for node_name, params in raw_overrides.items():
         if node_name not in selections:
             warnings.append(
                 f"dropped overrides for '{node_name}': node is not selected")
             continue
-        alt = _selected_alt(manifest, node_name, selections[node_name])
-        declared = alt.params if alt else {}
-        kept: dict = {}
+        if not isinstance(params, dict):
+            warnings.append(
+                f"dropped overrides for '{node_name}': not a mapping")
+            continue
+        declared = selected_alts[node_name].params
+        kept: dict[str, object] = {}
         for key, value in params.items():
             if key not in declared:
                 warnings.append(

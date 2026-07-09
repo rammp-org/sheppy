@@ -50,3 +50,19 @@ def test_undeclared_override_key_dropped():
     assert r.selections == {"camera": "real"}
     assert r.overrides == {}
     assert len(r.warnings) == 1
+
+
+def test_non_dict_selections_does_not_raise():
+    p = Profile(name="p", selections=None)
+    r = reconcile(p, _manifest())
+    assert r.selections == {}
+    assert r.overrides == {}
+
+
+def test_non_dict_override_value_dropped():
+    p = Profile(name="p", selections={"camera": "mock"},
+                overrides={"camera": "notadict"})
+    r = reconcile(p, _manifest())
+    assert r.selections == {"camera": "mock"}
+    assert r.overrides == {}
+    assert len(r.warnings) == 1
