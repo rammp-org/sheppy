@@ -34,3 +34,27 @@ async def test_selecting_marks_profile_bar_dirty(tmp_path):
         assert app.state.selected("camera") == "mock"
         bar = str(app.query_one("#profilebar").content)
         assert "*" in bar                     # dirty marker
+
+
+async def test_save_writes_file_and_updates_bar(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        # select an alternative so there is something to save
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        app.query_one("#alternatives").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        # open the save modal, type a name, submit
+        await pilot.press("s")
+        await pilot.pause()
+        for ch in "desk":
+            await pilot.press(ch)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert os.path.isfile(os.path.join(str(tmp_path), "desk.yaml"))
+        bar = str(app.query_one("#profilebar").content)
+        assert "desk" in bar and "*" not in bar       # saved → not dirty

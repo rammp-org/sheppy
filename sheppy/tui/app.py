@@ -7,6 +7,7 @@ from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
 
 from sheppy.manifest import LoadResult, Node, Alternative
 from sheppy.profiles import ProfileState, ProfileStore
+from sheppy.tui.profile_modals import SaveNameModal
 
 
 def _node_label(node: Node, state: "ProfileState | None") -> str:
@@ -38,10 +39,12 @@ class SheppyApp(App):
     #status { dock: bottom; height: 1; background: $panel; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     #profilebar { dock: top; height: 1; background: $boost; color: $text; padding: 0 1; }
+    #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
     """
     BINDINGS = [
         ("e", "toggle_errors", "Errors"),
         ("escape", "focus_nodes", "Nodes"),
+        ("s", "save_profile", "Save"),
     ]
     show_errors = reactive(False)
 
@@ -105,6 +108,23 @@ class SheppyApp(App):
 
     def action_focus_nodes(self) -> None:
         self.query_one("#nodes").focus()
+
+    def action_save_profile(self) -> None:
+        if not self.state or not self.store:
+            return
+        if self.state.active_profile_name:
+            self.store.save(self.state.to_profile(self.state.active_profile_name))
+            self.state.mark_saved(self.state.active_profile_name)
+            self._refresh_profile_bar()
+        else:
+            self.push_screen(SaveNameModal(), self._on_save_name)
+
+    def _on_save_name(self, name: "str | None") -> None:
+        if not name or not self.state or not self.store:
+            return
+        self.store.save(self.state.to_profile(name))
+        self.state.mark_saved(name)
+        self._refresh_profile_bar()
 
     def watch_show_errors(self, value: bool) -> None:
         try:
