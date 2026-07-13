@@ -109,20 +109,24 @@ class ParamEditorModal(ModalScreen["dict | None"]):
     def __init__(self, params: dict) -> None:
         super().__init__()
         self._params = params
+        # Widget ids are index-based, not name-based: ROS param names are
+        # idiomatically dotted (e.g. "qos.reliability") and Textual rejects
+        # ids that are not valid identifiers. The index->name map lets us map
+        # each field back to its real param name on submit.
+        self._names = list(self._params.keys())
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Label("Edit params — Enter=apply, Esc=cancel")
-            for name, value in self._params.items():
+            for i, name in enumerate(self._names):
                 yield Label(name)
-                yield Input(value=str(value), id=f"param-{name}")
+                yield Input(value=str(self._params[name]), id=f"param-{i}")
             yield Label("", id="param-error")
 
     def on_mount(self) -> None:
         # Focus the first param field so pilot key presses land and Enter submits.
-        first = next(iter(self._params), None)
-        if first is not None:
-            self.query_one(f"#param-{first}", Input).focus()
+        if self._names:
+            self.query_one("#param-0", Input).focus()
 
     def on_key(self, event) -> None:
         if event.key == "escape":
@@ -136,9 +140,10 @@ class ParamEditorModal(ModalScreen["dict | None"]):
 
     def _submit(self) -> None:
         parsed: dict = {}
-        for name in self._params:
-            raw = self.query_one(f"#param-{name}", Input).value
+        for i, name in enumerate(self._names):
+            raw = self.query_one(f"#param-{i}", Input).value
             try:
+                # Key by the REAL param name, not the widget index.
                 parsed[name] = yaml.safe_load(raw)
             except yaml.YAMLError:
                 self.query_one("#param-error", Label).update(

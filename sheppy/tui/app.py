@@ -120,8 +120,16 @@ class SheppyApp(App):
         if not self.state or not self.store:
             return
         if self.state.active_profile_name:
-            self.store.save(self.state.to_profile(self.state.active_profile_name))
-            self.state.mark_saved(self.state.active_profile_name)
+            name = self.state.active_profile_name
+            # active_profile_name can be an invalid stem loaded from a
+            # hand-placed file (list_profiles doesn't validate names), which
+            # ProfileStore.save rejects with ValueError. Surface it, never crash.
+            try:
+                self.store.save(self.state.to_profile(name))
+            except ValueError as e:
+                self._append_warnings([f"could not save profile '{name}': {e}"])
+                return
+            self.state.mark_saved(name)
             self._refresh_profile_bar()
         else:
             self.push_screen(SaveNameModal(), self._on_save_name)

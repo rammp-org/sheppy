@@ -129,15 +129,70 @@ async def test_param_editor_records_override(tmp_path):
         await pilot.pause()
         await pilot.press("p")
         await pilot.pause()
-        # the fps field is pre-filled "15"; clear it and type 30
+        # the fps field is pre-filled "15"; clear it and type 30.
+        # Fields are id'd by index ("param-0"), not by param name, so dotted
+        # ROS names never produce an invalid Textual id.
         # NOTE: App.query_one is pinned to the screen composed at startup
         # (Textual 8.2.7's App._compose_screen is set once in _on_compose and
         # never updated), so it cannot see widgets on a screen pushed later via
         # push_screen. Query through app.screen (the live top-of-stack screen)
         # to reach the modal's fields instead.
-        field = app.screen.query_one("#param-fps")
+        field = app.screen.query_one("#param-0")
         field.value = "30"
         await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
         assert app.state.effective_params("camera") == {"fps": 30}
+
+
+def _dotted_result():
+    manifest = Manifest(machines=[], nodes=[
+        Node(name="camera", alternatives=[
+            Alternative(id="mock", kind="process", command="true",
+                        params={"qos.reliability": "reliable"}),
+        ]),
+    ])
+    return LoadResult(manifest, [])
+
+
+async def test_param_editor_handles_non_identifier_param_names(tmp_path):
+    # A dotted ROS param name must not be used verbatim as a widget id (Textual
+    # rejects non-identifier ids). The modal must still round-trip the real name.
+    app = SheppyApp(_dotted_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        app.query_one("#alternatives").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("p")            # must not crash (no BadIdentifier)
+        await pilot.pause()
+        # Fields are id'd by index, not by the dotted name.
+        field = app.screen.query_one("#param-0")
+        field.value = "best_effort"
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert (app.state.effective_params("camera")["qos.reliability"]
+                == "best_effort")
+
+
+async def test_save_does_not_crash_on_invalid_active_profile_stem(tmp_path):
+    # A hand-placed file with a name ProfileStore.save would reject sets an
+    # invalid active_profile_name; pressing 's' must surface a warning, not crash.
+    (tmp_path / "weird name.yaml").write_text("selections: {}\n")
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")        # load the only (highlighted) profile
+        await pilot.pause()
+        await pilot.press("s")            # overwrite branch → must not crash
+        await pilot.pause()
+        # App is still alive and responsive.
+        assert app.query_one("#profilebar") is not None
