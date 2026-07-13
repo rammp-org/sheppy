@@ -1,5 +1,6 @@
 import os
 from sheppy.manifest import Manifest, Node, Alternative, LoadResult
+from sheppy.profiles import Profile, ProfileStore
 from sheppy.tui.app import SheppyApp
 
 
@@ -58,3 +59,32 @@ async def test_save_writes_file_and_updates_bar(tmp_path):
         assert os.path.isfile(os.path.join(str(tmp_path), "desk.yaml"))
         bar = str(app.query_one("#profilebar").content)
         assert "desk" in bar and "*" not in bar       # saved → not dirty
+
+
+async def test_load_applies_profile(tmp_path):
+    ProfileStore(str(tmp_path)).save(
+        Profile(name="mocked", selections={"camera": "mock"}))
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")            # load the highlighted (only) profile
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock"
+        bar = str(app.query_one("#profilebar").content)
+        assert "mocked" in bar and "*" not in bar
+        # node label reflects the applied selection
+        assert "mock" in str(app.query_one("#node-0 Label").content)
+
+
+async def test_delete_removes_file(tmp_path):
+    ProfileStore(str(tmp_path)).save(Profile(name="gone", selections={}))
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("d")                # request delete of highlighted
+        await pilot.pause()
+        await pilot.press("y")                # confirm
+        await pilot.pause()
+        assert not os.path.isfile(os.path.join(str(tmp_path), "gone.yaml"))

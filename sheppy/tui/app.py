@@ -6,8 +6,8 @@ from textual.reactive import reactive
 from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
 
 from sheppy.manifest import LoadResult, Node, Alternative
-from sheppy.profiles import ProfileState, ProfileStore
-from sheppy.tui.profile_modals import SaveNameModal
+from sheppy.profiles import ProfileState, ProfileStore, reconcile
+from sheppy.tui.profile_modals import SaveNameModal, LoadModal, ConfirmModal
 
 
 def _node_label(node: Node, state: "ProfileState | None") -> str:
@@ -45,6 +45,7 @@ class SheppyApp(App):
         ("e", "toggle_errors", "Errors"),
         ("escape", "focus_nodes", "Nodes"),
         ("s", "save_profile", "Save"),
+        ("l", "load_profile", "Load"),
     ]
     show_errors = reactive(False)
 
@@ -58,6 +59,7 @@ class SheppyApp(App):
             ProfileState(self.manifest) if self.manifest else None)
         self.store: "ProfileStore | None" = (
             ProfileStore(profiles_dir) if profiles_dir else None)
+        self._runtime_warnings: list = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -99,9 +101,11 @@ class SheppyApp(App):
         return f"{self.path or '<no file>'} — {state}"
 
     def _errors_text(self) -> str:
-        if not self.load_result.errors:
+        lines = [f"{e.location}: {e.message}" for e in self.load_result.errors]
+        lines.extend(self._runtime_warnings)
+        if not lines:
             return "no errors"
-        return "\n".join(f"{e.location}: {e.message}" for e in self.load_result.errors)
+        return "\n".join(lines)
 
     def action_toggle_errors(self) -> None:
         self.show_errors = not self.show_errors
@@ -124,6 +128,48 @@ class SheppyApp(App):
             return
         self.store.save(self.state.to_profile(name))
         self.state.mark_saved(name)
+        self._refresh_profile_bar()
+
+    def action_load_profile(self) -> None:
+        if not self.state or not self.store:
+            return
+        self.push_screen(LoadModal(self.store.list_profiles()), self._on_load_choice)
+
+    def _on_load_choice(self, choice: "tuple | None") -> None:
+        if not choice or not self.state or not self.store:
+            return
+        action, name = choice
+        if action == "delete":
+            self.push_screen(
+                ConfirmModal(f"Delete profile '{name}'?"),
+                lambda ok: self.store.delete(name) if ok else None)
+            return
+        result = self.store.load(name)
+        if result.profile is None:
+            self._append_warnings(result.errors)
+            return
+        rec = reconcile(result.profile, self.manifest)
+        self.state.apply(rec.selections, rec.overrides, name)
+        if rec.warnings:
+            self._append_warnings(rec.warnings)
+        self._rebuild_after_apply()
+
+    def _append_warnings(self, warnings: list) -> None:
+        self._runtime_warnings.extend(warnings)
+        try:
+            self.query_one("#errors", Static).update(self._errors_text())
+        except NoMatches:
+            pass
+        self.show_errors = True
+
+    def _rebuild_after_apply(self) -> None:
+        if self.manifest:
+            for i, node in enumerate(self.manifest.nodes):
+                try:
+                    self.query_one(f"#node-{i} Label", Label).update(
+                        _node_label(node, self.state))
+                except NoMatches:
+                    pass
         self._refresh_profile_bar()
 
     def watch_show_errors(self, value: bool) -> None:

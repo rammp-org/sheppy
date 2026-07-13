@@ -2,7 +2,7 @@
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label
+from textual.widgets import Input, Label, ListView, ListItem
 
 from sheppy.profiles import NAME_RE
 
@@ -34,3 +34,59 @@ class SaveNameModal(ModalScreen["str | None"]):
     def on_key(self, event) -> None:
         if event.key == "escape":
             self.dismiss(None)
+
+
+class LoadModal(ModalScreen["tuple | None"]):
+    """List saved profiles. Enter=load, d=delete, Esc=cancel."""
+
+    def __init__(self, names: list) -> None:
+        super().__init__()
+        self._names = names
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label("Load profile — Enter=load, d=delete, Esc=cancel")
+            items = [ListItem(Label(n), id=f"prof-{i}")
+                     for i, n in enumerate(self._names)]
+            yield ListView(*items, id="proflist")
+
+    def on_mount(self) -> None:
+        self.query_one("#proflist", ListView).focus()
+
+    def _highlighted(self) -> "str | None":
+        idx = self.query_one("#proflist", ListView).index
+        if idx is None:
+            return None
+        return self._names[idx]
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        name = self._highlighted()
+        if name is not None:
+            self.dismiss(("load", name))
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+        elif event.key == "d":
+            name = self._highlighted()
+            if name is not None:
+                self.dismiss(("delete", name))
+
+
+class ConfirmModal(ModalScreen[bool]):
+    """Yes/no confirmation. y=True, n/Esc=False."""
+
+    def __init__(self, prompt: str) -> None:
+        super().__init__()
+        self._prompt = prompt
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label(self._prompt)
+            yield Label("y = yes, n = no")
+
+    def on_key(self, event) -> None:
+        if event.key == "y":
+            self.dismiss(True)
+        elif event.key in ("n", "escape"):
+            self.dismiss(False)
