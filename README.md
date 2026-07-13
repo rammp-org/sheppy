@@ -17,9 +17,10 @@ unifies them into one operator console. Sheppy does.
 
 ## Getting Started
 
-> Phase 1 is the **catalog browser**: load a manifest, browse nodes and their
-> alternatives, and select one alternative (mock vs. real) per node. Launching,
-> the daemon, and introspection arrive in later phases.
+> Load a manifest, browse nodes and their alternatives, and select one
+> alternative (mock vs. real) per node (Phase 1). Save and load those choices —
+> plus per-alternative parameter overrides — as named **profiles** (Phase 2a).
+> Launching, the daemon, and introspection arrive in later phases.
 
 ### Prerequisites
 
@@ -56,11 +57,20 @@ uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
 | `↑` / `↓` | Move through alternatives; the detail pane updates |
 | `Enter` (on an alternative) | Select it for the node (mock vs. real) |
 | `Esc` | Return focus to the node list |
+| `s` | Save the current selections + overrides as a profile |
+| `l` | Load a profile (Enter to load, `d` to delete) |
+| `p` | Edit the highlighted node's declared parameters |
 | `e` | Toggle the validation-error overlay |
 | `Ctrl+C` | Quit |
 
 A malformed manifest never crashes the app — errors are listed in the overlay
-(`e`) and the rest stays browsable.
+(`e`) and the rest stays browsable. The same holds for profiles: a corrupt
+profile file or one that has drifted from the manifest surfaces warnings in the
+overlay and the applicable remainder still loads.
+
+Profiles are stored as one YAML file per profile in a `profiles/` directory next
+to your manifest (e.g. `examples/profiles/all-mock.yaml`); the filename is the
+profile name. They're plain, version-controllable text.
 
 ### Run the tests
 
@@ -103,7 +113,7 @@ spec → plan → implementation cycle.
 | Phase | Name | Scope | Status |
 |------:|------|-------|--------|
 | **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
-| **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | 🔨 In progress |
+| **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | ✅ Done |
 | **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ⬜ Planned |
 | **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
 | **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |

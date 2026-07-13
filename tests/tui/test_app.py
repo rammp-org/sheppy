@@ -52,7 +52,7 @@ async def test_selecting_alternative_updates_state_and_label():
         # Select the alternative via Enter on #alternatives.
         await pilot.press("enter")
         await pilot.pause()
-        assert app.selection.selected("camera") == "mock"
+        assert app.state.selected("camera") == "mock"
         # Textual 8.2.7: Static/Label stores content via .content property, not .renderable
         first_label = str(app.query_one("#node-0 Label").content)
         assert "mock" in first_label
