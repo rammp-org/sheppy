@@ -8,6 +8,7 @@ class ProfileState:
         self._manifest = manifest
         self._selection = SelectionState(manifest)
         self._overrides: dict = {}
+        self._description: str = ""
         self.active_profile_name: "str | None" = None
         self.is_dirty: bool = False
 
@@ -66,11 +67,12 @@ class ProfileState:
 
     # --- lifecycle ---
     def apply(self, selections: dict, overrides: dict,
-              profile_name: "str | None") -> None:
+              profile_name: "str | None", description: str = "") -> None:
         self._selection = SelectionState(self._manifest)
         for node_name, alt_id in selections.items():
             self._selection.select(node_name, alt_id)
         self._overrides = {n: dict(p) for n, p in overrides.items()}
+        self._description = description
         self.active_profile_name = profile_name
         self.is_dirty = False
 
@@ -81,7 +83,8 @@ class ProfileState:
             if sel is not None:
                 selections[node.name] = sel
         overrides = {n: dict(p) for n, p in self._overrides.items() if p}
-        return Profile(name=name, selections=selections, overrides=overrides)
+        return Profile(name=name, selections=selections, overrides=overrides,
+                        description=self._description)
 
     def mark_saved(self, name: str) -> None:
         self.active_profile_name = name

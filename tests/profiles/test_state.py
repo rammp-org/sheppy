@@ -81,3 +81,16 @@ def test_mark_saved_clears_dirty():
     st.mark_saved("all-mock")
     assert st.active_profile_name == "all-mock"
     assert st.is_dirty is False
+
+
+def test_apply_with_description_round_trips_to_profile():
+    st = ProfileState(_manifest())
+    st.apply({}, {}, "p", description="hello")
+    assert st.to_profile("p").description == "hello"
+
+
+def test_apply_without_description_clears_previous_description():
+    st = ProfileState(_manifest())
+    st.apply({}, {}, "p", description="hello")
+    st.apply({}, {}, "p")
+    assert st.to_profile("p").description == ""

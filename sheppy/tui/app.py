@@ -160,7 +160,8 @@ class SheppyApp(App):
             self._append_warnings(result.errors)
             return
         rec = reconcile(result.profile, self.manifest)
-        self.state.apply(rec.selections, rec.overrides, name)
+        self.state.apply(rec.selections, rec.overrides, name,
+                          description=result.profile.description)
         if rec.warnings:
             self._append_warnings(rec.warnings)
         self._rebuild_after_apply()

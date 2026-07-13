@@ -182,6 +182,23 @@ async def test_param_editor_handles_non_identifier_param_names(tmp_path):
                 == "best_effort")
 
 
+async def test_reload_preserves_description_across_resave(tmp_path):
+    # A hand-authored description must survive load -> re-save ('s') round trip.
+    ProfileStore(str(tmp_path)).save(
+        Profile(name="described", selections={"camera": "mock"},
+                description="keep me"))
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")            # load the highlighted (only) profile
+        await pilot.pause()
+        await pilot.press("s")                # overwrite active profile
+        await pilot.pause()
+        reloaded = ProfileStore(str(tmp_path)).load("described").profile
+        assert reloaded.description == "keep me"
+
+
 async def test_save_does_not_crash_on_invalid_active_profile_stem(tmp_path):
     # A hand-placed file with a name ProfileStore.save would reject sets an
     # invalid active_profile_name; pressing 's' must surface a warning, not crash.
