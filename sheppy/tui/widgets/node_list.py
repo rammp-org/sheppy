@@ -24,8 +24,8 @@ class NodeList(ListView):
     NodeList { width: 34%; height: 1fr; border: solid $accent; }
     NodeList .col-status { width: 3; }
     NodeList .col-name { width: 1fr; }
-    NodeList .col-alt { width: auto; color: $text 50%; }
-    NodeList .col-host { width: 10; color: $text 50%; }
+    NodeList .col-alt { width: auto; color: $text-muted; }
+    NodeList .col-host { width: 10; color: $text-muted; }
     """
 
     class NodeHighlighted(Message):
