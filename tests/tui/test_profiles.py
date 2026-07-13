@@ -88,3 +88,25 @@ async def test_delete_removes_file(tmp_path):
         await pilot.press("y")                # confirm
         await pilot.pause()
         assert not os.path.isfile(os.path.join(str(tmp_path), "gone.yaml"))
+
+
+async def test_load_modal_escape_does_not_steal_focus(tmp_path):
+    ProfileStore(str(tmp_path)).save(
+        Profile(name="mocked", selections={"camera": "mock"}))
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        # Descend focus into #alternatives before opening the modal.
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")            # descend into alternatives
+        await pilot.pause()
+        assert app.query_one("#alternatives").has_focus
+        # Open the LoadModal, then cancel it with Escape.
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        # Modal is gone and focus did NOT jump to #nodes (app's escape binding).
+        assert not app.query("LoadModal")
+        assert app.query_one("#nodes").has_focus is False
+        assert app.query_one("#alternatives").has_focus is True

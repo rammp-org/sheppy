@@ -33,6 +33,7 @@ class SaveNameModal(ModalScreen["str | None"]):
 
     def on_key(self, event) -> None:
         if event.key == "escape":
+            event.stop()
             self.dismiss(None)
 
 
@@ -66,8 +67,10 @@ class LoadModal(ModalScreen["tuple | None"]):
 
     def on_key(self, event) -> None:
         if event.key == "escape":
+            event.stop()
             self.dismiss(None)
         elif event.key == "d":
+            event.stop()
             name = self._highlighted()
             if name is not None:
                 self.dismiss(("delete", name))
@@ -87,6 +90,8 @@ class ConfirmModal(ModalScreen[bool]):
 
     def on_key(self, event) -> None:
         if event.key == "y":
+            event.stop()
             self.dismiss(True)
         elif event.key in ("n", "escape"):
+            event.stop()
             self.dismiss(False)
