@@ -110,3 +110,34 @@ async def test_load_modal_escape_does_not_steal_focus(tmp_path):
         assert not app.query("LoadModal")
         assert app.query_one("#nodes").has_focus is False
         assert app.query_one("#alternatives").has_focus is True
+
+
+async def test_param_editor_records_override(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        # select camera/mock (which declares fps: 15)
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        app.query_one("#alternatives").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        # return focus to the node list, then open the param editor on camera
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("p")
+        await pilot.pause()
+        # the fps field is pre-filled "15"; clear it and type 30
+        # NOTE: App.query_one is pinned to the screen composed at startup
+        # (Textual 8.2.7's App._compose_screen is set once in _on_compose and
+        # never updated), so it cannot see widgets on a screen pushed later via
+        # push_screen. Query through app.screen (the live top-of-stack screen)
+        # to reach the modal's fields instead.
+        field = app.screen.query_one("#param-fps")
+        field.value = "30"
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.effective_params("camera") == {"fps": 30}

@@ -1,4 +1,6 @@
 # sheppy/tui/profile_modals.py
+import yaml
+
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
@@ -95,3 +97,51 @@ class ConfirmModal(ModalScreen[bool]):
         elif event.key in ("n", "escape"):
             event.stop()
             self.dismiss(False)
+
+
+class ParamEditorModal(ModalScreen["dict | None"]):
+    """Edit declared params of the selected alternative. Enter=apply, Esc=cancel.
+
+    Each field is parsed as a YAML scalar so 30, 1.5, true, and plain strings
+    round-trip naturally. A field that fails to parse is rejected inline.
+    """
+
+    def __init__(self, params: dict) -> None:
+        super().__init__()
+        self._params = params
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="dialog"):
+            yield Label("Edit params — Enter=apply, Esc=cancel")
+            for name, value in self._params.items():
+                yield Label(name)
+                yield Input(value=str(value), id=f"param-{name}")
+            yield Label("", id="param-error")
+
+    def on_mount(self) -> None:
+        # Focus the first param field so pilot key presses land and Enter submits.
+        first = next(iter(self._params), None)
+        if first is not None:
+            self.query_one(f"#param-{first}", Input).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            event.stop()
+            self.dismiss(None)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        # A focused Input consumes Enter and emits Submitted (Enter never reaches
+        # on_key), so submit here. Any field submitting applies the whole form.
+        self._submit()
+
+    def _submit(self) -> None:
+        parsed: dict = {}
+        for name in self._params:
+            raw = self.query_one(f"#param-{name}", Input).value
+            try:
+                parsed[name] = yaml.safe_load(raw)
+            except yaml.YAMLError:
+                self.query_one("#param-error", Label).update(
+                    f"invalid value for '{name}'")
+                return
+        self.dismiss(parsed)
