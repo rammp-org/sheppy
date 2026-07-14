@@ -1,4 +1,5 @@
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
+from tests.tui.widgets._themed import ThemedApp
 from sheppy.manifest import Node, Alternative
 from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail
 
@@ -10,7 +11,7 @@ def _node():
                     publishes=["/camera/img"], subscribes=["/tf"])])
 
 
-class _Harness(App):
+class _Harness(ThemedApp):
     def compose(self) -> ComposeResult:
         yield DetailTabs()
 

@@ -32,7 +32,7 @@ class DetailTabs(Vertical):
 
     DEFAULT_CSS = """
     DetailTabs { width: 1fr; height: 1fr; background: $background; }
-    DetailTabs Tabs { background: $panel; }
+    DetailTabs Tabs { background: $subhead-bg; }
     DetailTabs Tab { color: $text-muted; margin: 0 1 0 0; }
     DetailTabs Tab.-active { color: $foreground; text-style: bold; }
     DetailTabs TabPane { padding: 1 2; }
@@ -42,7 +42,8 @@ class DetailTabs(Vertical):
     def compose(self):
         with TabbedContent(id="detailtabs"):
             with TabPane("DETAIL", id="tab-detail"):
-                yield Static("", id="detail", markup=False)
+                # Styled grid; every user-derived value is escape()d below.
+                yield Static("", id="detail")
             with TabPane("TOPICS", id="tab-topics"):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
@@ -69,9 +70,36 @@ class DetailTabs(Vertical):
             topics.update("")
             yaml_s.update("")
             return
-        detail.update(format_detail(alt))
+        detail.update(self._detail_markup(node, alt))
         topics.update(self._topics(alt))
         yaml_s.update(self._yaml(alt))
+
+    def _detail_markup(self, node: Node, alt: Alternative) -> str:
+        """Styled field grid for the DETAIL tab (muted keys, colored values).
+        format_detail() remains the plain-text form (YAML-adjacent, tested)."""
+        def row(key: str, value: str) -> str:
+            return f"{c('muted', f'{key:<12}')}{value}"
+
+        # c() escapes its text argument internally; only the value outside
+        # c() (the bold title) needs an explicit escape().
+        title = f"[bold]{escape(node.name)}[/] {c('muted', '/ ' + alt.id)}"
+        lines = [title, ""]
+        lines.append(row("kind", c("purple", alt.kind)))
+        if alt.kind == "executable":
+            lines.append(row("package", c("fg", alt.package or "—")))
+            lines.append(row("executable", c("fg", alt.executable or "—")))
+        elif alt.kind == "launch_file":
+            lines.append(row("package", c("fg", alt.package or "—")))
+            lines.append(row("launch_file", c("fg", alt.launch_file or "—")))
+        elif alt.kind == "process":
+            lines.append(row("command", c("fg", alt.command or "—")))
+        lines.append(row("machine", c("fg", alt.machine or "—")))
+        if alt.params:
+            pairs = ", ".join(f"{k}: {v}" for k, v in alt.params.items())
+            lines.append(row("params", c("orange", "{ " + pairs + " }")))
+        else:
+            lines.append(row("params", c("muted", "—")))
+        return "\n".join(lines)
 
     def _topics(self, alt: Alternative) -> str:
         lines = [c("muted", f"{'topic':<30}{'dir':<6}{'declared':<10}live")]

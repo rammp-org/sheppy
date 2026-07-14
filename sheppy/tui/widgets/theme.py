@@ -45,8 +45,9 @@ SHEPPY_DARK = Theme(
     # cockpit's structural colors stay single-sourced here, not in each widget.
     variables={
         "sel-bg": "#2f3947",      # highlighted/selected row background
-        "chip-bg": "#242832",     # machine/keycap chip fill
-        "chip-border": "#3b4048", # chip outline
+        "subhead-bg": "#242832",  # pane sub-header rows (column titles, tabs)
+        "chip-bg": "#2c313a",     # machine chip fill
+        "chip-border": "#3b4048", # chip outline / header separators
         "divider": "#14171c",     # thin line between panes
         # Tame Textual's default list cursor (a bright accent block) into the
         # cockpit's subtle selection look, with readable text.

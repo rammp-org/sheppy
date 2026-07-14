@@ -9,14 +9,12 @@ class MachinesStrip(Horizontal):
     phase-3 placeholder (glyph is always ○ 'declared, not monitored')."""
 
     DEFAULT_CSS = """
-    MachinesStrip { height: 3; background: $panel; padding: 0 1; align-vertical: middle; }
+    MachinesStrip { height: 1; background: $surface; padding: 0 1; }
     MachinesStrip > Static { width: auto; height: 1; margin: 0 1 0 0; }
-    MachinesStrip #ms-label { color: $text-muted; }
-    /* Declared-machine chips: rounded pills. */
-    MachinesStrip .chip {
-        height: 3; padding: 0 1; margin: 0 1 0 0;
-        border: round $chip-border; background: $chip-bg;
-    }
+    MachinesStrip #ms-label { color: $text-muted; margin: 0 2 0 0; }
+    /* Compact one-line pills: darker fill stands in for the mockup's
+       rounded border (a real border would cost 3 terminal rows). */
+    MachinesStrip .chip { background: $chip-bg; padding: 0 1; margin: 0 2 0 0; }
     """
 
     def __init__(self, machines, **kwargs):

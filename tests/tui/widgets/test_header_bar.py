@@ -1,8 +1,9 @@
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from sheppy.tui.widgets.header_bar import HeaderBar
+from tests.tui.widgets._themed import ThemedApp
 
 
-class _Harness(App):
+class _Harness(ThemedApp):
     def compose(self) -> ComposeResult:
         yield HeaderBar()
 

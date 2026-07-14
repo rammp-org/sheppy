@@ -1,6 +1,6 @@
 # sheppy/tui/app.py
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
@@ -10,11 +10,11 @@ from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.profile_modals import (
     SaveNameModal, LoadModal, ConfirmModal, ParamEditorModal,
 )
-from sheppy.tui.widgets.theme import SHEPPY_DARK
+from sheppy.tui.widgets.theme import SHEPPY_DARK, c
 from sheppy.tui.widgets.header_bar import HeaderBar
 from sheppy.tui.widgets.machines_strip import MachinesStrip
 from sheppy.tui.widgets.status_footer import StatusFooter
-from sheppy.tui.widgets.node_list import NodeList
+from sheppy.tui.widgets.node_list import NodeList, NodeListHeader
 from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
 from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail  # re-export
 
@@ -25,6 +25,9 @@ class SheppyApp(App):
     CSS = """
     Screen { background: $background; }
     #body { height: 1fr; }
+    #nodes-pane { width: 34%; height: 1fr; border-right: solid $divider; }
+    #alts-pane { width: 26%; height: 1fr; border-right: solid $divider; }
+    #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
     """
@@ -64,8 +67,16 @@ class SheppyApp(App):
         yield MachinesStrip(self.manifest.machines if self.manifest else [])
         nodes = self.manifest.nodes if self.manifest else []
         yield Horizontal(
-            NodeList(nodes, self._current_selection()),
-            AlternativesPanel(),
+            Vertical(
+                NodeListHeader(),
+                NodeList(nodes, self._current_selection()),
+                id="nodes-pane",
+            ),
+            Vertical(
+                Static(c("muted", "ALTERNATIVES"), id="alts-head"),
+                AlternativesPanel(),
+                id="alts-pane",
+            ),
             DetailTabs(),
             id="body",
         )
@@ -122,12 +133,23 @@ class SheppyApp(App):
                if idx is not None and node.alternatives else None)
         self.query_one(DetailTabs).show(node, alt)
 
+    def _update_alts_head(self, node: Node) -> None:
+        try:
+            # NodeList's initial highlight can fire while sibling panes are
+            # still mounting; _populate_initial re-drives this after refresh.
+            self.query_one("#alts-head", Static).update(
+                f"{c('muted', 'ALTERNATIVES ·')} {c('green', node.name)}"
+                f" {c('muted', '· ' + node.select)}")
+        except NoMatches:
+            pass
+
     def _populate_initial(self) -> None:
         # After the first refresh the TabbedContent panes exist; show detail
-        # for the initially-highlighted node (alternatives were already
-        # populated by the node list's startup highlight).
+        # and the alternatives subheader for the initially-highlighted node
+        # (alternatives were already populated by the startup highlight).
         node = self._current_node()
         if node:
+            self._update_alts_head(node)
             self._show_detail(node)
 
     # ---- navigation wiring ----------------------------------------------
@@ -137,6 +159,7 @@ class SheppyApp(App):
             return
         node = self.manifest.nodes[event.index]
         sel = self.state.selected(node.name) if self.state else None
+        self._update_alts_head(node)
         await self.query_one(AlternativesPanel).show(node, sel)
         self._show_detail(node)
 

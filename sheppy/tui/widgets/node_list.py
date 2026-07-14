@@ -14,6 +14,29 @@ def _selected_alt(node: Node, selected_id):
     return None
 
 
+class NodeListHeader(Horizontal):
+    """Column-title row above the NodeList.
+
+    Textual scopes DEFAULT_CSS to the declaring widget, so the column widths
+    must be repeated here — keep them in sync with NodeList's col classes.
+    """
+
+    DEFAULT_CSS = """
+    NodeListHeader { height: 1; background: $subhead-bg; padding: 0 1 0 2; }
+    NodeListHeader Label { color: $text-muted; }
+    NodeListHeader .col-status { width: 3; }
+    NodeListHeader .col-name { width: 1fr; }
+    NodeListHeader .col-alt { width: 14; }
+    NodeListHeader .col-host { width: 8; }
+    """
+
+    def compose(self):
+        yield Label("", classes="col-status")
+        yield Label("NODE", classes="col-name")
+        yield Label("ALTERNATIVE", classes="col-alt")
+        yield Label("HOST", classes="col-host")
+
+
 class NodeList(ListView):
     """Left pane. Columnar node rows (status · node · alt · host). Wraps
     ListView to preserve the proven highlight/select/focus behavior, and
@@ -21,23 +44,22 @@ class NodeList(ListView):
     Presentational: renders from a plain selection dict (node -> alt id)."""
 
     DEFAULT_CSS = """
-    NodeList {
-        width: 34%; height: 1fr; background: $surface;
-        border-right: solid $divider; padding: 0;
-    }
+    NodeList { width: 1fr; height: 1fr; background: $background; padding: 0; }
     NodeList > ListItem {
-        padding: 0 1; background: $surface;
-        border-left: thick $surface;
+        padding: 0 1; background: $background;
+        border-left: thick $background;
     }
     NodeList > ListItem > Horizontal { height: 1; }
     NodeList > ListItem.-highlight {
         background: $sel-bg; border-left: thick $accent;
     }
     NodeList > ListItem.-highlight .col-name { text-style: bold; }
+    /* Keep col widths in sync with NodeListHeader (DEFAULT_CSS is scoped). */
     NodeList .col-status { width: 3; }
     NodeList .col-name { width: 1fr; color: $foreground; }
-    NodeList .col-alt { width: auto; color: $text-muted; }
-    NodeList .col-host { width: 9; color: $text-muted; }
+    NodeList .col-alt { width: 14; color: $text-muted; }
+    NodeList .col-host { width: 8; color: $text-muted; }
+    NodeList .col-alt.-set { color: $success; }
     """
 
     class NodeHighlighted(Message):
@@ -69,7 +91,8 @@ class NodeList(ListView):
                 Label(c(st.color_key(status), st.glyph(status)),
                       classes="col-status"),
                 Label(node.name, classes="col-name", markup=False),
-                Label(sel or "—", classes="col-alt", markup=False),
+                Label(sel or "—", classes="col-alt -set" if sel else "col-alt",
+                      markup=False),
                 Label(host, classes="col-host", markup=False),
             ),
             id=f"node-{i}",
@@ -85,7 +108,9 @@ class NodeList(ListView):
             row = self.query_one(f"#node-{i}")
             row.query_one(".col-status", Label).update(
                 c(st.color_key(status), st.glyph(status)))
-            row.query_one(".col-alt", Label).update(sel or "—")
+            alt_label = row.query_one(".col-alt", Label)
+            alt_label.update(sel or "—")
+            alt_label.set_class(bool(sel), "-set")
             row.query_one(".col-host", Label).update(host)
 
     def on_list_view_highlighted(self, event) -> None:

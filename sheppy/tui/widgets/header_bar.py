@@ -16,14 +16,18 @@ class HeaderBar(Horizontal):
     HeaderBar > Static { width: auto; height: 1; }
     HeaderBar #hb-spring { width: 1fr; }
     HeaderBar #hb-errors { margin: 0 2 0 0; }
+    HeaderBar .hb-sep { color: $chip-border; margin: 0 1; }
     """
 
     def compose(self):
         yield Static(c("green", "🐑 sheppy"), id="hb-brand")
+        yield Static("│", classes="hb-sep")
         yield Static("", id="profilebar")
+        yield Static("│", classes="hb-sep")
         yield Static("", id="hb-source")
         yield Static("", id="hb-spring")
         yield Static("", id="hb-errors")
+        yield Static("│", classes="hb-sep")
         yield Static("", id="hb-clock")
 
     def on_mount(self) -> None:
@@ -39,9 +43,9 @@ class HeaderBar(Horizontal):
         name = profile_name or "<none>"
         dirty_mark = c("yellow", "*") if dirty else ""
         self.query_one("#profilebar", Static).update(
-            f"  {c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
+            f"{c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
         source = f"{path or '<no file>'} · {node_count} nodes"
-        self.query_one("#hb-source", Static).update(f"  {c('muted', source)}")
+        self.query_one("#hb-source", Static).update(c("muted", source))
         if error_count:
             errtext = c("red", f"✕ {error_count} error(s)")
         else:

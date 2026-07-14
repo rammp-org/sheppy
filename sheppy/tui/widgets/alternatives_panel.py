@@ -14,13 +14,10 @@ class AlternativesPanel(ListView):
     concern and deliberately absent here. Re-posts semantic messages."""
 
     DEFAULT_CSS = """
-    AlternativesPanel {
-        width: 26%; height: 1fr; background: $surface;
-        border-right: solid $divider; padding: 0;
-    }
+    AlternativesPanel { width: 1fr; height: 1fr; background: $background; padding: 0; }
     AlternativesPanel > ListItem {
-        height: auto; padding: 1 1; background: $surface;
-        border-left: thick $surface;
+        height: auto; padding: 1 1; background: $background;
+        border-left: thick $background;
     }
     /* Pin the item body to its content height so the highlighted row's
        accent bar spans only the row, not the whole pane. */
