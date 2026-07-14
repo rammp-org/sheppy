@@ -61,7 +61,14 @@ uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
 | `l` | Load a profile (Enter to load, `d` to delete) |
 | `p` | Edit the highlighted node's declared parameters |
 | `e` | Toggle the validation-error overlay |
+| `1`–`4` | Switch detail tab (Detail / Topics / Process / YAML) |
 | `Ctrl+C` | Quit |
+
+The TUI uses an operator-cockpit layout: a header bar (profile · source ·
+errors · clock), a machines strip, the three-pane body (nodes · alternatives ·
+tabbed detail), and a footer of key hints. Process status, live machine
+connections, and the topics "live" column are labeled placeholders that later
+phases (2b/3/4) fill in.
 
 A malformed manifest never crashes the app — errors are listed in the overlay
 (`e`) and the rest stays browsable. The same holds for profiles: a corrupt

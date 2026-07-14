@@ -72,6 +72,9 @@ class SheppyApp(App):
         self.register_theme(SHEPPY_DARK)
         self.theme = "sheppy-dark"
         self._refresh_header()
+        # call_after_refresh defers _populate_initial until the currently-queued
+        # mount/compose messages have been processed, so TabbedContent's inner
+        # panes (and #detail) are guaranteed to exist by the time it runs.
         self.call_after_refresh(self._populate_initial)
 
     # ---- view-model helpers ---------------------------------------------
