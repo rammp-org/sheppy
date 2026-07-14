@@ -1,6 +1,7 @@
 import yaml
 
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.widgets import Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
@@ -49,14 +50,23 @@ class DetailTabs(Vertical):
         self.query_one("#detailtabs", TabbedContent).active = tab_id
 
     def show(self, node: Node, alt: "Alternative | None") -> None:
-        if alt is None:
-            self.query_one("#detail", Static).update("")
-            self.query_one("#detail-topics", Static).update("")
-            self.query_one("#detail-yaml", Static).update("")
+        try:
+            detail = self.query_one("#detail", Static)
+            topics = self.query_one("#detail-topics", Static)
+            yaml_s = self.query_one("#detail-yaml", Static)
+        except NoMatches:
+            # Inner TabPane content isn't mounted yet (TabbedContent composes
+            # on a later async pass than the node list's first highlight).
+            # The app re-drives detail via call_after_refresh once mounted.
             return
-        self.query_one("#detail", Static).update(format_detail(alt))
-        self.query_one("#detail-topics", Static).update(self._topics(alt))
-        self.query_one("#detail-yaml", Static).update(self._yaml(alt))
+        if alt is None:
+            detail.update("")
+            topics.update("")
+            yaml_s.update("")
+            return
+        detail.update(format_detail(alt))
+        topics.update(self._topics(alt))
+        yaml_s.update(self._yaml(alt))
 
     def _topics(self, alt: Alternative) -> str:
         lines = [c("muted", f"{'topic':<30}{'dir':<6}{'declared':<10}live")]

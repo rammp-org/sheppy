@@ -20,9 +20,10 @@ async def test_node_list_renders():
     app = SheppyApp(_result())
     async with app.run_test() as pilot:
         nodes = app.query_one("#nodes")
-        # Textual 8.2.7: Static/Label stores content via .content property, not .renderable
-        labels = [item.query_one("Label").content for item in nodes.children]
-        text = "\n".join(str(label) for label in labels)
+        # Rows now have multiple column Labels; join them.
+        text = "\n".join(
+            " ".join(str(l.content) for l in item.query("Label"))
+            for item in nodes.children)
         assert "camera" in text and "planner" in text
 
 
@@ -32,30 +33,25 @@ async def test_highlighting_node_populates_alternatives():
         app.query_one("#nodes").index = 0
         await pilot.pause()
         alts = app.query_one("#alternatives")
-        # Textual 8.2.7: Static/Label stores content via .content property, not .renderable
-        text = "\n".join(str(i.query_one("Label").content) for i in alts.children)
+        text = "\n".join(
+            " ".join(str(l.content) for l in item.query("Label"))
+            for item in alts.children)
         assert "realsense" in text and "mock" in text
 
 
 async def test_selecting_alternative_updates_state_and_label():
     app = SheppyApp(_result())
     async with app.run_test() as pilot:
-        # Highlight node 0 (camera); focus stays on #nodes.
         app.query_one("#nodes").index = 0
         await pilot.pause()
-        # Deliberate descent: Enter on the node list focuses #alternatives.
         await pilot.press("enter")
         await pilot.pause()
-        # Navigate to "mock" (index 1) in the alternatives list.
         app.query_one("#alternatives").index = 1
         await pilot.pause()
-        # Select the alternative via Enter on #alternatives.
         await pilot.press("enter")
         await pilot.pause()
         assert app.state.selected("camera") == "mock"
-        # Textual 8.2.7: Static/Label stores content via .content property, not .renderable
-        first_label = str(app.query_one("#node-0 Label").content)
-        assert "mock" in first_label
+        assert "mock" in str(app.query_one("#node-0 .col-alt").content)
 
 
 async def test_node_list_navigation_keeps_focus():
@@ -125,9 +121,9 @@ async def test_status_bar_shows_error_count():
                         [ValidationError("nodes[0]", "boom")])
     app = SheppyApp(result, path="system.yaml")
     async with app.run_test() as pilot:
-        # Textual 8.2.7: Static exposes text via .content (not .renderable)
-        status = str(app.query_one("#status").content)
-        assert "system.yaml" in status and "1 error" in status
+        src = str(app.query_one("#hb-source").content)
+        err = str(app.query_one("#hb-errors").content)
+        assert "system.yaml" in src and "1 error" in err
 
 
 async def test_error_overlay_toggles():
