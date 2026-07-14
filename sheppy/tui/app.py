@@ -23,6 +23,7 @@ __all__ = ["SheppyApp", "format_detail"]
 
 class SheppyApp(App):
     CSS = """
+    Screen { background: $background; }
     #body { height: 1fr; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
@@ -51,6 +52,11 @@ class SheppyApp(App):
         self.store: "ProfileStore | None" = (
             ProfileStore(profiles_dir) if profiles_dir else None)
         self._runtime_warnings: list = []
+        # Register/select the theme in __init__ so its custom CSS variables
+        # ($sel-bg, $chip-border, $divider, …) are defined before the widget
+        # DEFAULT_CSS is parsed at mount time.
+        self.register_theme(SHEPPY_DARK)
+        self.theme = "sheppy-dark"
 
     # ---- composition -----------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -69,8 +75,6 @@ class SheppyApp(App):
         yield errors
 
     def on_mount(self) -> None:
-        self.register_theme(SHEPPY_DARK)
-        self.theme = "sheppy-dark"
         self._refresh_header()
         # call_after_refresh defers _populate_initial until the currently-queued
         # mount/compose messages have been processed, so TabbedContent's inner

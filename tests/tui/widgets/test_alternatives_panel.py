@@ -1,6 +1,7 @@
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from sheppy.manifest import Node, Alternative
 from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
+from tests.tui.widgets._themed import ThemedApp
 
 
 def _node():
@@ -12,7 +13,7 @@ def _node():
     ])
 
 
-class _Harness(App):
+class _Harness(ThemedApp):
     def compose(self) -> ComposeResult:
         yield AlternativesPanel()
 

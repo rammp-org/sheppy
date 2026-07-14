@@ -41,4 +41,27 @@ SHEPPY_DARK = Theme(
     warning=PALETTE["yellow"],
     error=PALETTE["red"],
     dark=True,
+    # Custom CSS variables (referenced as $name in widget DEFAULT_CSS) so the
+    # cockpit's structural colors stay single-sourced here, not in each widget.
+    variables={
+        "sel-bg": "#2f3947",      # highlighted/selected row background
+        "chip-bg": "#242832",     # machine/keycap chip fill
+        "chip-border": "#3b4048", # chip outline
+        "divider": "#14171c",     # thin line between panes
+        # Tame Textual's default list cursor (a bright accent block) into the
+        # cockpit's subtle selection look, with readable text.
+        "block-cursor-background": "#2f3947",
+        "block-cursor-foreground": "#e6e9ef",
+        "block-cursor-text-style": "bold",
+        "block-cursor-blurred-background": "#2b323d",
+        "block-cursor-blurred-foreground": "#abb2bf",
+        "block-cursor-blurred-text-style": "none",
+        # Scrollbars recede into the surface instead of the default blue.
+        "scrollbar": "#2c313a",
+        "scrollbar-hover": "#3b4048",
+        "scrollbar-active": "#3b4048",
+        "scrollbar-background": "#21252b",
+        "scrollbar-background-hover": "#21252b",
+        "scrollbar-background-active": "#21252b",
+    },
 )

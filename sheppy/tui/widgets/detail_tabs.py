@@ -31,8 +31,12 @@ class DetailTabs(Vertical):
     the whole PROCESS tab are labeled placeholders for phases 4 and 2b."""
 
     DEFAULT_CSS = """
-    DetailTabs { width: 1fr; height: 1fr; }
-    DetailTabs Static { padding: 0 1; }
+    DetailTabs { width: 1fr; height: 1fr; background: $background; }
+    DetailTabs Tabs { background: $panel; }
+    DetailTabs Tab { color: $text-muted; margin: 0 1 0 0; }
+    DetailTabs Tab.-active { color: $foreground; text-style: bold; }
+    DetailTabs TabPane { padding: 1 2; }
+    DetailTabs Static { padding: 0 0; }
     """
 
     def compose(self):

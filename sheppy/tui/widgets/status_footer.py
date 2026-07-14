@@ -27,6 +27,9 @@ class StatusFooter(Horizontal):
 
     def compose(self):
         for i, (key, label) in enumerate(KEYMAP):
-            yield Static(f"{c('green', key)} {c('muted', label)}", id=f"sf-{i}")
+            # Inverse-video key reads as a keycap in a single-row footer (a
+            # bordered box would need 3 rows). Label stays muted.
+            keycap = f"[reverse] {key} [/]"
+            yield Static(f"{keycap} {c('muted', label)}", id=f"sf-{i}")
         yield Static("", id="sf-spring")
         yield Static(c("muted", "sheppyd ○ offline — phase 2b"), id="sf-daemon")

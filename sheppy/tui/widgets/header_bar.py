@@ -15,6 +15,7 @@ class HeaderBar(Horizontal):
     HeaderBar { height: 1; background: $panel; padding: 0 1; }
     HeaderBar > Static { width: auto; height: 1; }
     HeaderBar #hb-spring { width: 1fr; }
+    HeaderBar #hb-errors { margin: 0 2 0 0; }
     """
 
     def compose(self):

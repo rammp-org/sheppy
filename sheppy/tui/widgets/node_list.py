@@ -21,11 +21,23 @@ class NodeList(ListView):
     Presentational: renders from a plain selection dict (node -> alt id)."""
 
     DEFAULT_CSS = """
-    NodeList { width: 34%; height: 1fr; border: solid $accent; }
+    NodeList {
+        width: 34%; height: 1fr; background: $surface;
+        border-right: solid $divider; padding: 0;
+    }
+    NodeList > ListItem {
+        padding: 0 1; background: $surface;
+        border-left: thick $surface;
+    }
+    NodeList > ListItem > Horizontal { height: 1; }
+    NodeList > ListItem.-highlight {
+        background: $sel-bg; border-left: thick $accent;
+    }
+    NodeList > ListItem.-highlight .col-name { text-style: bold; }
     NodeList .col-status { width: 3; }
-    NodeList .col-name { width: 1fr; }
+    NodeList .col-name { width: 1fr; color: $foreground; }
     NodeList .col-alt { width: auto; color: $text-muted; }
-    NodeList .col-host { width: 10; color: $text-muted; }
+    NodeList .col-host { width: 9; color: $text-muted; }
     """
 
     class NodeHighlighted(Message):

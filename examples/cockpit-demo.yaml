@@ -1,0 +1,133 @@
+# A fuller example manifest that exercises the operator-cockpit layout:
+# several nodes across three machines, a mix of alternative kinds, and
+# declared topics. Load with:  uv run sheppy examples/cockpit-demo.yaml
+machines:
+  - {name: robot, host: 10.0.0.20, user: researcher, ros_setup: /opt/ros/humble/setup.bash}
+  - {name: workstation, host: 10.0.0.5, user: researcher}
+  - {name: vision-pc, host: 10.0.0.31, user: researcher}
+
+nodes:
+  - name: camera
+    description: "RGB-D source"
+    select: single
+    alternatives:
+      - id: realsense
+        kind: launch_file
+        package: realsense2_camera
+        launch_file: rs_launch.py
+        machine: robot
+        params: {enable_depth: true, "pointcloud.enable": true}
+        publishes: [/camera/color/image_raw, /camera/depth/points]
+        subscribes: [/tf]
+      - id: mock_camera
+        kind: executable
+        package: our_mocks
+        executable: mock_camera
+        machine: workstation
+        publishes: [/camera/color/image_raw]
+      - id: rosbag_replay
+        kind: process
+        command: "ros2 bag play recordings/session_04"
+        machine: workstation
+        publishes: [/camera/color/image_raw, /camera/depth/points]
+
+  - name: lidar
+    description: "3D point cloud"
+    select: single
+    alternatives:
+      - id: velodyne_hi
+        kind: launch_file
+        package: velodyne
+        launch_file: velodyne-all-nodes.launch.py
+        machine: robot
+        publishes: [/velodyne_points]
+
+  - name: arm_driver
+    select: single
+    alternatives:
+      - id: mock_arm
+        kind: executable
+        package: our_mocks
+        executable: mock_arm
+        machine: workstation
+        subscribes: [/arm/command]
+
+  - name: perception
+    description: "object detection"
+    select: single
+    alternatives:
+      - id: yolo_v8
+        kind: executable
+        package: perception
+        executable: yolo_node
+        machine: vision-pc
+        subscribes: [/camera/color/image_raw]
+        publishes: [/detections]
+
+  - name: planner
+    select: single
+    alternatives:
+      - id: ompl_planner
+        kind: executable
+        package: planning
+        executable: ompl_node
+        machine: robot
+        subscribes: [/detections]
+        publishes: [/plan]
+
+  - name: tf_broadcaster
+    select: single
+    alternatives:
+      - id: static_tf
+        kind: launch_file
+        package: robot_state_publisher
+        launch_file: rsp.launch.py
+        machine: robot
+        publishes: [/tf, /tf_static]
+
+  - name: localizer
+    select: single
+    alternatives:
+      - id: amcl
+        kind: executable
+        package: nav2_amcl
+        executable: amcl
+        machine: robot
+        subscribes: [/velodyne_points]
+        publishes: [/amcl_pose]
+
+  - name: sim_gui
+    select: single
+    alternatives:
+      - id: unreal
+        kind: process
+        command: "/opt/sim/UnrealEditor MyProject -game"
+        machine: workstation
+
+  - name: battery_monitor
+    select: single
+    alternatives:
+      - id: bms_real
+        kind: executable
+        package: power
+        executable: bms_node
+        machine: robot
+        publishes: [/battery_state]
+
+  - name: recorder
+    select: single
+    alternatives:
+      - id: rosbag_rec
+        kind: process
+        command: "ros2 bag record -a"
+        machine: workstation
+
+  - name: teleop
+    select: single
+    alternatives:
+      - id: joy_teleop
+        kind: executable
+        package: teleop_twist_joy
+        executable: teleop_node
+        machine: workstation
+        publishes: [/cmd_vel]

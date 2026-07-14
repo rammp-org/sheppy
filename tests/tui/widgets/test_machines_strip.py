@@ -1,9 +1,10 @@
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from sheppy.manifest import Machine
 from sheppy.tui.widgets.machines_strip import MachinesStrip
+from tests.tui.widgets._themed import ThemedApp
 
 
-class _Harness(App):
+class _Harness(ThemedApp):
     def __init__(self, machines):
         super().__init__()
         self._machines = machines

@@ -1,6 +1,7 @@
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from sheppy.manifest import Node, Alternative
 from sheppy.tui.widgets.node_list import NodeList
+from tests.tui.widgets._themed import ThemedApp
 
 
 def _nodes():
@@ -13,7 +14,7 @@ def _nodes():
     ]
 
 
-class _Harness(App):
+class _Harness(ThemedApp):
     def __init__(self, selection):
         super().__init__()
         self._selection = selection

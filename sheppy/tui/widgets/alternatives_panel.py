@@ -14,7 +14,21 @@ class AlternativesPanel(ListView):
     concern and deliberately absent here. Re-posts semantic messages."""
 
     DEFAULT_CSS = """
-    AlternativesPanel { width: 26%; height: 1fr; border: solid $accent; }
+    AlternativesPanel {
+        width: 26%; height: 1fr; background: $surface;
+        border-right: solid $divider; padding: 0;
+    }
+    AlternativesPanel > ListItem {
+        height: auto; padding: 1 1; background: $surface;
+        border-left: thick $surface;
+    }
+    /* Pin the item body to its content height so the highlighted row's
+       accent bar spans only the row, not the whole pane. */
+    AlternativesPanel > ListItem > Vertical { height: auto; }
+    AlternativesPanel > ListItem.-highlight {
+        background: $sel-bg; border-left: thick $accent;
+    }
+    AlternativesPanel .alt-main { text-style: bold; }
     AlternativesPanel .alt-sub { color: $text-muted; }
     """
 
