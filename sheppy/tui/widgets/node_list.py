@@ -56,9 +56,9 @@ class NodeList(ListView):
             Horizontal(
                 Label(c(st.color_key(status), st.glyph(status)),
                       classes="col-status"),
-                Label(node.name, classes="col-name"),
-                Label(sel or "—", classes="col-alt"),
-                Label(host, classes="col-host"),
+                Label(node.name, classes="col-name", markup=False),
+                Label(sel or "—", classes="col-alt", markup=False),
+                Label(host, classes="col-host", markup=False),
             ),
             id=f"node-{i}",
         )

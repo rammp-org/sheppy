@@ -2,6 +2,7 @@ import yaml
 
 from textual.containers import Vertical
 from textual.css.query import NoMatches
+from textual.markup import escape
 from textual.widgets import Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
@@ -37,14 +38,14 @@ class DetailTabs(Vertical):
     def compose(self):
         with TabbedContent(id="detailtabs"):
             with TabPane("DETAIL", id="tab-detail"):
-                yield Static("", id="detail")
+                yield Static("", id="detail", markup=False)
             with TabPane("TOPICS", id="tab-topics"):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
                 yield Static(c("muted", "requires sheppyd — phase 2b"),
                              id="detail-process")
             with TabPane("YAML", id="tab-yaml"):
-                yield Static("", id="detail-yaml")
+                yield Static("", id="detail-yaml", markup=False)
 
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
@@ -71,9 +72,11 @@ class DetailTabs(Vertical):
     def _topics(self, alt: Alternative) -> str:
         lines = [c("muted", f"{'topic':<30}{'dir':<6}{'declared':<10}live")]
         for t in alt.publishes:
-            lines.append(f"{t:<30}{c('green', 'pub'):<6}✓         {c('muted', '—')}")
+            et = escape(t)
+            lines.append(f"{et:<30}{c('green', 'pub'):<6}✓         {c('muted', '—')}")
         for t in alt.subscribes:
-            lines.append(f"{t:<30}{c('yellow', 'sub'):<6}✓         {c('muted', '—')}")
+            et = escape(t)
+            lines.append(f"{et:<30}{c('yellow', 'sub'):<6}✓         {c('muted', '—')}")
         if not alt.publishes and not alt.subscribes:
             lines.append(c("muted", "(no declared topics)"))
         lines.append(c("muted", "live column — phase 4"))

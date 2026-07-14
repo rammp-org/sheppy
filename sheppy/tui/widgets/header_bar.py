@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from textual.containers import Horizontal
+from textual.markup import escape
 from textual.widgets import Static
 
 from sheppy.tui.widgets.theme import c
@@ -37,7 +38,7 @@ class HeaderBar(Horizontal):
         name = profile_name or "<none>"
         dirty_mark = c("yellow", "*") if dirty else ""
         self.query_one("#profilebar", Static).update(
-            f"  {c('purple', '◆ profile')} {name}{dirty_mark}")
+            f"  {c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
         source = f"{path or '<no file>'} · {node_count} nodes"
         self.query_one("#hb-source", Static).update(f"  {c('muted', source)}")
         if error_count:

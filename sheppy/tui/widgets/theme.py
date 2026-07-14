@@ -1,6 +1,7 @@
 """Atom One Dark palette and Textual theme — the single source of truth
 for Sheppy's colors. Widgets import PALETTE / c() for inline markup and the
 app registers SHEPPY_DARK. Do not hardcode hex colors anywhere else."""
+from textual.markup import escape
 from textual.theme import Theme
 
 PALETTE = {
@@ -20,8 +21,11 @@ PALETTE = {
 
 
 def c(key: str, text: str) -> str:
-    """Wrap text in Rich hex markup using a PALETTE color key."""
-    return f"[{PALETTE[key]}]{text}[/]"
+    """Wrap text in Rich hex markup using a PALETTE color key. The text is
+    escaped first so caller-supplied/user data can never be parsed as
+    markup (e.g. a node name containing '[/x]' must render literally, not
+    raise textual.markup.MarkupError)."""
+    return f"[{PALETTE[key]}]{escape(str(text))}[/]"
 
 
 SHEPPY_DARK = Theme(

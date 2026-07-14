@@ -64,7 +64,7 @@ class SheppyApp(App):
             id="body",
         )
         yield StatusFooter()
-        errors = Static(self._errors_text(), id="errors")
+        errors = Static(self._errors_text(), id="errors", markup=False)
         errors.display = False
         yield errors
 

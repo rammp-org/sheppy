@@ -49,7 +49,7 @@ class LoadModal(ModalScreen["tuple | None"]):
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
             yield Label("Load profile — Enter=load, d=delete, Esc=cancel")
-            items = [ListItem(Label(n), id=f"prof-{i}")
+            items = [ListItem(Label(n, markup=False), id=f"prof-{i}")
                      for i, n in enumerate(self._names)]
             yield ListView(*items, id="proflist")
 
@@ -87,7 +87,7 @@ class ConfirmModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
-            yield Label(self._prompt)
+            yield Label(self._prompt, markup=False)
             yield Label("y = yes, n = no")
 
     def on_key(self, event) -> None:
@@ -119,9 +119,9 @@ class ParamEditorModal(ModalScreen["dict | None"]):
         with Vertical(id="dialog"):
             yield Label("Edit params — Enter=apply, Esc=cancel")
             for i, name in enumerate(self._names):
-                yield Label(name)
+                yield Label(name, markup=False)
                 yield Input(value=str(self._params[name]), id=f"param-{i}")
-            yield Label("", id="param-error")
+            yield Label("", id="param-error", markup=False)
 
     def on_mount(self) -> None:
         # Focus the first param field so pilot key presses land and Enter submits.

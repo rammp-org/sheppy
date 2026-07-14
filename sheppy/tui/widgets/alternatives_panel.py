@@ -2,6 +2,8 @@ from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Label, ListItem, ListView
 
+from textual.markup import escape
+
 from sheppy.manifest import Node
 from sheppy.tui.widgets.theme import c
 
@@ -41,7 +43,7 @@ class AlternativesPanel(ListView):
         pkg = alt.package or alt.command or "—"
         counts = f"↑{len(alt.publishes)} ↓{len(alt.subscribes)}"
         return Vertical(
-            Label(f"{c(ckey, radio)} {alt.id}", classes="alt-main"),
+            Label(f"{c(ckey, radio)} {escape(alt.id)}", classes="alt-main"),
             Label(c("muted", f"{alt.kind} · {pkg}   {counts}"), classes="alt-sub"),
         )
 
