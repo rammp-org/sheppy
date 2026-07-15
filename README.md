@@ -79,6 +79,21 @@ Profiles are stored as one YAML file per profile in a `profiles/` directory next
 to your manifest (e.g. `examples/profiles/all-mock.yaml`); the filename is the
 profile name. They're plain, version-controllable text.
 
+### Colors washed out over SSH?
+
+Sheppy's palette needs 24-bit color. The decision is made on the machine
+*running* sheppy: with `COLORTERM` unset (SSH does not forward it by default)
+and `TERM=xterm-256color`, Textual quantizes every color to the 256-color
+palette and the subtle background layering collapses. On the remote machine:
+
+```bash
+export COLORTERM=truecolor   # add to your remote ~/.bashrc / ~/.zshrc
+```
+
+(or forward it: `SendEnv COLORTERM` in your local `~/.ssh/config` plus
+`AcceptEnv COLORTERM` in the server's `sshd_config`). If you use tmux on the
+remote, also add `set -as terminal-overrides ',*:Tc'` to `~/.tmux.conf`.
+
 ### Run the tests
 
 ```bash
