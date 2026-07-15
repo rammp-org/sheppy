@@ -3,44 +3,34 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.widgets import Header, Footer, Label, ListView, ListItem, Static
+from textual.widgets import Static
 
-from sheppy.manifest import LoadResult, Node, Alternative
+from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.profile_modals import (
     SaveNameModal, LoadModal, ConfirmModal, ParamEditorModal,
 )
+from sheppy.tui.widgets.theme import SHEPPY_DARK, c
+from sheppy.tui.widgets.header_bar import HeaderBar
+from sheppy.tui.widgets.machines_strip import MachinesStrip
+from sheppy.tui.widgets.status_footer import StatusFooter
+from sheppy.tui.widgets.node_list import NodeList, NodeListHeader
+from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
+from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail  # re-export
 
-
-def _node_label(node: Node, state: "ProfileState | None") -> str:
-    chosen = state.selected(node.name) if state else None
-    return f"{node.name}  [{chosen or '—'}]"
-
-
-def format_detail(alt: Alternative) -> str:
-    """Pure function: format an Alternative's fields as a multi-line string."""
-    lines = [f"id: {alt.id}", f"kind: {alt.kind}"]
-    if alt.kind == "executable":
-        lines.append(f"package/executable: {alt.package} / {alt.executable}")
-    elif alt.kind == "launch_file":
-        lines.append(f"package/launch_file: {alt.package} / {alt.launch_file}")
-    elif alt.kind == "process":
-        lines.append(f"command: {alt.command}")
-    lines.append(f"machine: {alt.machine or '—'}")
-    lines.append(f"params: {alt.params or '—'}")
-    lines.append(f"publishes: {', '.join(alt.publishes) or '—'}")
-    lines.append(f"subscribes: {', '.join(alt.subscribes) or '—'}")
-    return "\n".join(lines)
+__all__ = ["SheppyApp", "format_detail"]
 
 
 class SheppyApp(App):
     CSS = """
-    #nodes { width: 40%; border: solid $accent; }
-    #alternatives { height: auto; max-height: 50%; border: solid $accent; }
-    #detail { height: 1fr; border: solid $accent; padding: 0 1; }
-    #status { dock: bottom; height: 1; background: $panel; }
+    Screen { background: $background; }
+    #body { height: 1fr; }
+    /* max-width keeps the mockup's proportions on very wide terminals —
+       otherwise the 1fr name column pushes ALTERNATIVE/HOST far right. */
+    #nodes-pane { width: 34%; max-width: 58; height: 1fr; border-right: solid $divider; }
+    #alts-pane { width: 26%; max-width: 46; height: 1fr; border-right: solid $divider; }
+    #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
-    #profilebar { dock: top; height: 1; background: $boost; color: $text; padding: 0 1; }
     #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
     """
     BINDINGS = [
@@ -49,6 +39,10 @@ class SheppyApp(App):
         ("s", "save_profile", "Save"),
         ("l", "load_profile", "Load"),
         ("p", "edit_params", "Params"),
+        ("1", "show_tab('tab-detail')", "Detail"),
+        ("2", "show_tab('tab-topics')", "Topics"),
+        ("3", "show_tab('tab-process')", "Process"),
+        ("4", "show_tab('tab-yaml')", "YAML"),
     ]
     show_errors = reactive(False)
 
@@ -63,74 +57,157 @@ class SheppyApp(App):
         self.store: "ProfileStore | None" = (
             ProfileStore(profiles_dir) if profiles_dir else None)
         self._runtime_warnings: list = []
+        # Register/select the theme in __init__ so its custom CSS variables
+        # ($sel-bg, $chip-border, $divider, …) are defined before the widget
+        # DEFAULT_CSS is parsed at mount time.
+        self.register_theme(SHEPPY_DARK)
+        self.theme = "sheppy-dark"
 
+    # ---- composition -----------------------------------------------------
     def compose(self) -> ComposeResult:
-        yield Header()
-        yield Static(self._profile_bar_text(), id="profilebar")
-        node_items = []
-        if self.manifest:
-            for i, node in enumerate(self.manifest.nodes):
-                node_items.append(
-                    ListItem(Label(_node_label(node, self.state)), id=f"node-{i}"))
+        yield HeaderBar()
+        yield MachinesStrip(self.manifest.machines if self.manifest else [])
+        nodes = self.manifest.nodes if self.manifest else []
         yield Horizontal(
-            ListView(*node_items, id="nodes"),
             Vertical(
-                ListView(id="alternatives"),
-                Static(id="detail"),
+                NodeListHeader(),
+                NodeList(nodes, self._current_selection()),
+                id="nodes-pane",
             ),
+            Vertical(
+                Static(c("muted", "ALTERNATIVES"), id="alts-head"),
+                AlternativesPanel(),
+                id="alts-pane",
+            ),
+            DetailTabs(),
+            id="body",
         )
-        yield Static(self._status_text(), id="status")
-        errors = Static(self._errors_text(), id="errors")
+        yield StatusFooter()
+        errors = Static(self._errors_text(), id="errors", markup=False)
         errors.display = False
         yield errors
-        yield Footer()
 
-    def _profile_bar_text(self) -> str:
-        if not self.state:
-            return "Profile: <none>"
-        name = self.state.active_profile_name or "<none>"
-        dirty = " *" if self.state.is_dirty else ""
-        return f"Profile: {name}{dirty}"
+    def on_mount(self) -> None:
+        self._refresh_header()
+        # call_after_refresh defers _populate_initial until the currently-queued
+        # mount/compose messages have been processed, so TabbedContent's inner
+        # panes (and #detail) are guaranteed to exist by the time it runs.
+        self.call_after_refresh(self._populate_initial)
 
-    def _refresh_profile_bar(self) -> None:
+    # ---- view-model helpers ---------------------------------------------
+    def _current_selection(self) -> dict:
+        if not self.state or not self.manifest:
+            return {}
+        out = {}
+        for n in self.manifest.nodes:
+            sel = self.state.selected(n.name)
+            if sel:
+                out[n.name] = sel
+        return out
+
+    def _refresh_header(self) -> None:
         try:
-            self.query_one("#profilebar", Static).update(self._profile_bar_text())
+            hb = self.query_one(HeaderBar)
         except NoMatches:
-            pass
-
-    def _status_text(self) -> str:
-        n = len(self.load_result.errors)
-        state = "ok" if n == 0 else f"{n} error(s)"
-        return f"{self.path or '<no file>'} — {state}"
+            return
+        name = self.state.active_profile_name if self.state else None
+        dirty = self.state.is_dirty if self.state else False
+        node_count = len(self.manifest.nodes) if self.manifest else 0
+        hb.update_state(name, dirty, self.path, node_count,
+                        len(self.load_result.errors))
 
     def _errors_text(self) -> str:
         lines = [f"{e.location}: {e.message}" for e in self.load_result.errors]
         lines.extend(self._runtime_warnings)
-        if not lines:
-            return "no errors"
-        return "\n".join(lines)
+        return "\n".join(lines) if lines else "no errors"
 
+    def _current_node(self) -> "Node | None":
+        if not self.manifest:
+            return None
+        idx = self.query_one(NodeList).index
+        if idx is None:
+            return None
+        return self.manifest.nodes[idx]
+
+    def _show_detail(self, node: Node) -> None:
+        idx = self.query_one(AlternativesPanel).index
+        alt = (node.alternatives[idx]
+               if idx is not None and node.alternatives else None)
+        self.query_one(DetailTabs).show(node, alt)
+
+    def _update_alts_head(self, node: Node) -> None:
+        try:
+            # NodeList's initial highlight can fire while sibling panes are
+            # still mounting; _populate_initial re-drives this after refresh.
+            self.query_one("#alts-head", Static).update(
+                f"{c('muted', 'ALTERNATIVES ·')} {c('green', node.name)}"
+                f" {c('muted', '· ' + node.select)}")
+        except NoMatches:
+            pass
+
+    def _populate_initial(self) -> None:
+        # After the first refresh the TabbedContent panes exist; show detail
+        # and the alternatives subheader for the initially-highlighted node
+        # (alternatives were already populated by the startup highlight).
+        node = self._current_node()
+        if node:
+            self._update_alts_head(node)
+            self._show_detail(node)
+
+    # ---- navigation wiring ----------------------------------------------
+    async def on_node_list_node_highlighted(
+            self, event: NodeList.NodeHighlighted) -> None:
+        if not self.manifest:
+            return
+        node = self.manifest.nodes[event.index]
+        sel = self.state.selected(node.name) if self.state else None
+        self._update_alts_head(node)
+        await self.query_one(AlternativesPanel).show(node, sel)
+        self._show_detail(node)
+
+    def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
+        # Deliberate descent: move focus into the alternatives pane.
+        self.query_one(AlternativesPanel).focus()
+
+    def on_alternatives_panel_alternative_highlighted(
+            self, event: AlternativesPanel.AlternativeHighlighted) -> None:
+        node = self._current_node()
+        if node and node.alternatives and event.index is not None:
+            self.query_one(DetailTabs).show(node, node.alternatives[event.index])
+
+    async def on_alternatives_panel_alternative_selected(
+            self, event: AlternativesPanel.AlternativeSelected) -> None:
+        node = self._current_node()
+        if node is None or not self.state or event.index is None:
+            return
+        alt = node.alternatives[event.index]
+        self.state.select(node.name, alt.id)
+        self.query_one(NodeList).set_selection(self._current_selection())
+        self._refresh_header()
+        await self.query_one(AlternativesPanel).show(node, alt.id)
+
+    # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:
         self.show_errors = not self.show_errors
 
     def action_focus_nodes(self) -> None:
-        self.query_one("#nodes").focus()
+        self.query_one(NodeList).focus()
+
+    def action_show_tab(self, tab_id: str) -> None:
+        self.query_one(DetailTabs).activate(tab_id)
 
     def action_save_profile(self) -> None:
         if not self.state or not self.store:
             return
         if self.state.active_profile_name:
             name = self.state.active_profile_name
-            # active_profile_name can be an invalid stem loaded from a
-            # hand-placed file (list_profiles doesn't validate names), which
-            # ProfileStore.save rejects with ValueError. Surface it, never crash.
             try:
                 self.store.save(self.state.to_profile(name))
             except ValueError as e:
                 self._append_warnings([f"could not save profile '{name}': {e}"])
                 return
             self.state.mark_saved(name)
-            self._refresh_profile_bar()
+            self._refresh_header()
         else:
             self.push_screen(SaveNameModal(), self._on_save_name)
 
@@ -139,12 +216,13 @@ class SheppyApp(App):
             return
         self.store.save(self.state.to_profile(name))
         self.state.mark_saved(name)
-        self._refresh_profile_bar()
+        self._refresh_header()
 
     def action_load_profile(self) -> None:
         if not self.state or not self.store:
             return
-        self.push_screen(LoadModal(self.store.list_profiles()), self._on_load_choice)
+        self.push_screen(LoadModal(self.store.list_profiles()),
+                         self._on_load_choice)
 
     def _on_load_choice(self, choice: "tuple | None") -> None:
         if not choice or not self.state or not self.store:
@@ -161,7 +239,7 @@ class SheppyApp(App):
             return
         rec = reconcile(result.profile, self.manifest)
         self.state.apply(rec.selections, rec.overrides, name,
-                          description=result.profile.description)
+                         description=result.profile.description)
         if rec.warnings:
             self._append_warnings(rec.warnings)
         self._rebuild_after_apply()
@@ -173,11 +251,13 @@ class SheppyApp(App):
         if node is None:
             return
         if self.state.selected_alt(node.name) is None:
-            self._append_warnings([f"'{node.name}': no alternative selected to edit"])
+            self._append_warnings(
+                [f"'{node.name}': no alternative selected to edit"])
             return
         params = self.state.effective_params(node.name)
         if not params:
-            self._append_warnings([f"'{node.name}': selected alternative declares no params"])
+            self._append_warnings(
+                [f"'{node.name}': selected alternative declares no params"])
             return
         self.push_screen(
             ParamEditorModal(params),
@@ -188,8 +268,9 @@ class SheppyApp(App):
             return
         for param, value in values.items():
             self.state.override(node_name, param, value)
-        self._refresh_profile_bar()
+        self._refresh_header()
 
+    # ---- errors / rebuild ------------------------------------------------
     def _append_warnings(self, warnings: list) -> None:
         self._runtime_warnings.extend(warnings)
         try:
@@ -199,84 +280,19 @@ class SheppyApp(App):
         self.show_errors = True
 
     def _rebuild_after_apply(self) -> None:
-        if self.manifest:
-            for i, node in enumerate(self.manifest.nodes):
-                try:
-                    self.query_one(f"#node-{i} Label", Label).update(
-                        _node_label(node, self.state))
-                except NoMatches:
-                    pass
-        self._refresh_profile_bar()
+        self.query_one(NodeList).set_selection(self._current_selection())
+        self._refresh_header()
+        node = self._current_node()
+        if node:
+            self.run_worker(self._reshow(node), exclusive=False)
+
+    async def _reshow(self, node: Node) -> None:
+        sel = self.state.selected(node.name) if self.state else None
+        await self.query_one(AlternativesPanel).show(node, sel)
+        self._show_detail(node)
 
     def watch_show_errors(self, value: bool) -> None:
         try:
             self.query_one("#errors").display = value
         except NoMatches:
             pass
-
-    def _current_node(self) -> Node | None:
-        if not self.manifest:
-            return None
-        idx = self.query_one("#nodes", ListView).index
-        if idx is None:
-            return None
-        return self.manifest.nodes[idx]
-
-    async def _populate_alternatives(self, node: Node) -> None:
-        """Rebuild the alternatives list for the given node.
-
-        Awaits clear() and each append() so DOM mutations are complete before
-        returning — important in Textual 8.2.7 where these return awaitables
-        (AwaitRemove / AwaitMount).
-
-        Focus is NOT moved here; it remains wherever it was during node browsing.
-        The caller (on_list_view_selected for the nodes list) is responsible for
-        moving focus to #alternatives when the user deliberately descends.
-        """
-        alts = self.query_one("#alternatives", ListView)
-        await alts.clear()
-        chosen = self.state.selected(node.name) if self.state else None
-        for j, alt in enumerate(node.alternatives):
-            marker = "•" if alt.id == chosen else " "
-            await alts.append(ListItem(Label(f"({marker}) {alt.id}  [{alt.kind}]"), id=f"alt-{j}"))
-
-    def _show_detail(self, node: Node) -> None:
-        idx = self.query_one("#alternatives", ListView).index
-        detail = self.query_one("#detail", Static)
-        if idx is None or not node.alternatives:
-            detail.update("")
-            return
-        detail.update(format_detail(node.alternatives[idx]))
-
-    async def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        if event.list_view.id == "nodes":
-            node = self._current_node()
-            if node:
-                await self._populate_alternatives(node)
-                self._show_detail(node)
-        elif event.list_view.id == "alternatives":
-            node = self._current_node()
-            if node:
-                self._show_detail(node)
-
-    async def on_list_view_selected(self, event: ListView.Selected) -> None:
-        if event.list_view.id == "nodes":
-            # Deliberate descent: move focus from the node list into alternatives.
-            self.query_one("#alternatives").focus()
-            return
-        if event.list_view.id != "alternatives" or not self.state:
-            return
-        node = self._current_node()
-        alt_idx = self.query_one("#alternatives", ListView).index
-        if node is None or alt_idx is None:
-            return
-        alt = node.alternatives[alt_idx]
-        self.state.select(node.name, alt.id)
-        self._refresh_node_label(node)
-        self._refresh_profile_bar()
-        await self._populate_alternatives(node)
-
-    def _refresh_node_label(self, node: Node) -> None:
-        idx = self.query_one("#nodes", ListView).index
-        label = self.query_one(f"#node-{idx} Label", Label)
-        label.update(_node_label(node, self.state))

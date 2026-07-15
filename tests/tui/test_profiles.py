@@ -73,8 +73,8 @@ async def test_load_applies_profile(tmp_path):
         assert app.state.selected("camera") == "mock"
         bar = str(app.query_one("#profilebar").content)
         assert "mocked" in bar and "*" not in bar
-        # node label reflects the applied selection
-        assert "mock" in str(app.query_one("#node-0 Label").content)
+        # node row reflects the applied selection (alt column)
+        assert "mock" in str(app.query_one("#node-0 .col-alt").content)
 
 
 async def test_delete_removes_file(tmp_path):
