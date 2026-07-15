@@ -25,8 +25,10 @@ class SheppyApp(App):
     CSS = """
     Screen { background: $background; }
     #body { height: 1fr; }
-    #nodes-pane { width: 34%; height: 1fr; border-right: solid $divider; }
-    #alts-pane { width: 26%; height: 1fr; border-right: solid $divider; }
+    /* max-width keeps the mockup's proportions on very wide terminals —
+       otherwise the 1fr name column pushes ALTERNATIVE/HOST far right. */
+    #nodes-pane { width: 34%; max-width: 58; height: 1fr; border-right: solid $divider; }
+    #alts-pane { width: 26%; max-width: 46; height: 1fr; border-right: solid $divider; }
     #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
