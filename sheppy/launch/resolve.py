@@ -25,6 +25,14 @@ def _value(v) -> str:
     return json.dumps(v) if isinstance(v, (bool, int, float)) else str(v)
 
 
+def _param_token(k, v) -> str:
+    # Always single-quote the k:=v token (tests expect it) AND escape any
+    # embedded single quote so a hostile param value can't break out of the
+    # bash -c command. Standard POSIX single-quote escaping: ' -> '\''
+    inner = f"{k}:={_value(v)}"
+    return "'" + inner.replace("'", "'\\''") + "'"
+
+
 def resolve(manifest: Manifest, node_name: str, alt: Alternative,
             params: dict) -> "tuple[LaunchSpec, list[str]]":
     warnings: list[str] = []
@@ -33,12 +41,12 @@ def resolve(manifest: Manifest, node_name: str, alt: Alternative,
         cmd = f"exec ros2 run {q(alt.package or '')} {q(alt.executable or '')}"
         if params:
             tokens = " ".join(
-                f"-p '{k}:={_value(v)}'" for k, v in params.items())
+                f"-p {_param_token(k, v)}" for k, v in params.items())
             cmd += f" --ros-args {tokens}"
     elif alt.kind == "launch_file":
         cmd = f"exec ros2 launch {q(alt.package or '')} {q(alt.launch_file or '')}"
         for k, v in params.items():
-            cmd += f" '{k}:={_value(v)}'"
+            cmd += f" {_param_token(k, v)}"
     else:  # "process": verbatim; exec would break pipelines, and the
         # process group covers the whole tree anyway
         cmd = alt.command or ""

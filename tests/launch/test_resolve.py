@@ -56,6 +56,30 @@ def test_quoting_hostile_names():
     assert "'pkg; rm -rf /'" in cmd(spec)
 
 
+def test_param_value_with_single_quote_is_escaped():
+    alt = Alternative(id="x", kind="executable", package="p", executable="e")
+    spec, _ = resolve(manifest(), "n", alt,
+                      {"msg": "x'; touch /tmp/PWNED; echo '"})
+    text = cmd(spec)
+    assert "touch /tmp/PWNED" in text          # present only as data...
+    # ...never as an executable token: the injected bytes stay inside quotes
+    assert "'\\''" in text                      # POSIX escape sequence emitted
+    # the injected ';' must not create new shell tokens: the whole command
+    # still parses to exactly [exec, ros2, run, p, e, --ros-args, -p, k:=v]
+    import shlex as _shlex
+    tokens = _shlex.split(text)
+    assert tokens == ["exec", "ros2", "run", "p", "e", "--ros-args", "-p",
+                      "msg:=x'; touch /tmp/PWNED; echo '"]
+
+
+def test_launch_file_param_with_single_quote_is_escaped():
+    alt = Alternative(id="rs", kind="launch_file", package="pkg",
+                      launch_file="f.py")
+    spec, _ = resolve(manifest(), "n", alt, {"k": "a'b"})
+    # whole k:=v token is single-quoted, embedded ' escaped as '\'' :
+    assert "'k:=a'\\''b'" in cmd(spec)
+
+
 def make_spec(node, alt="a", argv=("bash", "-c", "x")):
     return LaunchSpec(node=node, alt_id=alt, argv=tuple(argv), params={})
 
