@@ -58,5 +58,18 @@ def test_attach_latest_rebuilds_tail(tmp_path):
     assert fresh.read_new() == []      # offset is at EOF
 
 
+def test_attach_latest_holds_back_incomplete_last_line(tmp_path):
+    log = make_log(tmp_path)
+    fd = log.open_run()
+    os.write(fd, b"a\nb\nc")            # 'c...' still being written
+    fresh = make_log(tmp_path)
+    assert fresh.attach_latest() is True
+    assert fresh.tail() == ["a", "b"]    # fragment held back, not a line
+    os.write(fd, b"onclusion\n")
+    os.close(fd)
+    assert fresh.read_new() == ["conclusion"]
+    assert fresh.tail() == ["a", "b", "conclusion"]
+
+
 def test_attach_latest_with_no_runs_returns_false(tmp_path):
     assert make_log(tmp_path).attach_latest() is False

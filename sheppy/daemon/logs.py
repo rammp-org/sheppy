@@ -39,11 +39,15 @@ class NodeLog:
         size = os.path.getsize(self.path)
         with open(self.path, "rb") as f:
             f.seek(max(0, size - 64 * 1024))     # tail window is plenty
-            lines = f.read().decode(errors="replace").splitlines()
+            data = f.read()
+        # A line still being written (no trailing newline yet) must not
+        # enter the ring as if complete; hold it back like read_new() does.
+        *complete, partial = data.split(b"\n")
         self._ring.clear()
-        self._ring.extend(lines[-self._ring_lines:])
+        self._ring.extend(c.decode(errors="replace")
+                          for c in complete[-self._ring_lines:])
         self._offset = size
-        self._partial = b""
+        self._partial = partial
         return True
 
     def read_new(self) -> list[str]:
