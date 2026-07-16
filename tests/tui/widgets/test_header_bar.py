@@ -27,3 +27,21 @@ async def test_header_none_profile_and_no_errors():
         hb.update_state(None, False, "system.yaml", 1, 0)
         bar = str(app.query_one("#profilebar").content)
         assert "none" in bar.lower() and "*" not in bar
+
+
+async def test_header_shows_running_count_when_given():
+    app = _Harness()
+    async with app.run_test():
+        hb = app.query_one(HeaderBar)
+        hb.update_state("p", False, "system.yaml", 12, 0, running=3)
+        src = str(app.query_one("#hb-source").content)
+        assert "● 3 running" in src
+
+
+async def test_header_omits_running_count_when_none():
+    app = _Harness()
+    async with app.run_test():
+        hb = app.query_one(HeaderBar)
+        hb.update_state("p", False, "system.yaml", 12, 0)
+        src = str(app.query_one("#hb-source").content)
+        assert "running" not in src

@@ -39,13 +39,15 @@ class HeaderBar(Horizontal):
             c("muted", f"◷ {datetime.now().strftime('%H:%M:%S')}"))
 
     def update_state(self, profile_name, dirty, path, node_count,
-                     error_count) -> None:
+                     error_count, running: "int | None" = None) -> None:
         name = profile_name or "<none>"
         dirty_mark = c("yellow", "*") if dirty else ""
         self.query_one("#profilebar", Static).update(
             f"{c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
-        source = f"{path or '<no file>'} · {node_count} nodes"
-        self.query_one("#hb-source", Static).update(c("muted", source))
+        source = c("muted", f"{path or '<no file>'} · {node_count} nodes")
+        if running is not None:
+            source += f" {c('muted', '·')} {c('green', f'● {running} running')}"
+        self.query_one("#hb-source", Static).update(source)
         if error_count:
             errtext = c("red", f"✕ {error_count} error(s)")
         else:

@@ -5,6 +5,7 @@ from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
+from sheppy.launch import resolve
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.profile_modals import (
@@ -14,9 +15,10 @@ from sheppy.tui.widgets.theme import SHEPPY_DARK, c
 from sheppy.tui.widgets.header_bar import HeaderBar
 from sheppy.tui.widgets.machines_strip import MachinesStrip
 from sheppy.tui.widgets.status_footer import StatusFooter
-from sheppy.tui.widgets.node_list import NodeList, NodeListHeader
+from sheppy.tui.widgets.node_list import NodeList, NodeListHeader, RuntimeCell
 from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
 from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail  # re-export
+from sheppy.tui.widgets import status as st
 
 __all__ = ["SheppyApp", "format_detail"]
 
@@ -43,11 +45,14 @@ class SheppyApp(App):
         ("2", "show_tab('tab-topics')", "Topics"),
         ("3", "show_tab('tab-process')", "Process"),
         ("4", "show_tab('tab-yaml')", "YAML"),
+        ("space", "converge_node", "Apply"),
+        ("x", "stop_node", "Stop"),
+        ("r", "restart_node", "Restart"),
     ]
     show_errors = reactive(False)
 
     def __init__(self, load_result: LoadResult, path: str | None = None,
-                 profiles_dir: str | None = None) -> None:
+                 profiles_dir: str | None = None, client=None) -> None:
         super().__init__()
         self.load_result = load_result
         self.path = path
@@ -57,6 +62,9 @@ class SheppyApp(App):
         self.store: "ProfileStore | None" = (
             ProfileStore(profiles_dir) if profiles_dir else None)
         self._runtime_warnings: list = []
+        self._client = client
+        self.actual: dict = {}
+        self.daemon_connected = False
         # Register/select the theme in __init__ so its custom CSS variables
         # ($sel-bg, $chip-border, $divider, …) are defined before the widget
         # DEFAULT_CSS is parsed at mount time.
@@ -93,6 +101,129 @@ class SheppyApp(App):
         # mount/compose messages have been processed, so TabbedContent's inner
         # panes (and #detail) are guaranteed to exist by the time it runs.
         self.call_after_refresh(self._populate_initial)
+        self.run_worker(self._daemon_connect(spawn=False), exclusive=False)
+
+    # ---- daemon connection -------------------------------------------------
+    async def _daemon_connect(self, spawn: bool) -> bool:
+        if self._client is None:
+            from sheppy.daemon.client import DaemonClient
+            self._client = DaemonClient()
+        if not await self._client.connect(spawn=spawn):
+            self._refresh_runtime()
+            return False
+        self._client.on_event(self._on_daemon_event)
+        await self._client.subscribe()
+        reply = await self._client.request("status")
+        self.actual = reply["nodes"]
+        self.daemon_connected = True
+        self._refresh_runtime()
+        return True
+
+    async def _ensure_daemon(self) -> bool:
+        if self.daemon_connected:
+            return True
+        if not await self._daemon_connect(spawn=True):
+            self._append_warnings(["could not start sheppyd"])
+            return False
+        return True
+
+    def _on_daemon_event(self, event: dict) -> None:
+        if event.get("event") != "status":
+            return
+        self.actual[event["node"]] = event
+        self._refresh_runtime()
+
+    # ---- runtime view -------------------------------------------------------
+    def _running_count(self) -> int:
+        if not self.manifest:
+            return 0
+        return sum(1 for n in self.manifest.nodes
+                   if self.actual.get(n.name, {}).get("state") == "running")
+
+    def _refresh_runtime(self) -> None:
+        if not self.manifest:
+            return
+        cells = {}
+        for node in self.manifest.nodes:
+            payload = self.actual.get(node.name)
+            if not self.daemon_connected:
+                cells[node.name] = RuntimeCell(st.Status.UNKNOWN)
+                continue
+            state = payload["state"] if payload else None
+            cell = RuntimeCell(
+                st.runtime(state), drift=self._drift(node, payload),
+                usage=_fmt_usage(payload.get("usage") if payload else None))
+            if payload and payload["state"] in ("launching", "running") \
+                    and not any(a.id == payload["spec"]["alt_id"]
+                                for a in node.alternatives):
+                cell.usage = "alt?"      # running an alt this manifest lacks
+            cells[node.name] = cell
+        try:
+            self.query_one(NodeList).set_runtime(cells)
+            self.query_one(StatusFooter).set_daemon(
+                self.daemon_connected, self._running_count(),
+                len(self.manifest.nodes))
+        except NoMatches:
+            pass
+        self._refresh_header()
+
+    def _drift(self, node, payload) -> bool:
+        alive = payload is not None and payload["state"] in ("launching",
+                                                             "running")
+        alt = self.state.selected_alt(node.name) if self.state else None
+        if not alive:
+            return alt is not None          # desired but not running
+        if alt is None:
+            return True                     # running but nothing desired
+        spec, _ = resolve(self.manifest, node.name, alt,
+                          self.state.effective_params(node.name))
+        return payload["spec"]["argv"] != list(spec.argv)
+
+    # ---- daemon actions -------------------------------------------------------
+    async def action_converge_node(self) -> None:
+        node = self._current_node()
+        if node is None or not self.state:
+            return
+        alt = self.state.selected_alt(node.name)
+        payload = self.actual.get(node.name)
+        alive = payload and payload["state"] in ("launching", "running")
+        if alt is None and not alive:
+            self._append_warnings(
+                [f"'{node.name}': no alternative selected"])
+            return
+        if not await self._ensure_daemon():
+            return
+        if alt is None:                     # converge-to-nothing = stop
+            await self._request_safely("stop", node=node.name)
+            return
+        spec, warns = resolve(self.manifest, node.name, alt,
+                              self.state.effective_params(node.name))
+        if warns:
+            self._append_warnings(warns)
+        await self._request_safely("launch", spec=spec.to_wire())
+
+    async def action_stop_node(self) -> None:
+        node = self._current_node()
+        if node and self.daemon_connected:
+            await self._request_safely("stop", node=node.name)
+
+    async def action_restart_node(self) -> None:
+        node = self._current_node()
+        if node and self.daemon_connected:
+            await self._request_safely("restart", node=node.name)
+
+    async def _request_safely(self, op: str, **kw) -> "dict | None":
+        from sheppy.daemon.client import DaemonError
+        try:
+            reply = await self._client.request(op, **kw)
+        except DaemonError as e:
+            self.daemon_connected = False
+            self._append_warnings([str(e)])
+            self._refresh_runtime()
+            return None
+        if not reply.get("ok"):
+            self._append_warnings([f"{op}: {reply.get('error')}"])
+        return reply
 
     # ---- view-model helpers ---------------------------------------------
     def _current_selection(self) -> dict:
@@ -113,8 +244,9 @@ class SheppyApp(App):
         name = self.state.active_profile_name if self.state else None
         dirty = self.state.is_dirty if self.state else False
         node_count = len(self.manifest.nodes) if self.manifest else 0
+        running = self._running_count() if self.daemon_connected else None
         hb.update_state(name, dirty, self.path, node_count,
-                        len(self.load_result.errors))
+                        len(self.load_result.errors), running=running)
 
     def _errors_text(self) -> str:
         lines = [f"{e.location}: {e.message}" for e in self.load_result.errors]
@@ -166,8 +298,16 @@ class SheppyApp(App):
         self._show_detail(node)
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
-        # Deliberate descent: move focus into the alternatives pane.
-        self.query_one(AlternativesPanel).focus()
+        # Deliberate descent: move focus into the alternatives pane, and
+        # highlight the current selection (or the first alternative) so a
+        # second Enter can select it immediately.
+        panel = self.query_one(AlternativesPanel)
+        panel.focus()
+        node = self._current_node()
+        if node and node.alternatives:
+            sel = self.state.selected(node.name) if self.state else None
+            panel.index = next(
+                (i for i, a in enumerate(node.alternatives) if a.id == sel), 0)
 
     def on_alternatives_panel_alternative_highlighted(
             self, event: AlternativesPanel.AlternativeHighlighted) -> None:
@@ -184,6 +324,7 @@ class SheppyApp(App):
         self.state.select(node.name, alt.id)
         self.query_one(NodeList).set_selection(self._current_selection())
         self._refresh_header()
+        self._refresh_runtime()   # selection changed -> drift may too
         await self.query_one(AlternativesPanel).show(node, alt.id)
 
     # ---- actions ---------------------------------------------------------
@@ -269,6 +410,7 @@ class SheppyApp(App):
         for param, value in values.items():
             self.state.override(node_name, param, value)
         self._refresh_header()
+        self._refresh_runtime()   # params changed -> drift may too
 
     # ---- errors / rebuild ------------------------------------------------
     def _append_warnings(self, warnings: list) -> None:
@@ -282,6 +424,7 @@ class SheppyApp(App):
     def _rebuild_after_apply(self) -> None:
         self.query_one(NodeList).set_selection(self._current_selection())
         self._refresh_header()
+        self._refresh_runtime()   # selections changed -> drift may too
         node = self._current_node()
         if node:
             self.run_worker(self._reshow(node), exclusive=False)
@@ -296,3 +439,9 @@ class SheppyApp(App):
             self.query_one("#errors").display = value
         except NoMatches:
             pass
+
+
+def _fmt_usage(usage: "dict | None") -> str:
+    if not usage:
+        return ""
+    return f"{usage['cpu_pct']:.0f}% {usage['rss_mb']:.0f}M"
