@@ -30,7 +30,7 @@ Goals:
   **ignored** in 2b — every launch is local (user decision).
 - Graph introspection, node-readiness checks, bond-style liveness (phase 4).
   `running` means *process alive*, nothing more.
-- Auto-restart on crash. Crashes are flagged, never respawned (user decision);
+- Auto-restart on crash. Crashe**s **are flagged, never respawned (user decision);
   see §13 for the policy hook.
 - Ordered bringup / dependencies between nodes (see §13).
 - Adopting processes sheppy didn't start. They are invisible (documented
@@ -124,6 +124,8 @@ echo-only (display). The resolver (client-side) builds `argv`:
 | `process` | `<command>` verbatim (no `exec` — the command may be a pipeline; the process group covers the tree) |
 
 If the machine's `ros_setup` is set, `source <ros_setup> && ` is prefixed.
+Every manifest-derived field is `shlex.quote`d when composed into the shell
+string (the manifest is operator-trusted; quoting is still free correctness).
 Params on `process`-kind alternatives are warned-and-ignored in 2b.
 
 ## 5. `sheppyd` internals
@@ -131,8 +133,22 @@ Params on `process`-kind alternatives are warned-and-ignored in 2b.
 - **One process, one thread, one asyncio event loop.** Purely event-driven:
   unix-socket traffic and child-exit events. No timers exist while no client
   is subscribed → **zero idle CPU**.
-- **Spawning:** `Popen(argv, start_new_session=True, stdout=log_fd,
-  stderr=log_fd, stdin=DEVNULL)`. Each child leads its own process group.
+- **Spawning:** asyncio's subprocess (`create_subprocess_exec` — the same
+  `fork`/`exec` path as `Popen`, with awaitable exits; `ros2 launch` itself
+  spawns this way via `osrf_pycommon`) with `start_new_session=True,
+  stdout=log_fd, stderr=log_fd, stdin=DEVNULL`. Each child leads its own
+  process group — stronger than `ros2 launch`, which signals only the direct
+  child and can orphan grandchildren. (Shared residual hole, documented: a
+  child that itself calls `setsid` escapes any supervisor's group.)
+- **Buffering mitigation:** with a file (not a tty) on stdout, stdio
+  full-buffers. `ros2 launch` fixes this with pty emulation; a pty is
+  rejected here because it must be continuously drained by the daemon or
+  children block — the same coupling the file-fd invariant exists to avoid.
+  Instead the daemon adds `PYTHONUNBUFFERED=1` and
+  `RCUTILS_LOGGING_BUFFERED_STREAM=0` to child env (rcutils logs already go
+  to unbuffered stderr, so C++ ROS logging is safe). Documented limitation:
+  a non-ROS program printf-ing to stdout block-buffers into its log file,
+  so its final lines can lag or be lost on SIGKILL.
 - **Child output goes directly to its log file, never through a pipe into
   the daemon.** This is a stability invariant: if the daemon holds the pipe
   and dies, children take SIGPIPE on their next write — the supervisor's
