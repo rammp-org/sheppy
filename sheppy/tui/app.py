@@ -27,7 +27,7 @@ class SheppyApp(App):
     #body { height: 1fr; }
     /* max-width keeps the mockup's proportions on very wide terminals —
        otherwise the 1fr name column pushes ALTERNATIVE/HOST far right. */
-    #nodes-pane { width: 34%; max-width: 58; height: 1fr; border-right: solid $divider; }
+    #nodes-pane { width: 34%; max-width: 66; height: 1fr; border-right: solid $divider; }
     #alts-pane { width: 26%; max-width: 46; height: 1fr; border-right: solid $divider; }
     #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
