@@ -105,6 +105,49 @@ async def test_readoption_controls_previous_daemons_child(tmp_path):
     assert table_b.status()["camera"]["exit_code"] is None  # not our child
 
 
+async def test_adoption_survives_pid_dying_mid_adopt(tmp_path, monkeypatch):
+    table_a, cfg = make_table(tmp_path)
+    await table_a.launch(spec("camera"))
+    await table_a.launch(spec("lidar"))
+    await wait_state(table_a, "camera", pr.RUNNING)
+    await wait_state(table_a, "lidar", pr.RUNNING)
+    # first-adopted node's pidfd_open blows up as if the pid died mid-adopt
+    real = pr._pidfd_open
+    failed = []
+
+    def flaky(pid, flags=0):
+        if not failed:
+            failed.append(pid)
+            raise ProcessLookupError("gone")
+        return real(pid)
+
+    monkeypatch.setattr(pr, "_pidfd_open", flaky)
+    table_b, _ = make_table(tmp_path)
+    adopted = table_b.adopt_from_state()
+    assert len(adopted) == 1               # one skipped, one adopted
+    # the trailing _persist() ran: state file holds only the adopted node
+    data = json.loads(open(state_path(cfg.home)).read())
+    assert set(data["nodes"]) == set(adopted)
+    await table_b.stop_all()
+    # clean up the never-adopted survivor via the still-live first table
+    skipped = [n for n in ("camera", "lidar") if n not in adopted][0]
+    await table_a.stop(skipped)
+
+
+async def test_persist_skips_entry_with_no_proc_start(tmp_path):
+    table, cfg = make_table(tmp_path)
+    await table.launch(spec("camera"))
+    await wait_state(table, "camera", pr.RUNNING)
+    entry = table.entry("camera")
+    real_pid = entry.pid
+    entry.pid = 2 ** 22 - 1                # simulate ticks lookup failing
+    table._persist()
+    entry.pid = real_pid
+    data = json.loads(open(state_path(cfg.home)).read())
+    assert "camera" not in data["nodes"]   # not written with proc_start null
+    await table.stop_all()
+
+
 async def test_adoption_skips_dead_and_recycled_pids(tmp_path):
     _, cfg = make_table(tmp_path)
     import os

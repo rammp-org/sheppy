@@ -70,14 +70,19 @@ class ProcessTable:
             return []
         adopted = []
         for node, rec in nodes.items():
-            if _proc_start_ticks(rec["pid"]) != rec["proc_start"]:
+            ticks = _proc_start_ticks(rec["pid"])
+            if ticks is None or rec["proc_start"] is None \
+                    or ticks != rec["proc_start"]:
                 continue                       # dead, or a recycled pid
             log = NodeLog(self._cfg.log_dir, node,
                           self._cfg.ring_lines, self._cfg.keep_runs)
             log.attach_latest()
-            self._entries[node] = pr.AdoptedProcess(
-                rec["spec"], self._cfg, log, self._on_state,
-                pid=rec["pid"], started_at=rec["started_at"])
+            try:
+                self._entries[node] = pr.AdoptedProcess(
+                    rec["spec"], self._cfg, log, self._on_state,
+                    pid=rec["pid"], started_at=rec["started_at"])
+            except OSError:                    # died between check and pidfd
+                continue
             adopted.append(node)
         self._persist()
         return adopted
@@ -98,9 +103,12 @@ class ProcessTable:
                 continue
             if e.state in (pr.STOPPED, pr.CRASHED):
                 continue
+            ticks = _proc_start_ticks(e.pid)
+            if ticks is None:                  # already gone: not live
+                continue
             live[node] = {"spec": e.spec, "pid": e.pid,
                           "started_at": e.started_at,
-                          "proc_start": _proc_start_ticks(e.pid)}
+                          "proc_start": ticks}
         os.makedirs(self._cfg.home, exist_ok=True)
         path = state_path(self._cfg.home)
         tmp = path + ".tmp"
