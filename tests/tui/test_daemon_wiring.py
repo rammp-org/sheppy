@@ -32,6 +32,17 @@ async def test_offline_daemon_shows_unknown_and_offline_footer():
         assert app._client.spawn_attempts == [False]   # browsing never spawns
 
 
+async def test_daemon_dropping_during_connect_renders_offline_not_crash():
+    fake = FakeDaemonClient(connect_ok=True)
+    fake.raise_on_request = True
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.daemon_connected is False
+        assert "?" in str(app.query_one("#node-0 .col-status").content)
+        assert "offline" in str(app.query_one("#sf-daemon").content)
+
+
 async def test_space_launches_resolved_spec():
     fake = FakeDaemonClient()
     app = make_app(fake)

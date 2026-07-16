@@ -9,6 +9,7 @@ class FakeDaemonClient:
         self.requests: list = []
         self._callbacks: list = []
         self.spawn_attempts: list = []
+        self.raise_on_request = False
 
     async def connect(self, spawn: bool = True) -> bool:
         self.spawn_attempts.append(spawn)
@@ -23,6 +24,9 @@ class FakeDaemonClient:
 
     async def request(self, op: str, **kw) -> dict:
         self.requests.append((op, kw))
+        if self.raise_on_request:
+            from sheppy.daemon.client import DaemonError
+            raise DaemonError("lost")
         if op == "status":
             return {"ok": True, "nodes": {n: dict(p)
                                           for n, p in self.nodes.items()}}

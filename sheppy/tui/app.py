@@ -111,9 +111,19 @@ class SheppyApp(App):
         if not await self._client.connect(spawn=spawn):
             self._refresh_runtime()
             return False
-        self._client.on_event(self._on_daemon_event)
-        await self._client.subscribe()
-        reply = await self._client.request("status")
+        from sheppy.daemon.client import DaemonError
+        try:
+            self._client.on_event(self._on_daemon_event)
+            await self._client.subscribe()
+            reply = await self._client.request("status")
+        except DaemonError:
+            self.daemon_connected = False
+            self._refresh_runtime()
+            return False
+        if not reply.get("ok"):
+            self.daemon_connected = False
+            self._refresh_runtime()
+            return False
         self.actual = reply["nodes"]
         self.daemon_connected = True
         self._refresh_runtime()
