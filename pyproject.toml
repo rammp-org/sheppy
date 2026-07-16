@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 sheppy = "sheppy.cli:main"
+sheppyd = "sheppy.daemon.__main__:main"
 
 [dependency-groups]
 dev = [
