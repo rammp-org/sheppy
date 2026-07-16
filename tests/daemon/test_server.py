@@ -157,10 +157,29 @@ async def test_shutdown_leaves_children_running(tmp_path, monkeypatch):
     pid = (await wire.request("status"))["nodes"]["camera"]["pid"]
     assert (await wire.request("shutdown"))["ok"]
     await asyncio.wait_for(server.wait_shutdown(), 2)
-    await server.close()
+    await asyncio.wait_for(server.close(), 5)
     os.kill(pid, 0)                       # child survived the daemon
     import signal
     os.killpg(pid, signal.SIGKILL)        # cleanup
+
+
+async def test_shutdown_waits_for_inflight_stop_reply(tmp_path, monkeypatch):
+    server = await make_server(tmp_path, monkeypatch)
+    slow = [sys.executable, "-c",
+            "import signal, time\n"
+            "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+            "time.sleep(30)\n"]
+    a = await Wire.connect(str(tmp_path))
+    await a.request("launch", spec=spec("stubborn", slow))
+    await asyncio.sleep(0.15)              # past launch grace
+    stop_reply = asyncio.ensure_future(a.request("stop", node="stubborn"))
+    await asyncio.sleep(0.05)              # stop escalation now in flight
+    b = await Wire.connect(str(tmp_path))
+    await b.request("shutdown")
+    await asyncio.wait_for(server.wait_shutdown(), 2)
+    await asyncio.wait_for(server.close(), 5)
+    reply = await asyncio.wait_for(stop_reply, 5)
+    assert reply["ok"] is True             # in-flight reply was delivered
 
 
 async def test_socket_has_owner_only_perms(tmp_path, monkeypatch):

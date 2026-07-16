@@ -22,6 +22,7 @@ class Server:
         self._server = None
         self._shutdown = asyncio.Event()
         self._connections: set = set()
+        self._inflight = 0
 
     # ---- lifecycle ---------------------------------------------------------
     async def start(self) -> None:
@@ -38,12 +39,19 @@ class Server:
     async def close(self) -> None:
         if self._usage_task:
             self._usage_task.cancel()
+        if self._server:
+            self._server.close()          # stop accepting new connections
+        # Let in-flight requests finish and their replies flush; the bound
+        # covers the longest legitimate op, a full stop escalation.
+        deadline = (asyncio.get_running_loop().time()
+                    + self._cfg.stop_grace + self._cfg.kill_grace + 1.0)
+        while self._inflight and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.05)
         # Server.wait_closed() (pre-3.13) blocks until every accepted
         # connection's handler returns, so nudge idle clients closed first.
         for writer in list(self._connections):
             writer.close()
         if self._server:
-            self._server.close()
             await self._server.wait_closed()
 
     # ---- connections -------------------------------------------------------
@@ -74,13 +82,17 @@ class Server:
                                  "error": "malformed JSON line"}))
             return
         rid = msg.get("id")
+        self._inflight += 1
         try:
-            reply = await self._dispatch(msg, writer)
-        except KeyError as e:
-            reply = {"ok": False, "error": f"unknown node {e.args[0]!r}"}
-        except Exception as e:            # never die on a request
-            reply = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        writer.write(encode({"id": rid, **reply}))
+            try:
+                reply = await self._dispatch(msg, writer)
+            except KeyError as e:
+                reply = {"ok": False, "error": f"unknown node {e.args[0]!r}"}
+            except Exception as e:        # never die on a request
+                reply = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            writer.write(encode({"id": rid, **reply}))
+        finally:
+            self._inflight -= 1
 
     async def _dispatch(self, msg: dict, writer) -> dict:
         op = msg.get("op")
