@@ -21,7 +21,7 @@ _GLYPH = {
     Status.SELECTED: "◆",
     Status.RUNNING: "●",
     Status.LAUNCHING: "◐",
-    Status.STOPPING: "◐",
+    Status.STOPPING: "◑",
     Status.CRASHED: "✕",
     Status.WARN: "⚠",
     Status.UNKNOWN: "?",

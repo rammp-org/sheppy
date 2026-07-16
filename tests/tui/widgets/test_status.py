@@ -24,5 +24,5 @@ def test_runtime_mapping():
 
 
 def test_new_glyphs():
-    assert glyph(Status.STOPPING) == "◐"
+    assert glyph(Status.STOPPING) == "◑"
     assert glyph(Status.UNKNOWN) == "?"
