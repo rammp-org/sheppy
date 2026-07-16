@@ -79,19 +79,27 @@ class DaemonClient:
 
     async def _pump(self, reader) -> None:
         decoder = Decoder()
-        while True:
-            data = await reader.read(65536)
-            if not data:
-                break
-            for msg in decoder.feed(data):
-                if "event" in msg:
-                    if msg["event"] != "hello":
-                        for cb in self._callbacks:
-                            cb(msg)
-                elif msg.get("id") in self._pending:
-                    self._pending.pop(msg["id"]).set_result(msg)
-        self.connected = False
-        for future in self._pending.values():
-            if not future.done():
-                future.set_exception(DaemonError("sheppyd connection lost"))
-        self._pending.clear()
+        try:
+            while True:
+                data = await reader.read(65536)
+                if not data:
+                    break
+                for msg in decoder.feed(data):
+                    if "event" in msg:
+                        if msg["event"] != "hello":
+                            for cb in self._callbacks:
+                                cb(msg)
+                    elif msg.get("id") in self._pending:
+                        self._pending.pop(msg["id"]).set_result(msg)
+        except (ConnectionResetError, OSError):
+            pass
+        finally:
+            # Runs on clean EOF, on cancellation (close()), and on read
+            # errors, so in-flight requests never hang. CancelledError
+            # still propagates after this block.
+            self.connected = False
+            for future in self._pending.values():
+                if not future.done():
+                    future.set_exception(
+                        DaemonError("sheppyd connection lost"))
+            self._pending.clear()

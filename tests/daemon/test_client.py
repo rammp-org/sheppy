@@ -65,6 +65,21 @@ async def test_events_reach_callback(client):
     await asyncio.wait_for(crashed(), 5)
 
 
+async def test_close_fails_inflight_requests_instead_of_hanging(client):
+    # Issue a request and close immediately, racing the reply. The reply may
+    # occasionally win the race and resolve ok; the non-negotiable behavior
+    # is that the future NEVER hangs — close() must drain pending futures
+    # with DaemonError on every disconnect path (cancel, EOF, reset).
+    pending = asyncio.ensure_future(client.request("status"))
+    await asyncio.sleep(0)      # let the request get written and registered
+    await client.close()
+    try:
+        reply = await asyncio.wait_for(pending, 5)
+        assert reply["ok"]
+    except DaemonError:
+        pass
+
+
 async def test_connect_without_spawn_returns_false(tmp_path, monkeypatch):
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     c = DaemonClient(str(tmp_path))
