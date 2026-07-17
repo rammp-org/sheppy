@@ -11,6 +11,7 @@ class FakeDaemonClient:
         self.spawn_attempts: list = []
         self.raise_on_request = False
         self.status_not_ok = False
+        self.log_lines: list = []
 
     async def connect(self, spawn: bool = True) -> bool:
         self.spawn_attempts.append(spawn)
@@ -33,6 +34,8 @@ class FakeDaemonClient:
         if op == "status":
             return {"ok": True, "nodes": {n: dict(p)
                                           for n, p in self.nodes.items()}}
+        if op == "logs":
+            return {"ok": True, "lines": list(self.log_lines)}
         return {"ok": True}
 
     async def close(self) -> None:

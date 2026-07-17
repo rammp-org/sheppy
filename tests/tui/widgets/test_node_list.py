@@ -15,6 +15,9 @@ def _nodes():
     ]
 
 
+NODES: dict = {}       # empty selection — _Harness's second (selection) arg
+
+
 class _Harness(ThemedApp):
     def __init__(self, selection):
         super().__init__()
@@ -88,3 +91,16 @@ async def test_arrow_nav_keeps_focus_and_emits_highlight():
         await pilot.press("down")
         await pilot.pause()
         assert nl.has_focus and nl.index == 1
+
+
+async def test_set_orphans_appends_divider_and_rows():
+    app = _Harness(NODES)
+    async with app.run_test():
+        nl = app.query_one(NodeList)
+        await nl.set_orphans([{"node": "ghost", "state": "running",
+                               "spec": {"alt_id": "old"}}])
+        labels = " ".join(str(l.content) for l in app.query("NodeList Label"))
+        assert "ghost" in labels and "old" in labels
+        await nl.set_orphans([])               # idempotent clear
+        labels = " ".join(str(l.content) for l in app.query("NodeList Label"))
+        assert "ghost" not in labels

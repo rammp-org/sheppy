@@ -31,7 +31,6 @@ async def test_show_populates_detail_topics_yaml():
         topics = str(app.query_one("#detail-topics").content)
         assert "/camera/img" in topics and "phase 4" in topics
         assert "realsense2_camera" in str(app.query_one("#detail-yaml").content)
-        assert "phase 2b" in str(app.query_one("#detail-process").content)
 
 
 async def test_show_none_is_defensive():

@@ -79,6 +79,7 @@ class NodeList(ListView):
     NodeList .col-host { width: 8; color: $text-muted; }
     NodeList .col-usage { width: 9; color: $text-muted; }
     NodeList .col-alt.-set { color: $success; }
+    NodeList > ListItem.orphan-divider { color: $text-muted; padding: 0 1; }
     """
 
     class NodeHighlighted(Message):
@@ -91,10 +92,16 @@ class NodeList(ListView):
             self.index = index
             super().__init__()
 
+    class OrphanHighlighted(Message):
+        def __init__(self, name: str) -> None:
+            self.name = name
+            super().__init__()
+
     def __init__(self, nodes, selection, **kwargs):
         super().__init__(id="nodes", **kwargs)
         self._manifest_nodes = list(nodes)
         self._selection = dict(selection)
+        self._orphan_names: list = []
 
     def compose(self):
         for i, node in enumerate(self._manifest_nodes):
@@ -136,12 +143,41 @@ class NodeList(ListView):
             row.query_one(".col-status", Label).update(_status_markup(cell))
             row.query_one(".col-usage", Label).update(cell.usage)
 
+    async def set_orphans(self, orphans: list) -> None:
+        for item in list(self.query(".orphan-divider, .orphan-row")):
+            await item.remove()
+        self._orphan_names = [p["node"] for p in orphans]
+        if not orphans:
+            return
+        divider = ListItem(
+            Label("─ not in this manifest ─", classes="orphan-label"),
+            classes="orphan-divider", disabled=True)
+        await self.append(divider)
+        for i, p in enumerate(orphans):
+            cell = RuntimeCell(st.runtime(p["state"]))
+            await self.append(ListItem(
+                Horizontal(
+                    Label(_status_markup(cell), classes="col-status"),
+                    Label(p["node"], classes="col-name", markup=False),
+                    Label(p["spec"]["alt_id"], classes="col-alt",
+                          markup=False),
+                    Label("—", classes="col-host"),
+                    Label("", classes="col-usage"),
+                ),
+                id=f"orphan-{i}", classes="orphan-row"))
+
     def on_list_view_highlighted(self, event) -> None:
         event.stop()
-        if self.index is not None:
+        if self.index is None:
+            return
+        n = len(self._manifest_nodes)
+        if self.index < n:
             self.post_message(self.NodeHighlighted(self.index))
+        elif self.index > n:                       # index n is the divider
+            self.post_message(self.OrphanHighlighted(
+                self._orphan_names[self.index - n - 1]))
 
     def on_list_view_selected(self, event) -> None:
         event.stop()
-        if self.index is not None:
+        if self.index is not None and self.index < len(self._manifest_nodes):
             self.post_message(self.NodeSelected(self.index))

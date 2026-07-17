@@ -1,3 +1,5 @@
+import time
+
 import yaml
 
 from textual.containers import Vertical
@@ -6,6 +8,7 @@ from textual.markup import escape
 from textual.widgets import Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
+from sheppy.tui.widgets import status as st
 from sheppy.tui.widgets.theme import c
 
 
@@ -27,8 +30,8 @@ def format_detail(alt: Alternative) -> str:
 
 class DetailTabs(Vertical):
     """Right pane: DETAIL / TOPICS / PROCESS / YAML. DETAIL, TOPICS (declared
-    contract) and YAML render manifest data now; the TOPICS 'live' column and
-    the whole PROCESS tab are labeled placeholders for phases 4 and 2b."""
+    contract), PROCESS (live runtime state) and YAML render live now; the
+    TOPICS 'live' column remains a placeholder for phase 4."""
 
     DEFAULT_CSS = """
     DetailTabs { width: 1fr; height: 1fr; background: $background; }
@@ -47,8 +50,7 @@ class DetailTabs(Vertical):
             with TabPane("TOPICS", id="tab-topics"):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
-                yield Static(c("muted", "requires sheppyd — phase 2b"),
-                             id="detail-process")
+                yield Static("", id="detail-process")
             with TabPane("YAML", id="tab-yaml"):
                 yield Static("", id="detail-yaml", markup=False)
 
@@ -73,6 +75,39 @@ class DetailTabs(Vertical):
         detail.update(self._detail_markup(node, alt))
         topics.update(self._topics(alt))
         yaml_s.update(self._yaml(alt))
+
+    def show_process(self, payload: "dict | None", lines: list,
+                     connected: bool) -> None:
+        try:
+            target = self.query_one("#detail-process", Static)
+        except NoMatches:
+            return
+        if not connected:
+            target.update(c("muted", "sheppyd ○ offline"))
+            return
+        if payload is None:
+            target.update(c("muted", "not supervised — space to launch"))
+            return
+        def row(key, value):
+            return f"{c('muted', f'{key:<12}')}{value}"
+        status = st.runtime(payload["state"])
+        out = [row("state", c(st.color_key(status),
+                              f"{st.glyph(status)} {payload['state']}"))]
+        out.append(row("pid", c("fg", payload["pid"] or "—")))
+        if payload["state"] == "running" and payload["started_at"]:
+            up = int(time.time() - payload["started_at"])
+            out.append(row("uptime", c("fg", f"{up // 60}m{up % 60:02d}s")))
+        if payload["exit_code"] is not None:
+            out.append(row("exit code", c("red", payload["exit_code"])))
+        usage = payload.get("usage")
+        if usage:
+            out.append(row("usage", c("orange",
+                f"{usage['cpu_pct']:.0f}% {usage['rss_mb']:.0f}M")))
+        if lines:
+            out.append("")
+            out.append(c("muted", "last output"))
+            out.extend(c("fg", line) for line in lines)
+        target.update("\n".join(out))
 
     def _detail_markup(self, node: Node, alt: Alternative) -> str:
         """Styled field grid for the DETAIL tab (muted keys, colored values).

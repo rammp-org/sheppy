@@ -48,6 +48,11 @@ class AlternativesPanel(ListView):
             await self.append(
                 ListItem(self._widget(alt, alt.id == selected_id), id=f"alt-{j}"))
 
+    async def show_note(self, text: str) -> None:
+        await self.clear()
+        await self.append(ListItem(
+            Label(text, classes="alt-note", markup=False), disabled=True))
+
     def _widget(self, alt, is_sel):
         radio = "◉" if is_sel else "○"
         ckey = "green" if is_sel else "muted"

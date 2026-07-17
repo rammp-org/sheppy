@@ -1,4 +1,6 @@
 # sheppy/tui/app.py
+from functools import partial
+
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
@@ -69,6 +71,7 @@ class SheppyApp(App):
         self._client = client
         self.actual: dict = {}
         self.daemon_connected = False
+        self._current_orphan: "str | None" = None
         # Register/select the theme in __init__ so its custom CSS variables
         # ($sel-bg, $chip-border, $divider, …) are defined before the widget
         # DEFAULT_CSS is parsed at mount time.
@@ -106,6 +109,8 @@ class SheppyApp(App):
         # panes (and #detail) are guaranteed to exist by the time it runs.
         self.call_after_refresh(self._populate_initial)
         self.run_worker(self._daemon_connect(spawn=False), exclusive=False)
+        self._proc_timer = self.set_interval(
+            1.0, self._refresh_process_tab, pause=True)
 
     # ---- daemon connection -------------------------------------------------
     async def _daemon_connect(self, spawn: bool) -> bool:
@@ -177,6 +182,14 @@ class SheppyApp(App):
             self.query_one(StatusFooter).set_daemon(
                 self.daemon_connected, self._running_count(),
                 len(self.manifest.nodes))
+            orphans = [p for n, p in sorted(self.actual.items())
+                      if self.manifest.node(n) is None]
+            # partial (not the already-created coroutine) so a worker
+            # cancelled by the exclusive group before it starts never left
+            # an un-awaited coroutine behind.
+            self.run_worker(
+                partial(self.query_one(NodeList).set_orphans, orphans),
+                exclusive=True, group="orphans")
         except NoMatches:
             pass
         self._refresh_header()
@@ -195,6 +208,11 @@ class SheppyApp(App):
 
     # ---- daemon actions -------------------------------------------------------
     async def action_converge_node(self) -> None:
+        if self._current_orphan:
+            self._append_warnings(
+                [f"'{self._current_orphan}': not in this manifest — "
+                 f"stop/logs only"])
+            return
         node = self._current_node()
         if node is None or not self.state:
             return
@@ -217,11 +235,20 @@ class SheppyApp(App):
         await self._request_safely("launch", spec=spec.to_wire())
 
     async def action_stop_node(self) -> None:
+        if self._current_orphan:
+            if self.daemon_connected:
+                await self._request_safely("stop", node=self._current_orphan)
+            return
         node = self._current_node()
         if node and self.daemon_connected:
             await self._request_safely("stop", node=node.name)
 
     async def action_restart_node(self) -> None:
+        if self._current_orphan:
+            self._append_warnings(
+                [f"'{self._current_orphan}': not in this manifest — "
+                 f"stop/logs only"])
+            return
         node = self._current_node()
         if node and self.daemon_connected:
             await self._request_safely("restart", node=node.name)
@@ -393,6 +420,7 @@ class SheppyApp(App):
     # ---- navigation wiring ----------------------------------------------
     async def on_node_list_node_highlighted(
             self, event: NodeList.NodeHighlighted) -> None:
+        self._current_orphan = None
         if not self.manifest:
             return
         node = self.manifest.nodes[event.index]
@@ -400,6 +428,18 @@ class SheppyApp(App):
         self._update_alts_head(node)
         await self.query_one(AlternativesPanel).show(node, sel)
         self._show_detail(node)
+
+    async def on_node_list_orphan_highlighted(
+            self, event: NodeList.OrphanHighlighted) -> None:
+        self._current_orphan = event.name
+        try:
+            self.query_one("#alts-head", Static).update(
+                c("muted", "ALTERNATIVES · not in this manifest"))
+        except NoMatches:
+            pass
+        await self.query_one(AlternativesPanel).show_note(
+            "not in this manifest — stop (x) and logs only")
+        self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
         # Deliberate descent: move focus into the alternatives pane, and
@@ -430,6 +470,33 @@ class SheppyApp(App):
         self._refresh_header()
         self._refresh_runtime()   # selection changed -> drift may too
         await self.query_one(AlternativesPanel).show(node, alt.id)
+
+    # ---- PROCESS tab -------------------------------------------------------
+    def on_tabbed_content_tab_activated(self, event) -> None:
+        if getattr(event.pane, "id", None) == "tab-process":
+            self._proc_timer.resume()
+            self._refresh_process_tab()
+        else:
+            self._proc_timer.pause()
+
+    def _refresh_process_tab(self) -> None:
+        self.run_worker(self._load_process_tab(), exclusive=True,
+                        group="proctab")
+
+    async def _load_process_tab(self) -> None:
+        name = self._current_orphan or (
+            self._current_node().name if self._current_node() else None)
+        tabs = self.query_one(DetailTabs)
+        if name is None or not self.daemon_connected:
+            tabs.show_process(None, [], self.daemon_connected)
+            return
+        payload = self.actual.get(name)
+        lines: list = []
+        if payload is not None:
+            reply = await self._request_safely("logs", node=name, n=15)
+            if reply and reply.get("ok"):
+                lines = reply["lines"]
+        tabs.show_process(payload, lines, True)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:
