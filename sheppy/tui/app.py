@@ -232,7 +232,7 @@ class SheppyApp(App):
         if not await self._ensure_daemon():
             return
         reply = await self._request_safely("status")
-        if reply is None:
+        if reply is None or not reply.get("ok"):
             return
         self.actual = reply["nodes"]
         desired = {}

@@ -63,6 +63,22 @@ async def test_converge_all_leaves_orphans_alone():
         assert not any(op == "stop" for op, _ in fake.requests)
 
 
+async def test_converge_all_survives_status_error_reply():
+    fake = FakeDaemonClient()
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Connected at startup; now make the daemon's status handler reply
+        # not-ok (no "nodes" key) so converge_all hits the guard, not a crash.
+        fake.status_not_ok = True
+        await pilot.press("enter", "enter", "escape")   # select an alt
+        await pilot.press("L")
+        await pilot.pause()
+        # no crash, no modal, no launch issued
+        assert not isinstance(app.screen, ConvergeModal)
+        assert not any(op == "launch" for op, _ in fake.requests)
+
+
 async def test_stop_all_confirms_and_includes_orphans():
     fake = FakeDaemonClient({
         "camera": payload("camera", "running", alt="realsense"),
