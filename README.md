@@ -20,7 +20,8 @@ unifies them into one operator console. Sheppy does.
 > Load a manifest, browse nodes and their alternatives, and select one
 > alternative (mock vs. real) per node (Phase 1). Save and load those choices —
 > plus per-alternative parameter overrides — as named **profiles** (Phase 2a).
-> Launching, the daemon, and introspection arrive in later phases.
+> Phase 2b adds `sheppyd`: select, press `space`, and the process is really
+> running — locally, surviving TUI detach.
 
 ### Prerequisites
 
@@ -62,13 +63,18 @@ uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
 | `p` | Edit the highlighted node's declared parameters |
 | `e` | Toggle the validation-error overlay |
 | `1`–`4` | Switch detail tab (Detail / Topics / Process / YAML) |
+| `Space` | Launch/converge the highlighted node to its selected alternative |
+| `x` / `r` | Stop / restart the highlighted node |
+| `L` | Converge everything to the current selection (shows a plan first) |
+| `X` | Stop all running nodes (confirmation; includes orphans) |
+| `!` | Snapshot: copy what's running into the selection (then save-as) |
 | `Ctrl+C` | Quit |
 
 The TUI uses an operator-cockpit layout: a header bar (profile · source ·
 errors · clock), a machines strip, the three-pane body (nodes · alternatives ·
-tabbed detail), and a footer of key hints. Process status, live machine
-connections, and the topics "live" column are labeled placeholders that later
-phases (2b/3/4) fill in.
+tabbed detail), and a footer of key hints. Process status is live via
+`sheppyd`; live machine connections (phase 3) and the topics "live" column
+(phase 4) remain placeholders.
 
 A malformed manifest never crashes the app — errors are listed in the overlay
 (`e`) and the rest stays browsable. The same holds for profiles: a corrupt
@@ -78,6 +84,34 @@ overlay and the applicable remainder still loads.
 Profiles are stored as one YAML file per profile in a `profiles/` directory next
 to your manifest (e.g. `examples/profiles/all-mock.yaml`); the filename is the
 profile name. They're plain, version-controllable text.
+
+### Launching for real: `sheppyd`
+
+The first launch action auto-starts `sheppyd`, a tiny supervisor daemon
+(stdlib-only, ~zero idle CPU) that owns the child processes — quit the TUI
+and everything keeps running. Reconnect and it's all still there; even if
+`sheppyd` itself dies, a restarted daemon re-adopts the survivors.
+
+Headless verbs (no TUI needed):
+
+```bash
+uv run sheppy up <profile> --manifest system.yaml   # converge to a profile
+uv run sheppy status                                # what's running
+uv run sheppy logs <node> -n 50                     # tail a node's output
+uv run sheppy woof <node>                           # restart it 🐕
+uv run sheppy down                                  # stop everything + daemon
+```
+
+Node output goes to `~/.sheppy/logs/<node>/<timestamp>.log` (last 5 runs
+kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
+
+```json
+{"ring_lines": 300, "keep_runs": 5, "coredumps": false,
+ "usage_interval": 2.0, "launch_grace": 2.0,
+ "stop_grace": 5.0, "kill_grace": 5.0}
+```
+
+Try it without ROS: `uv run sheppy examples/local-demo.yaml`.
 
 ### Colors washed out over SSH?
 
@@ -136,7 +170,7 @@ spec → plan → implementation cycle.
 |------:|------|-------|--------|
 | **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
 | **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | ✅ Done |
-| **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ⬜ Planned |
+| **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ✅ Done |
 | **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
 | **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |
 
