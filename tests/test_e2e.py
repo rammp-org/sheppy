@@ -1,7 +1,6 @@
 # tests/test_e2e.py
 """The one full-stack test: real TUI, real DaemonClient, real sheppyd
 (auto-spawned), real child processes. Everything else uses fakes/units."""
-import asyncio
 import json
 import sys
 import textwrap

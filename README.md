@@ -102,7 +102,7 @@ uv run sheppy woof <node>                           # restart it 🐕
 uv run sheppy down                                  # stop everything + daemon
 ```
 
-Node output goes to `~/.sheppy/logs/<node>/<timestamp>.log` (last 5 runs
+Node output goes to `~/.sheppy/logs/<node>/<timestamp>-<id>.log` (last 5 runs
 kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
 
 ```json
