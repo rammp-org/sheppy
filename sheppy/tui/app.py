@@ -5,9 +5,10 @@ from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widgets import Static
 
-from sheppy.launch import resolve
+from sheppy.launch import diff, resolve
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
+from sheppy.tui.daemon_modals import ConvergeModal
 from sheppy.tui.profile_modals import (
     SaveNameModal, LoadModal, ConfirmModal, ParamEditorModal,
 )
@@ -48,6 +49,9 @@ class SheppyApp(App):
         ("space", "converge_node", "Apply"),
         ("x", "stop_node", "Stop"),
         ("r", "restart_node", "Restart"),
+        ("L", "converge_all", "Converge"),
+        ("X", "stop_all", "Stop all"),
+        ("exclamation_mark", "snapshot", "Snapshot"),
     ]
     show_errors = reactive(False)
 
@@ -221,6 +225,96 @@ class SheppyApp(App):
         node = self._current_node()
         if node and self.daemon_connected:
             await self._request_safely("restart", node=node.name)
+
+    async def action_converge_all(self) -> None:
+        if not self.state or not self.manifest:
+            return
+        if not await self._ensure_daemon():
+            return
+        reply = await self._request_safely("status")
+        if reply is None:
+            return
+        self.actual = reply["nodes"]
+        desired = {}
+        for node in self.manifest.nodes:
+            alt = self.state.selected_alt(node.name)
+            if alt is None:
+                continue
+            spec, warns = resolve(self.manifest, node.name, alt,
+                                  self.state.effective_params(node.name))
+            if warns:
+                self._append_warnings(warns)
+            desired[node.name] = spec
+        known = {n: p for n, p in self.actual.items()
+                 if self.manifest.node(n) is not None}    # orphans excluded
+        actions = diff(desired, known)
+        if not actions:
+            self._append_warnings(["already converged"])
+            return
+        self.push_screen(
+            ConvergeModal(actions),
+            lambda ok: self.run_worker(self._execute(actions, desired))
+            if ok else None)
+
+    async def _execute(self, actions, desired) -> None:
+        for verb, node in actions:
+            if verb == "stop":
+                await self._request_safely("stop", node=node)
+            else:
+                await self._request_safely(
+                    "launch", spec=desired[node].to_wire())
+
+    async def action_stop_all(self) -> None:
+        if not self.daemon_connected:
+            self._append_warnings(["sheppyd offline — nothing to stop"])
+            return
+        alive = [n for n, p in self.actual.items()
+                 if p["state"] in ("launching", "running")]
+        if not alive:
+            self._append_warnings(["nothing running"])
+            return
+        self.push_screen(
+            ConfirmModal(f"Stop all {len(alive)} running node(s), "
+                         f"including any not in this manifest?"),
+            lambda ok: self.run_worker(self._stop_nodes(alive))
+            if ok else None)
+
+    async def _stop_nodes(self, nodes: list) -> None:
+        for node in nodes:
+            await self._request_safely("stop", node=node)
+
+    def action_snapshot(self) -> None:
+        if not self.state or not self.manifest:
+            return
+        if not self.daemon_connected:
+            self._append_warnings(["sheppyd offline — nothing to snapshot"])
+            return
+        selections, overrides, skipped = {}, {}, []
+        for name, payload in self.actual.items():
+            if payload["state"] not in ("launching", "running"):
+                continue
+            node = self.manifest.node(name)
+            if node is None:
+                skipped.append(name)
+                continue
+            alt = next((a for a in node.alternatives
+                        if a.id == payload["spec"]["alt_id"]), None)
+            if alt is None:
+                skipped.append(f"{name} (unknown alternative)")
+                continue
+            selections[name] = alt.id
+            over = {k: v for k, v in payload["spec"]["params"].items()
+                    if k in alt.params and alt.params[k] != v}
+            if over:
+                overrides[name] = over
+        self.state.apply(selections, overrides,
+                         self.state.active_profile_name)
+        self.state.is_dirty = True
+        if skipped:
+            self._append_warnings(
+                [f"snapshot skipped (not in manifest): {', '.join(skipped)}"])
+        self._rebuild_after_apply()
+        self._refresh_runtime()
 
     async def _request_safely(self, op: str, **kw) -> "dict | None":
         from sheppy.daemon.client import DaemonError
