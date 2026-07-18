@@ -388,7 +388,11 @@ class SheppyApp(App):
         if not self.manifest:
             return None
         idx = self.query_one(NodeList).index
-        if idx is None:
+        # The ListView index runs past the manifest rows onto the orphan
+        # divider and orphan rows (see NodeList.set_orphans); those are not
+        # manifest nodes, so anything at or beyond the node count has no
+        # Node — return None rather than indexing out of range.
+        if idx is None or idx >= len(self.manifest.nodes):
             return None
         return self.manifest.nodes[idx]
 
@@ -558,6 +562,11 @@ class SheppyApp(App):
 
     def action_edit_params(self) -> None:
         if not self.state:
+            return
+        if self._current_orphan:
+            self._append_warnings(
+                [f"'{self._current_orphan}': not in this manifest — "
+                 f"stop/logs only"])
             return
         node = self._current_node()
         if node is None:

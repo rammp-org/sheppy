@@ -57,3 +57,23 @@ async def test_orphan_rows_render_and_stop_works():
         await pilot.press("space")
         assert not any(op == "launch" for op, _ in fake.requests)
         assert any("stop/logs only" in w for w in app._runtime_warnings)
+
+
+async def test_edit_params_on_orphan_row_does_not_crash():
+    # Regression: `p` (edit params) used _current_node(), which indexed
+    # manifest.nodes with the raw ListView index — out of range on an
+    # orphan row → IndexError. It must warn, not crash.
+    fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
+                                                     "running",
+                                                     alt="bag_v1")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for _ in range(13):            # onto the orphan row
+            await pilot.press("down")
+        await pilot.pause()
+        assert app._current_orphan == "old_recorder"
+        await pilot.press("p")         # edit params — must not raise
+        await pilot.pause()
+        assert app._current_node() is None    # range-safe on orphan rows
+        assert any("stop/logs only" in w for w in app._runtime_warnings)
