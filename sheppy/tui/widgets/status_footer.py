@@ -13,6 +13,11 @@ KEYMAP = [
     ("p", "params"),
     ("e", "errors"),
     ("1-4", "tabs"),
+    ("␣", "apply"),
+    ("x", "stop"),
+    ("r", "woof"),
+    ("L", "converge"),
+    ("!", "snap"),
 ]
 
 
@@ -32,4 +37,12 @@ class StatusFooter(Horizontal):
             keycap = f"[reverse] {key} [/]"
             yield Static(f"{keycap} {c('muted', label)}", id=f"sf-{i}")
         yield Static("", id="sf-spring")
-        yield Static(c("muted", "sheppyd ○ offline — phase 2b"), id="sf-daemon")
+        yield Static(c("muted", "sheppyd ○ offline"), id="sf-daemon")
+
+    def set_daemon(self, connected: bool, running: int, total: int) -> None:
+        if connected:
+            text = (f"{c('green', 'sheppyd ●')} "
+                    f"{c('fg', f'{running}/{total} running')}")
+        else:
+            text = c("muted", "sheppyd ○ offline")
+        self.query_one("#sf-daemon", Static).update(text)

@@ -1,4 +1,3 @@
-import yaml
 from sheppy.manifest.models import Machine, Alternative, Node, Manifest
 from sheppy.manifest.errors import ValidationError, LoadResult
 
@@ -106,6 +105,7 @@ def parse_manifest(data: object) -> LoadResult:
 
 
 def load_manifest(path: str) -> LoadResult:
+    import yaml
     try:
         with open(path) as f:
             raw = yaml.safe_load(f)

@@ -1,0 +1,18 @@
+# examples/local-demo.yaml — sheppyd demo, no ROS required.
+machines: []
+nodes:
+  - name: clock
+    description: prints a heartbeat every second
+    alternatives:
+      - id: ticker
+        kind: process
+        command: "python3 -u -c 'import time\nwhile True: print(time.strftime(\"%T\")); time.sleep(1)'"
+  - name: worker
+    description: a well-behaved long-runner
+    alternatives:
+      - id: steady
+        kind: process
+        command: "python3 -c 'import time; time.sleep(3600)'"
+      - id: flaky
+        kind: process
+        command: "python3 -c 'import time; time.sleep(3); raise SystemExit(1)'"
