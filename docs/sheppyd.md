@@ -1,0 +1,335 @@
+# sheppyd — the launch supervisor
+
+`sheppyd` is Sheppy's local supervisor daemon. It owns the actual node
+processes: it spawns them, watches them, stops and restarts them, and reports
+their live state back to the TUI and the CLI. Everything in Sheppy that
+*runs* something runs it through `sheppyd`.
+
+The daemon exists so that **the system outlives the operator's terminal**. You
+can launch your nodes, quit the TUI (or lose your SSH connection), come back
+later, and everything is still running — and still controllable. Even if
+`sheppyd` itself is killed, the child processes keep running and a freshly
+started daemon re-adopts them.
+
+> **Scope.** As of Phase 2b, `sheppyd` is *local only* — it supervises
+> processes on the machine it runs on and ignores the `machine:` field on
+> alternatives. Multi-machine supervision over SSH is a later phase.
+
+## Mental model: dumb daemon, smart client
+
+The single most important design decision is that **`sheppyd` never sees a
+manifest, a profile, or any YAML.** All of that lives client-side.
+
+```
+ sheppy TUI ──┐                             ┌─────────────────────────────┐
+              ├── client lib ──── unix ─────│ sheppyd                     │
+ sheppy CLI ──┘   (resolver +    socket     │  process table + spawner    │
+                   protocol)     NDJSON     │  stdlib only; no yaml, no   │
+                                            │  manifest, no textual       │
+                                            └─────────────────────────────┘
+```
+
+- **Clients** (the TUI and the `sheppy` CLI) read the manifest and the active
+  profile, and *resolve* each selected node into a final `LaunchSpec`: the
+  exact `argv` to run, plus the node name and its parameters (for display).
+- **`sheppyd`** is a durable process table. It receives a `LaunchSpec`, runs
+  exactly that `argv`, watches the child, and reports state. It has no opinion
+  about what the process *is*.
+
+Consequences worth knowing:
+
+- The daemon imports **only the Python standard library** — not even a YAML
+  parser. It is small enough to read end to end.
+- Manifest schema changes never touch the daemon.
+- How a node's `kind` (`executable` / `launch_file` / `process`) becomes a
+  command is entirely a client-side concern (see [Launch
+  resolution](#launch-resolution)).
+
+## Lifecycle
+
+### Auto-spawn
+
+You never have to start `sheppyd` by hand. The first action that needs it —
+pressing `space` on a node in the TUI, or running `sheppy up` — spawns the
+daemon detached and waits for its socket. Browsing and editing profiles never
+spawn a daemon; only an actual launch does.
+
+You can also manage it explicitly:
+
+```bash
+sheppy daemon status    # is it running? how many nodes does it supervise?
+sheppy daemon stop      # shut the daemon down (children keep running)
+```
+
+### Single instance
+
+Only one `sheppyd` runs per home directory. This is enforced with an
+`flock` lock file; a second `sheppyd` invocation exits immediately with
+`sheppyd: already running`. A stale socket file left by a crashed daemon is
+detected and replaced.
+
+### Shutdown leaves children running
+
+Stopping the daemon (`sheppy daemon stop`, or `SIGTERM`/`SIGINT` to the
+process) does **not** stop the nodes. The daemon exits; the children keep
+running. This is deliberate — a supervisor restart must never take the robot
+down. To actually stop everything, use `sheppy down`, which stops every node
+first and *then* stops the daemon.
+
+### Survivability and re-adoption
+
+`sheppyd` mirrors its process table to a small JSON state file on every
+change. When a daemon starts, it reads that file and re-adopts any child whose
+PID is still alive **and** whose `/proc` start-time still matches the recorded
+value (so a recycled PID is never mistaken for the original process). Adopted
+processes can be stopped, restarted, and queried exactly like ones the current
+daemon launched.
+
+One consequence of re-adoption: because the daemon is no longer the parent of
+an adopted child, it cannot read that child's exit code. Adopted processes
+therefore report `exit_code: null` when they terminate.
+
+### Zero idle cost
+
+`sheppyd` is event-driven. With no client subscribed it runs **no periodic
+timers at all** — it wakes only for socket traffic and child-exit events. The
+per-node CPU/RSS sampler runs only while at least one client is subscribed,
+and stops the moment the last subscriber disconnects. This matters on
+resource-starved machines: an idle daemon costs approximately nothing.
+
+## Node states
+
+Every supervised node is in exactly one state. The TUI renders each with a
+glyph:
+
+| State | Glyph | Meaning |
+|-------|:-----:|---------|
+| stopped | `○` | not running (never started, or cleanly stopped) |
+| launching | `◐` | spawned, inside the launch-grace window |
+| running | `●` | alive past the launch grace |
+| stopping | `◑` | stop requested, signal escalation in progress |
+| crashed | `✕` | exited without a stop request (exit code shown) |
+| — | `?` | daemon offline: state is unknown, not "stopped" |
+
+A node is **launching** until it survives `launch_grace` seconds; a process
+that exits inside that window (for example, a bad package name) is reported as
+**crashed** rather than flickering through *running*.
+
+### Stopping is an escalation
+
+A stop sends `SIGINT` to the child's whole process group (this is what
+`ros2 launch` expects for a clean shutdown), waits `stop_grace` seconds, then
+escalates to `SIGTERM`, waits `kill_grace` seconds, and finally `SIGKILL`.
+Each child leads its own process group, so the entire process tree is
+signalled — not just the direct child.
+
+### Crashes are flagged, never auto-restarted
+
+If a node exits on its own, `sheppyd` marks it **crashed**, records the exit
+code (or the terminating signal), and leaves it stopped. It does **not**
+restart it. Restarting is an operator decision (`r` in the TUI, or
+`sheppy woof <node>`). Automatic restart-on-crash is intentionally out of
+scope for this phase.
+
+## Logs
+
+Each node's stdout and stderr are written **directly to a per-run log file** —
+the child holds the file descriptor, so the daemon never sits between a node
+and its output. (This is also why the daemon crashing can't disturb a running
+node: there is no pipe to break.)
+
+```
+~/.sheppy/logs/<node>/<YYYYmmdd-HHMMSS>-<id>.log
+```
+
+Each launch gets its own file; the last `keep_runs` (default 5) files per node
+are kept and older ones are pruned. The daemon also keeps an in-memory
+**ring buffer** of the last `ring_lines` (default 300) lines per node as a
+tail view over the current file — this is what `sheppy logs` and the TUI's
+PROCESS tab display, including a crashed node's dying words.
+
+The daemon's own log lives at `~/.sheppy/logs/sheppyd.log`.
+
+## Configuration
+
+Optional, at `~/.sheppy/sheppyd.json`. It is a single flat JSON object —
+plain keys, no nesting — read once at startup. Every key is optional; unknown
+keys are ignored with a warning in the daemon log. A missing or malformed file
+falls back to defaults.
+
+```json
+{
+  "log_dir": "~/.sheppy/logs",
+  "ring_lines": 300,
+  "keep_runs": 5,
+  "coredumps": false,
+  "usage_interval": 2.0,
+  "launch_grace": 2.0,
+  "stop_grace": 5.0,
+  "kill_grace": 5.0
+}
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `log_dir` | `<home>/logs` | where per-node log files are written |
+| `ring_lines` | `300` | lines kept in the in-memory tail per node |
+| `keep_runs` | `5` | per-run log files retained per node |
+| `coredumps` | `false` | if true, raise each child's core-dump limit |
+| `usage_interval` | `2.0` | seconds between CPU/RSS samples (while watched) |
+| `launch_grace` | `2.0` | seconds a node must survive to be *running* |
+| `stop_grace` | `5.0` | seconds after `SIGINT` before `SIGTERM` |
+| `kill_grace` | `5.0` | seconds after `SIGTERM` before `SIGKILL` |
+
+### Home directory
+
+Everything `sheppyd` owns lives under `~/.sheppy` by default. Set the
+`SHEPPY_HOME` environment variable to relocate it (this is also how the test
+suite isolates daemons). The unix socket is placed in `$XDG_RUNTIME_DIR/sheppy/`
+when that is available and `SHEPPY_HOME` is unset; otherwise it sits directly
+under the home directory. The socket is created mode `0600` and its directory
+`0700`.
+
+## CLI reference
+
+The `sheppy` command opens the TUI when given a manifest path; the verbs below
+are headless and never load the TUI (so they work on a machine with no display
+or Textual installed).
+
+| Command | What it does |
+|---------|--------------|
+| `sheppy up <profile> [--manifest PATH]` | resolve the profile, print the plan, converge the running system to it, wait until it settles, print final states. Exits non-zero if any node crashed. `--manifest` defaults to `system.yaml`. |
+| `sheppy status` | one line per supervised node (state, alternative, pid, uptime/exit code) |
+| `sheppy logs <node> [-n N]` | print the last `N` (default 50) log lines for a node |
+| `sheppy woof <node>` | restart a node 🐕 |
+| `sheppy down` | stop every node, then stop the daemon |
+| `sheppy daemon status` | report whether the daemon is running and how many nodes it supervises |
+| `sheppy daemon stop` | stop the daemon (children keep running) |
+
+`sheppy up` converges idempotently: nodes already running with the right
+command are left untouched, missing ones are started, and ones running a
+different command are replaced. Running it twice in a row is a no-op the second
+time (`already converged`).
+
+## TUI controls
+
+In the cockpit, node rows show live state (the glyphs above), a `Δ` drift
+marker when what's running differs from what's selected, and per-node CPU/RSS.
+
+| Key | Action |
+|-----|--------|
+| `space` | converge the highlighted node to its selected alternative (start, or restart if it drifted; stop it if nothing is selected) |
+| `x` | stop the highlighted node |
+| `r` | restart the highlighted node |
+| `L` | converge the whole profile — shows a plan (start/stop/restart) and asks to confirm |
+| `X` | stop everything running (with confirmation) |
+| `!` | snapshot: copy what's actually running into the current selection, then save it as a profile |
+
+The **PROCESS** detail tab shows the highlighted node's live state, pid,
+uptime, exit code, resource usage, and log tail.
+
+### Desired vs actual
+
+Sheppy separates two things:
+
+- **Desired** — the alternative you've selected for each node, and any
+  parameter overrides. This is what a profile stores. Editing it never touches
+  a running process.
+- **Actual** — what `sheppyd` reports is really running.
+
+`space`/`L` push desired onto actual (converge); `!` pulls actual back into
+desired (snapshot). The `Δ` marker is simply "these two disagree for this
+node."
+
+### Orphans
+
+If you open a manifest while `sheppyd` is running processes whose node names
+aren't in that manifest, those show up under a `─ not in this manifest ─`
+divider. They're real running processes the daemon owns, so you can stop them
+(`x`) and read their logs — but `space`/`r`/edit-params don't apply, and
+whole-profile converge (`L`) leaves them alone. Only `X` / `sheppy down` stop
+them.
+
+## Launch resolution
+
+Clients turn a manifest alternative into a `LaunchSpec` before handing it to
+the daemon. The resolved command depends on the alternative's `kind`:
+
+| `kind` | Resolved command |
+|--------|------------------|
+| `executable` | `ros2 run <package> <executable> --ros-args -p k:=v …` |
+| `launch_file` | `ros2 launch <package> <launch_file> k:=v …` |
+| `process` | the `command` string, run verbatim |
+
+If the alternative's machine declares a `ros_setup`, the command is prefixed
+with `source <ros_setup> &&`. The whole thing is run as
+`bash -c "<command>"`. Every value drawn from the manifest — package names,
+parameter values, everything — is shell-quoted when the command is composed,
+so a stray quote or shell metacharacter in a parameter value can't break out
+of the command.
+
+Parameters on a `process`-kind alternative are ignored (with a warning) in
+this phase — there's no ROS argument convention to map them onto.
+
+## Protocol
+
+Clients talk to `sheppyd` over the unix socket using newline-delimited JSON
+(NDJSON) — one JSON object per line, so it's debuggable by hand with
+`nc -U <socket>`. On connect the daemon sends a hello:
+
+```json
+{"event": "hello", "sheppyd": "0.1", "protocol": 1}
+```
+
+Requests carry an `id`; the matching reply echoes it and carries `ok`:
+
+```json
+→ {"id": 3, "op": "launch", "spec": {"node": "camera", "alt_id": "realsense",
+                                     "argv": ["bash", "-c", "…"], "params": {}}}
+← {"id": 3, "ok": true}
+```
+
+| `op` | Effect |
+|------|--------|
+| `launch` | spawn `spec.argv`; replaces any different process already running for that node (one process per node) |
+| `stop` | begin the stop escalation for a node |
+| `restart` | stop, then relaunch the same spec |
+| `status` | return the full table: per node `{state, pid, exit_code, started_at, usage, spec}` |
+| `logs` | return the last `n` ring-buffer lines for a node |
+| `subscribe` | receive pushed `status` events for every state change and usage tick until the connection closes |
+| `shutdown` | daemon exits; children keep running |
+
+A malformed line, an unknown op, an unknown node, or a handler error produces
+an error reply — it never takes the daemon down.
+
+## Troubleshooting
+
+**"sheppyd: not running" from a verb.** The daemon isn't up and that verb
+doesn't auto-spawn it. `status`, `down`, and `daemon` treat this as normal
+(exit 0); `logs` and `woof` treat it as an error (exit 1). Run `sheppy up` or
+launch something in the TUI to start it.
+
+**A node goes straight to `✕ crashed` on launch.** It exited inside the launch
+grace — usually a bad package/executable name or a missing dependency.
+`sheppy logs <node>` shows the dying output.
+
+**A node won't stop.** It's ignoring `SIGINT`/`SIGTERM`. `sheppyd` escalates to
+`SIGKILL` after `stop_grace + kill_grace` seconds; increase or decrease those
+in the config if the default timing doesn't suit your nodes.
+
+**The daemon died but my nodes are still running.** That's by design — start
+the daemon again (any launch action does) and it will re-adopt them. Their
+in-memory log tails restart empty, but the on-disk log files are intact.
+
+**Everything is `?` in the TUI.** The daemon is offline. This is visually
+distinct from `○` (stopped) on purpose: `?` means "state unknown," not
+"nothing running."
+
+## Limitations (this phase)
+
+- **Local only.** The `machine:` field on alternatives is ignored; every
+  launch runs on the local machine.
+- **No auto-restart.** Crashed nodes stay crashed until you restart them.
+- **No adoption of foreign processes.** `sheppyd` only supervises what it (or
+  a previous `sheppyd`) started. A node started by hand in another terminal is
+  invisible to it.

@@ -113,6 +113,10 @@ kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
 
 Try it without ROS: `uv run sheppy examples/local-demo.yaml`.
 
+For the full picture — architecture, node states, re-adoption, the wire
+protocol, and troubleshooting — see the **[sheppyd guide](docs/sheppyd.md)**
+(and the [docs index](docs/index.md)).
+
 ### Colors washed out over SSH?
 
 Sheppy's palette needs 24-bit color. The decision is made on the machine
