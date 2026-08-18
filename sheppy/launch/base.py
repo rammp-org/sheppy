@@ -11,12 +11,12 @@ from sheppy.launch.descriptor import LaunchDescriptor
 
 
 class LaunchContext:
-    def __init__(self, node_name: str, manifest: "Manifest",
-                 home: "str | None" = None):
+    def __init__(self, node_name, manifest, home=None, manifest_dir=None):
         self.node_name = node_name
         self.manifest = manifest
         self._home = home or sheppy_home()
-        self._warnings: list = []
+        self._warnings = []
+        self.manifest_dir = manifest_dir or "."
 
     def warn(self, msg: str) -> None:
         self._warnings.append(msg)

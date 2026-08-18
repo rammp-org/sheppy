@@ -1,4 +1,5 @@
 # sheppy/tui/app.py
+import os
 from functools import partial
 
 from textual.app import App, ComposeResult
@@ -203,7 +204,9 @@ class SheppyApp(App):
         if alt is None:
             return True                     # running but nothing desired
         spec, _ = resolve(self.manifest, node.name, alt,
-                          self.state.effective_params(node.name))
+                          self.state.effective_params(node.name),
+                          manifest_dir=os.path.dirname(
+                              os.path.abspath(self.path or "system.yaml")))
         return (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
                 or payload["spec"].get("params") != spec.params)
 
@@ -230,7 +233,9 @@ class SheppyApp(App):
             await self._request_safely("stop", node=node.name)
             return
         spec, warns = resolve(self.manifest, node.name, alt,
-                              self.state.effective_params(node.name))
+                              self.state.effective_params(node.name),
+                              manifest_dir=os.path.dirname(
+                                  os.path.abspath(self.path or "system.yaml")))
         if warns:
             self._append_warnings(warns)
         await self._request_safely("launch", spec=spec.to_wire())
@@ -269,7 +274,9 @@ class SheppyApp(App):
             if alt is None:
                 continue
             spec, warns = resolve(self.manifest, node.name, alt,
-                                  self.state.effective_params(node.name))
+                                  self.state.effective_params(node.name),
+                                  manifest_dir=os.path.dirname(
+                                      os.path.abspath(self.path or "system.yaml")))
             if warns:
                 self._append_warnings(warns)
             desired[node.name] = spec

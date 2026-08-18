@@ -1,6 +1,8 @@
 """The docker launcher: a compose service becomes a supervised container."""
+import os
+
 from sheppy.launch.descriptor import LaunchDescriptor
-from sheppy.launch.docker.compose import service_to_docker_args
+from sheppy.launch.docker.compose import load_service, service_to_docker_args
 
 __all__ = ["DockerLauncher"]
 
@@ -9,8 +11,19 @@ class DockerLauncher:
     kind = "docker"
 
     def _service(self, alt, ctx):
-        # T10 adds the compose-file reference branch.
-        return dict(alt.config.get("container") or {})
+        inline = alt.config.get("container")
+        if inline:
+            return dict(inline)
+        ref = alt.config.get("compose") or {}
+        path = ref.get("file", "")
+        if not os.path.isabs(path):
+            path = os.path.join(ctx.manifest_dir, path)
+        try:
+            return load_service(path, ref.get("service"), os.environ)
+        except (OSError, KeyError) as e:
+            ctx.warn(f"'{ctx.node_name}': compose service "
+                     f"{ref.get('service')!r} in {ref.get('file')!r}: {e}")
+            return {}
 
     def validate(self, raw_alt) -> list:
         has_compose = bool(raw_alt.get("compose"))
@@ -21,6 +34,11 @@ class DockerLauncher:
         if has_inline:
             _, _, _, errs, _ = service_to_docker_args(raw_alt["container"])
             return errs
+        if has_compose:
+            ref = raw_alt["compose"]
+            if not (isinstance(ref, dict) and ref.get("file") and ref.get("service")):
+                return ["docker 'compose' needs 'file' and 'service'"]
+            return []
         return []
 
     def launch(self, alt, params, ctx) -> LaunchDescriptor:

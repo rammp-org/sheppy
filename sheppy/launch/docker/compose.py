@@ -1,8 +1,32 @@
 """Translate a docker-compose service definition into docker-run arguments.
 We reuse compose's config vocabulary but not its orchestrator."""
+import re
 import shlex
 
+import yaml
+
 _WARN_KEYS = ("restart", "depends_on", "healthcheck")
+
+_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+
+
+def _interpolate(value, env):
+    if isinstance(value, str):
+        return _VAR.sub(lambda m: env.get(m.group(1), m.group(2) or ""), value)
+    if isinstance(value, dict):
+        return {k: _interpolate(v, env) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_interpolate(v, env) for v in value]
+    return value
+
+
+def load_service(path: str, service: str, env: dict) -> dict:
+    with open(path) as f:
+        doc = yaml.safe_load(f) or {}
+    services = doc.get("services") or {}
+    if service not in services:
+        raise KeyError(service)
+    return _interpolate(dict(services[service] or {}), dict(env))
 
 
 def _as_list(v):

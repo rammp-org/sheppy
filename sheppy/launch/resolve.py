@@ -24,9 +24,9 @@ class LaunchSpec:
                 "descriptor": self.descriptor.to_wire()}
 
 
-def resolve(manifest, node_name, alt, params, registry=None):
+def resolve(manifest, node_name, alt, params, registry=None, manifest_dir=None):
     registry = registry or default_registry()
-    ctx = LaunchContext(node_name, manifest)
+    ctx = LaunchContext(node_name, manifest, manifest_dir=manifest_dir)
     launcher = registry.get(alt.kind)
     descriptor = launcher.launch(alt, params, ctx)
     return (LaunchSpec(node=node_name, alt_id=alt.id, descriptor=descriptor,
