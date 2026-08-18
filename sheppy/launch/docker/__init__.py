@@ -49,6 +49,10 @@ class DockerLauncher:
             ctx.warn(w)
         for e in errs:
             ctx.warn(e)                       # validate() already flags these
+        if params:
+            host = ctx.write_params_file(params, alt.config.get("ros_node_name"))
+            flags += ["-v", f"{host}:/sheppy/params.yaml:ro"]
+            command += ["--ros-args", "--params-file", "/sheppy/params.yaml"]
         start = (["docker", "run", "-d", "--name", name] + flags
                  + [image] + command)
         return LaunchDescriptor.detached(
