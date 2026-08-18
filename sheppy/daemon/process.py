@@ -175,6 +175,7 @@ class DetachedSupervisor(Supervised):
     def __init__(self, spec, cfg, log, on_state) -> None:
         super().__init__(spec, cfg, log, on_state)
         d = spec["descriptor"]
+        self._name = d.get("name")
         self._start_cmd = list(d["start"])
         self._reset_cmd = d.get("reset")
         self._watch_cmd = d.get("watch")
@@ -293,3 +294,16 @@ class DetachedSupervisor(Supervised):
         if self._stop_cmd:
             await self._run_once(self._stop_cmd)
         await self._exited.wait()
+
+    def mark_adopted(self, started_at) -> None:
+        self._stop_requested = False
+        self._exited = asyncio.Event()
+        self.exit_code = None
+        self.adopted = True
+        self.started_at = started_at
+        self.state = RUNNING
+
+    async def reattach(self) -> None:
+        await self._open_logs()
+        self._watch_task = asyncio.ensure_future(
+            self._watch() if self._watch_cmd else self._poll())
