@@ -33,7 +33,15 @@ class ProcessTable:
             await old.stop()
         log = NodeLog(self._cfg.log_dir, node,
                       self._cfg.ring_lines, self._cfg.keep_runs)
-        proc = pr.ManagedProcess(spec, self._cfg, log, self._on_state)
+        descriptor = spec.get("descriptor") or {}
+        supervise = descriptor.get("supervise")
+        if supervise == "inherit":
+            mp_spec = {**spec, "argv": list(descriptor["start"])}
+            proc = pr.ManagedProcess(mp_spec, self._cfg, log, self._on_state)
+        elif supervise == "detached":
+            raise ValueError("detached supervision not yet supported")  # Task 6
+        else:
+            raise ValueError(f"unknown supervise: {supervise!r}")
         self._entries[node] = proc
         await proc.start()
 

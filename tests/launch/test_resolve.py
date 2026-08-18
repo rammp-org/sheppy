@@ -27,7 +27,7 @@ def test_executable_kind_with_params_and_setup():
     assert "exec ros2 run cam_pkg cam_node --ros-args" in text
     assert "-p 'fps:=30'" in text and "-p 'pointcloud.enable:=true'" in text
     assert spec.to_wire() == {"node": "camera", "alt_id": "real",
-                              "argv": list(spec.argv),
+                              "descriptor": spec.descriptor.to_wire(),
                               "params": {"fps": 30,
                                          "pointcloud.enable": True}}
 
@@ -88,7 +88,8 @@ def make_spec(node, alt="a", argv=("bash", "-c", "x")):
 
 def actual(node, state, argv=("bash", "-c", "x")):
     return {"node": node, "state": state,
-            "spec": {"node": node, "alt_id": "a", "argv": list(argv),
+            "spec": {"node": node, "alt_id": "a",
+                     "descriptor": LaunchDescriptor.inherit(argv).to_wire(),
                      "params": {}}}
 
 
@@ -113,12 +114,13 @@ def test_diff_empty_when_converged():
     assert diff(desired, {"a": actual("a", "running")}) == []
 
 
-def test_resolve_still_emits_argv_wire(tmp_path, monkeypatch):
+def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     from sheppy.launch import resolve
     from sheppy.manifest import Alternative, Manifest
     alt = Alternative(id="a", kind="executable", package="p", executable="e")
-    spec, warns = resolve(Manifest(machines=[], nodes=[]), "n", alt, {})
+    spec, _ = resolve(Manifest(machines=[], nodes=[]), "n", alt, {})
     wire = spec.to_wire()
-    assert wire["argv"][0] == "bash" and "ros2 run p e" in wire["argv"][2]
-    assert "descriptor" not in wire            # still argv-shaped in Task 4
+    assert "argv" not in wire
+    assert wire["descriptor"]["supervise"] == "inherit"
+    assert "ros2 run p e" in wire["descriptor"]["start"][2]

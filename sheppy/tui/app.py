@@ -204,7 +204,8 @@ class SheppyApp(App):
             return True                     # running but nothing desired
         spec, _ = resolve(self.manifest, node.name, alt,
                           self.state.effective_params(node.name))
-        return payload["spec"]["argv"] != list(spec.argv)
+        return (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
+                or payload["spec"].get("params") != spec.params)
 
     # ---- daemon actions -------------------------------------------------------
     async def action_converge_node(self) -> None:

@@ -55,7 +55,10 @@ async def test_space_launches_resolved_spec():
         assert launches, f"no launch in {fake.requests}"
         spec = launches[-1]["spec"]
         assert spec["node"] == "camera" and spec["alt_id"] == "realsense"
-        assert spec["argv"][0] == "bash" and "ros2 launch" in spec["argv"][2]
+        descriptor = spec["descriptor"]
+        assert descriptor["supervise"] == "inherit"
+        assert descriptor["start"][0] == "bash" and \
+            "ros2 launch" in descriptor["start"][2]
 
 
 async def test_space_without_selection_on_dead_node_warns():

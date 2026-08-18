@@ -13,7 +13,8 @@ CRASH = [sys.executable, "-c", "raise SystemExit(9)"]
 
 
 def spec(node, argv=SLEEP):
-    return {"node": node, "alt_id": "a", "argv": argv, "params": {}}
+    return {"node": node, "alt_id": "a", "params": {},
+            "descriptor": {"supervise": "inherit", "start": list(argv)}}
 
 
 class Wire:
@@ -31,7 +32,7 @@ class Wire:
         reader, writer = await asyncio.open_unix_connection(socket_path(home))
         wire = cls(reader, writer)
         hello = await wire._read_one()
-        assert hello["event"] == "hello" and hello["protocol"] == 1
+        assert hello["event"] == "hello" and hello["protocol"] == 2
         return wire
 
     async def _read_one(self):

@@ -19,10 +19,9 @@ class LaunchSpec:
         return self.descriptor.start
 
     def to_wire(self) -> dict:
-        # Task 4: still argv-shaped so the daemon is untouched. Task 5 flips
-        # this to emit 'descriptor'.
         return {"node": self.node, "alt_id": self.alt_id,
-                "argv": list(self.descriptor.start), "params": dict(self.params)}
+                "params": dict(self.params),
+                "descriptor": self.descriptor.to_wire()}
 
 
 def resolve(manifest, node_name, alt, params, registry=None):
@@ -47,6 +46,7 @@ def diff(desired, actual):
         alive = payload is not None and payload["state"] in _ALIVE
         if not alive:
             starts.append(("start", node))
-        elif payload["spec"]["argv"] != list(spec.argv):
+        elif (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
+              or payload["spec"].get("params") != spec.params):
             restarts.append(("restart", node))
     return stops + restarts + starts
