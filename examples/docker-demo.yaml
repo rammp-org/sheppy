@@ -1,0 +1,11 @@
+# examples/docker-demo.yaml — a dockerized node; needs Docker only to launch.
+machines: []
+nodes:
+  - name: sleeper
+    description: a throwaway container node
+    alternatives:
+      - id: alpine
+        kind: docker
+        container:
+          image: alpine:3
+          command: "sleep 3600"
