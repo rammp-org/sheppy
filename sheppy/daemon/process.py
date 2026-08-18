@@ -273,8 +273,17 @@ class DetachedSupervisor(Supervised):
             return
         self.exit_code = code
         self.log.read_new()
+        self._reap_logs()
         self._exited.set()
         self._set(STOPPED if self._stop_requested else CRASHED)
+
+    def _reap_logs(self) -> None:
+        proc = self._logs_proc
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
 
     async def stop(self) -> None:
         if self._exited.is_set():

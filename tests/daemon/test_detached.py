@@ -104,3 +104,20 @@ async def test_poll_mode_without_watch(tmp_path):
     await wait_for(lambda: sup.state == pr.RUNNING)
     await sup.stop()
     assert sup.state == pr.STOPPED
+
+
+async def test_logs_follower_is_reaped_on_stop(tmp_path):
+    state = str(tmp_path / "S")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"echo up > {state}"),
+            "watch": sh(f"while [ -f {state} ]; do sleep 0.02; done; echo 0"),
+            "stop":  sh(f"rm -f {state}"),
+            "logs":  sh("while true; do echo tick; sleep 0.05; done")}
+    sup, _, _ = make(tmp_path, desc)
+    await sup.start()
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    assert sup._logs_proc is not None and sup._logs_proc.returncode is None
+    await sup.stop()
+    # the follower must be terminated, not left running
+    await asyncio.wait_for(sup._logs_proc.wait(), 2)
+    assert sup._logs_proc.returncode is not None
