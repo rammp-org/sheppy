@@ -1,0 +1,43 @@
+---
+title: Introduction
+---
+
+import { Cards } from 'nextra/components'
+
+# Sheppy 🐑🐕
+
+A TUI + background supervisor that **herds the ROS2 nodes** of a distributed
+assistive-robotics project — catalog them, switch alternatives (mock vs. real),
+launch/kill across machines, and introspect message flow.
+
+Sheppy exists because integration sprints kept hitting the same walls: no single
+view of what nodes exist or which are interchangeable, hand-managed launch files,
+ad-hoc multi-machine SSH, and no easy way to see what each node *expects* vs.
+what it's actually *receiving*. The ROS2 primitives exist (`rqt_graph`,
+`ros2 launch`, `ros2 topic info -v`, community SSH-launch projects) but nothing
+unifies them into one operator console. Sheppy does.
+
+- **CLI:** `sheppy`
+- **Daemon:** `sheppyd`
+- **Restart a node:** `sheppy woof`
+
+## Where to go next
+
+<Cards>
+  <Cards.Card title="Getting started" href="/getting-started" arrow />
+  <Cards.Card title="The TUI" href="/tui" arrow />
+  <Cards.Card title="The manifest" href="/manifest" arrow />
+  <Cards.Card title="sheppyd — the launch supervisor" href="/guides/sheppyd" arrow />
+  <Cards.Card title="Writing a launcher plugin" href="/guides/launcher-plugins" arrow />
+  <Cards.Card title="Architecture & roadmap" href="/architecture" arrow />
+</Cards>
+
+## What works today
+
+Load a manifest, browse nodes and their alternatives, and select one
+alternative (mock vs. real) per node (Phase 1). Save and load those choices —
+plus per-alternative parameter overrides — as named **profiles** (Phase 2a).
+Phase 2b adds `sheppyd`: select, press `space`, and the process is really
+running — locally, surviving TUI detach. Multi-machine launch (Phase 3) and
+live graph introspection (Phase 4) are planned; see the
+[roadmap](/architecture#project-phases).

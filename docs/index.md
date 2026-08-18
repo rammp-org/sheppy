@@ -1,21 +1,11 @@
 # Sheppy documentation
 
-Sheppy 🐑🐕 herds the ROS2 nodes of a distributed robotics project — catalog
-them, switch alternatives (mock vs. real), launch/kill them, and (later)
-introspect message flow. See the [project README](../README.md) for install
-and a quick tour.
+The documentation site lives at **<https://rammp-org.github.io/sheppy>**; its
+source is [`website/content/`](../website/content/) (Nextra + MDX). Start
+there for install, the TUI, the manifest, and the guides:
 
-> This directory is the content root for the eventual documentation site. For
-> now it's plain Markdown you can read directly on GitHub.
-
-## Guides
-
-- **[sheppyd — the launch supervisor](sheppyd.md)** — the daemon that runs
-  your nodes: architecture, lifecycle, node states, logs, configuration, the
-  CLI and TUI controls, the wire protocol, and troubleshooting.
-- **[Writing a launcher plugin](launcher-plugins.md)** — add your own `kind`
-  (a custom process wrapper, systemd, Kubernetes, ...): the `Launcher`
-  contract, the `LaunchDescriptor` vocabulary, and a worked example.
+- [sheppyd — the launch supervisor](../website/content/guides/sheppyd.mdx)
+- [Writing a launcher plugin](../website/content/guides/launcher-plugins.mdx)
 
 ## Design records
 
@@ -30,3 +20,4 @@ extending Sheppy.
 | 2a — Profiles | [design](superpowers/specs/2026-06-26-sheppy-phase2a-profiles-design.md) | [plan](superpowers/plans/2026-07-09-sheppy-phase2a-profiles.md) |
 | 2a.5 — Cockpit shell | [design](superpowers/specs/2026-07-13-sheppy-phase2a5-cockpit-shell-design.md) | [plan](superpowers/plans/2026-07-13-sheppy-phase2a5-cockpit-shell.md) |
 | 2b — sheppyd + local launch | [design](superpowers/specs/2026-07-16-sheppy-phase2b-sheppyd-design.md) | [plan](superpowers/plans/2026-07-16-sheppy-phase2b-sheppyd.md) |
+| Launcher plugins | [design](superpowers/specs/2026-07-20-sheppy-launcher-plugins-design.md) | [plan](superpowers/plans/2026-07-20-sheppy-launcher-plugins.md) |

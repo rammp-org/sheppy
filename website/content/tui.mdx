@@ -1,0 +1,66 @@
+---
+title: The TUI
+---
+
+# The TUI
+
+```bash
+uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+```
+
+## Keys
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Move through the node list (left pane) |
+| `Enter` (on a node) | Descend into that node's alternatives (right pane) |
+| `↑` / `↓` | Move through alternatives; the detail pane updates |
+| `Enter` (on an alternative) | Select it for the node (mock vs. real) |
+| `Esc` | Return focus to the node list |
+| `s` | Save the current selections + overrides as a profile |
+| `l` | Load a profile (Enter to load, `d` to delete) |
+| `p` | Edit the highlighted node's declared parameters |
+| `e` | Toggle the validation-error overlay |
+| `1`–`4` | Switch detail tab (Detail / Topics / Process / YAML) |
+| `Space` | Launch/converge the highlighted node to its selected alternative |
+| `x` / `r` | Stop / restart the highlighted node |
+| `L` | Converge everything to the current selection (shows a plan first) |
+| `X` | Stop all running nodes (confirmation; includes orphans) |
+| `!` | Snapshot: copy what's running into the selection (then save-as) |
+| `Ctrl+C` | Quit |
+
+## Layout
+
+The TUI uses an operator-cockpit layout: a header bar (profile · source ·
+errors · clock), a machines strip, the three-pane body (nodes · alternatives ·
+tabbed detail), and a footer of key hints. Process status is live via
+[`sheppyd`](/guides/sheppyd); live machine connections (phase 3) and the
+topics "live" column (phase 4) remain placeholders.
+
+## Errors never crash the app
+
+A malformed manifest never crashes the app — errors are listed in the overlay
+(`e`) and the rest stays browsable. The same holds for profiles: a corrupt
+profile file or one that has drifted from the manifest surfaces warnings in the
+overlay and the applicable remainder still loads.
+
+## Profiles
+
+Profiles are stored as one YAML file per profile in a `profiles/` directory next
+to your manifest (e.g. `examples/profiles/all-mock.yaml`); the filename is the
+profile name. They're plain, version-controllable text.
+
+## Colors washed out over SSH?
+
+Sheppy's palette needs 24-bit color. The decision is made on the machine
+*running* sheppy: with `COLORTERM` unset (SSH does not forward it by default)
+and `TERM=xterm-256color`, Textual quantizes every color to the 256-color
+palette and the subtle background layering collapses. On the remote machine:
+
+```bash
+export COLORTERM=truecolor   # add to your remote ~/.bashrc / ~/.zshrc
+```
+
+(or forward it: `SendEnv COLORTERM` in your local `~/.ssh/config` plus
+`AcceptEnv COLORTERM` in the server's `sshd_config`). If you use tmux on the
+remote, also add `set -as terminal-overrides ',*:Tc'` to `~/.tmux.conf`.

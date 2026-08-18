@@ -1,0 +1,58 @@
+---
+title: The manifest
+---
+
+# The manifest
+
+The **manifest is the source of truth**: a curated, version-controlled
+`system.yaml` describing your machines, nodes, and their alternatives. Both the
+TUI and the CLI read it; [`sheppyd`](/guides/sheppyd) never does.
+
+## At a glance
+
+A **node** is a *logical* unit (e.g. "camera"). It has interchangeable
+**alternatives**; `select: single` means exactly one runs at a time. An
+alternative declares how to bring the unit up via `kind`:
+`executable` (`ros2 run`), `launch_file` (`ros2 launch`), `process`
+(arbitrary command, e.g. a non-ROS GUI), or `docker` (a container) — and you
+can [add your own](/guides/launcher-plugins).
+
+```yaml
+nodes:
+  - name: camera
+    select: single
+    alternatives:
+      - id: realsense
+        kind: launch_file
+        package: realsense2_camera
+        launch_file: rs_launch.py
+        publishes: [/camera/color/image_raw]
+      - id: mock_camera
+        kind: executable
+        package: our_mocks
+        executable: mock_camera
+        publishes: [/camera/color/image_raw]
+```
+
+## Declared vs. actual
+
+Introspection is graph-API only — there is no custom node base class. The
+manifest's declared `publishes`/`subscribes` is the *expected* contract; the
+live ROS graph is the *actual*. A declared subscription with zero matching
+publishers = starved. (Live comparison lands in Phase 4; see the
+[roadmap](/architecture#project-phases).)
+
+## Examples
+
+The repository ships several manifests under
+[`examples/`](https://github.com/rammp-org/sheppy/tree/main/examples):
+
+| File | What it shows |
+|------|---------------|
+| `system.yaml` | A realistic multi-node ROS2 system with mock/real alternatives |
+| `local-demo.yaml` | Plain processes — try Sheppy without ROS installed |
+| `docker-demo.yaml` | The `docker` launch kind |
+| `cockpit-demo.yaml` | Exercises the cockpit layout |
+
+The full schema is specified in the
+[Phase 1 design record](/design-records).

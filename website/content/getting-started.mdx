@@ -1,0 +1,92 @@
+---
+title: Getting started
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Getting started
+
+## Prerequisites
+
+- **Python 3.10+**
+- **[uv](https://docs.astral.sh/uv/)** for environment and dependency management
+  — install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
+
+<Steps>
+### Install
+
+```bash
+git clone git@github.com:rammp-org/sheppy.git
+cd sheppy
+uv sync          # creates .venv and installs everything from uv.lock
+```
+
+### Run the TUI
+
+```bash
+uv run sheppy examples/system.yaml
+```
+
+Or point it at your own manifest:
+
+```bash
+uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+```
+
+See [The TUI](/tui) for the key bindings and layout.
+
+### Try it without ROS
+
+The bundled demo manifest launches plain processes, so you can see the whole
+select → launch → observe loop on any machine:
+
+```bash
+uv run sheppy examples/local-demo.yaml
+```
+
+</Steps>
+
+## Launching for real: `sheppyd`
+
+The first launch action auto-starts `sheppyd`, a tiny supervisor daemon
+(stdlib-only, ~zero idle CPU) that owns the child processes — quit the TUI
+and everything keeps running. Reconnect and it's all still there; even if
+`sheppyd` itself dies, a restarted daemon re-adopts the survivors.
+
+Headless verbs (no TUI needed):
+
+```bash
+uv run sheppy up <profile> --manifest system.yaml   # converge to a profile
+uv run sheppy status                                # what's running
+uv run sheppy logs <node> -n 50                     # tail a node's output
+uv run sheppy woof <node>                           # restart it 🐕
+uv run sheppy down                                  # stop everything + daemon
+```
+
+Node output goes to `~/.sheppy/logs/<node>/<timestamp>-<id>.log` (last 5 runs
+kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
+
+```json
+{"ring_lines": 300, "keep_runs": 5, "coredumps": false,
+ "usage_interval": 2.0, "launch_grace": 2.0,
+ "stop_grace": 5.0, "kill_grace": 5.0}
+```
+
+<Callout type="info">
+For the full picture — architecture, node states, re-adoption, the wire
+protocol, and troubleshooting — see the
+[sheppyd guide](/guides/sheppyd). Want to add your own launch `kind`
+(a custom process wrapper, systemd, Kubernetes, ...)? See
+[writing a launcher plugin](/guides/launcher-plugins).
+</Callout>
+
+## Run the tests
+
+```bash
+uv run pytest          # full suite
+uv run pytest -v       # verbose
+uv run pytest tests/manifest        # just the manifest/loader tests
+```
+
+The model, loader/validator, and selection logic are pure Python and tested
+without the UI; the TUI is exercised end-to-end with Textual's async pilot.

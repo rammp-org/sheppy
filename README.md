@@ -14,6 +14,7 @@ unifies them into one operator console. Sheppy does.
 - **CLI:** `sheppy`
 - **Daemon:** `sheppyd`
 - **Restart a node:** `sheppy woof`
+- **Docs:** https://rammp-org.github.io/sheppy
 
 ## Getting Started
 
@@ -114,10 +115,10 @@ kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
 Try it without ROS: `uv run sheppy examples/local-demo.yaml`.
 
 For the full picture — architecture, node states, re-adoption, the wire
-protocol, and troubleshooting — see the **[sheppyd guide](docs/sheppyd.md)**
-(and the [docs index](docs/index.md)). Want to add your own launch `kind`
+protocol, and troubleshooting — see the **[sheppyd guide](https://rammp-org.github.io/sheppy/guides/sheppyd/)**
+(and the [docs index](https://rammp-org.github.io/sheppy)). Want to add your own launch `kind`
 (a custom process wrapper, systemd, Kubernetes, ...)? See
-**[writing a launcher plugin](docs/launcher-plugins.md)**.
+**[writing a launcher plugin](https://rammp-org.github.io/sheppy/guides/launcher-plugins/)**.
 
 ### Colors washed out over SSH?
 

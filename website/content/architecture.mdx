@@ -1,0 +1,38 @@
+---
+title: Architecture & roadmap
+---
+
+# Architecture
+
+```
+┌──────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
+│  TUI client  │◄──────────────────────►│  sheppyd (supervisor, per host)│
+│  (Textual)   │                        │  • owns child processes        │
+│  reads       │   manifest (shared)    │    (launch / kill / restart)   │
+│  system.yaml │◄───────────────────────│  • embeds rclpy node for       │
+└──────────────┘                        │    graph introspection         │
+                                        └──────────────────────────────┘
+  multi-machine = one sheppyd per host; the TUI connects to each;
+  SSH bootstraps remote daemons.
+```
+
+- **Tech:** Python + [Textual](https://textual.textualize.io/) (TUI), `rclpy` (ROS graph access).
+- **Daemon-backed:** the TUI is a thin client; `sheppyd` owns the processes so the
+  system survives the TUI detaching or crashing.
+- **Manifest is the source of truth:** a curated, version-controlled `system.yaml`.
+- **Introspection is graph-API only:** no custom node base class. The manifest's
+  declared `publishes`/`subscribes` is the *expected* contract; the live ROS graph
+  is the *actual*. A declared subscription with zero matching publishers = starved.
+
+## Project phases
+
+Each phase builds on the shared manifest data model and ships with its own
+spec → plan → implementation cycle (see [Design records](/design-records)).
+
+| Phase | Name | Scope | Status |
+|------:|------|-------|--------|
+| **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
+| **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | ✅ Done |
+| **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ✅ Done |
+| **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
+| **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |
