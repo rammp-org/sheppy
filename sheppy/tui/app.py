@@ -207,6 +207,8 @@ class SheppyApp(App):
                           self.state.effective_params(node.name),
                           manifest_dir=os.path.dirname(
                               os.path.abspath(self.path or "system.yaml")))
+        if spec is None:
+            return False
         return (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
                 or payload["spec"].get("params") != spec.params)
 
@@ -238,6 +240,8 @@ class SheppyApp(App):
                                   os.path.abspath(self.path or "system.yaml")))
         if warns:
             self._append_warnings(warns)
+        if spec is None:
+            return
         await self._request_safely("launch", spec=spec.to_wire())
 
     async def action_stop_node(self) -> None:
@@ -279,6 +283,8 @@ class SheppyApp(App):
                                       os.path.abspath(self.path or "system.yaml")))
             if warns:
                 self._append_warnings(warns)
+            if spec is None:
+                continue
             desired[node.name] = spec
         known = {n: p for n, p in self.actual.items()
                  if self.manifest.node(n) is not None}    # orphans excluded

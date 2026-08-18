@@ -147,6 +147,8 @@ async def _up(args) -> int:
                                   os.path.abspath(args.manifest)))
         for w in warns:
             print(f"warning: {w}", file=sys.stderr)
+        if spec is None:
+            continue
         desired[node.name] = spec
 
     client = DaemonClient()

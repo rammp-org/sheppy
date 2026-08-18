@@ -114,6 +114,21 @@ def test_diff_empty_when_converged():
     assert diff(desired, {"a": actual("a", "running")}) == []
 
 
+def test_resolve_catches_launcher_raising_and_returns_none_spec():
+    class BoomLauncher:
+        kind = "boom"
+
+        def launch(self, alt, params, ctx):
+            raise RuntimeError("kaboom")
+
+    from sheppy.launch.registry import LauncherRegistry
+    reg = LauncherRegistry([BoomLauncher()])
+    alt = Alternative(id="a", kind="boom")
+    spec, warnings = resolve(manifest(), "n", alt, {}, registry=reg)
+    assert spec is None
+    assert any("n" in w and "boom" in w and "kaboom" in w for w in warnings)
+
+
 def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     from sheppy.launch import resolve

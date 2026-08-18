@@ -28,7 +28,12 @@ def resolve(manifest, node_name, alt, params, registry=None, manifest_dir=None):
     registry = registry or default_registry()
     ctx = LaunchContext(node_name, manifest, manifest_dir=manifest_dir)
     launcher = registry.get(alt.kind)
-    descriptor = launcher.launch(alt, params, ctx)
+    try:
+        descriptor = launcher.launch(alt, params, ctx)
+    except Exception as e:
+        ctx.warn(f"'{node_name}': launcher {alt.kind!r} failed to resolve: "
+                 f"{type(e).__name__}: {e}")
+        return (None, ctx.warnings)
     return (LaunchSpec(node=node_name, alt_id=alt.id, descriptor=descriptor,
                        params=dict(params)), ctx.warnings)
 
