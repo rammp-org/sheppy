@@ -176,3 +176,19 @@ def test_non_list_alternatives_value():
     result = parse_manifest(data)
     assert any(e.location == "nodes[0]" for e in result.errors)
     assert result.manifest is not None
+
+
+def test_config_bag_captures_kind_specific_fields():
+    data = _valid_data()
+    data["nodes"][0]["alternatives"][0]["some_custom_field"] = {"a": 1}
+    result = parse_manifest(data)
+    alt = result.manifest.node("camera").alternatives[0]
+    assert alt.config["some_custom_field"] == {"a": 1}
+
+
+def test_unknown_kind_lists_known_kinds():
+    data = _valid_data()
+    data["nodes"][1]["alternatives"][0]["kind"] = "wizardry"
+    result = parse_manifest(data)
+    msgs = [e.message for e in result.errors]
+    assert any("wizardry" in m and "executable" in m for m in msgs)
