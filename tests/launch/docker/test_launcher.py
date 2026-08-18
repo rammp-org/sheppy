@@ -36,3 +36,16 @@ def test_validate_requires_exactly_one_source(tmp_path):
 def test_validate_surfaces_inline_compose_errors():
     errs = DockerLauncher().validate({"container": {"command": "x"}})  # no image
     assert any("image" in e for e in errs)
+
+
+def test_summary_shows_inline_image_and_network():
+    a = alt(container={"image": "org/perc:1", "network_mode": "host"})
+    rows = DockerLauncher().summary(a)
+    assert ("image", "org/perc:1") in rows
+    assert ("network", "host") in rows
+
+
+def test_summary_shows_compose_ref_when_no_inline_container():
+    a = alt(compose={"file": "demo.compose.yml", "service": "perception"})
+    rows = DockerLauncher().summary(a)
+    assert rows == [("compose", "demo.compose.yml#perception")]

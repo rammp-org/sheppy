@@ -103,3 +103,14 @@ async def test_drift_marker_when_selection_differs_from_running():
         await pilot.press("enter", "enter")     # select realsense (desired)
         await pilot.pause()
         assert "Δ" in str(app.query_one("#node-0 .col-status").content)
+
+
+async def test_no_drift_marker_when_selection_matches_running():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter")     # select realsense (converged)
+        await pilot.pause()
+        assert "Δ" not in str(app.query_one("#node-0 .col-status").content)

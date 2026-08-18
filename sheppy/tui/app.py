@@ -408,7 +408,15 @@ class SheppyApp(App):
         idx = self.query_one(AlternativesPanel).index
         alt = (node.alternatives[idx]
                if idx is not None and node.alternatives else None)
-        self.query_one(DetailTabs).show(node, alt)
+        rows = self._summary_rows(alt) if alt else None
+        self.query_one(DetailTabs).show(node, alt, summary_rows=rows)
+
+    def _summary_rows(self, alt) -> list:
+        from sheppy.launch.registry import default_registry, UnknownKind
+        try:
+            return default_registry().get(alt.kind).summary(alt)
+        except UnknownKind:
+            return []
 
     def _update_alts_head(self, node: Node) -> None:
         try:
@@ -469,7 +477,9 @@ class SheppyApp(App):
             self, event: AlternativesPanel.AlternativeHighlighted) -> None:
         node = self._current_node()
         if node and node.alternatives and event.index is not None:
-            self.query_one(DetailTabs).show(node, node.alternatives[event.index])
+            alt = node.alternatives[event.index]
+            self.query_one(DetailTabs).show(
+                node, alt, summary_rows=self._summary_rows(alt))
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:

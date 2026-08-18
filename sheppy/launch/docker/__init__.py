@@ -63,6 +63,11 @@ class DockerLauncher:
             reset=["docker", "rm", "-f", name])
 
     def summary(self, alt) -> list:
-        svc = alt.config.get("container") or {}
-        return [("image", svc.get("image", "—")),
-                ("network", str(svc.get("network_mode", "default")))]
+        inline = alt.config.get("container")
+        if inline:
+            return [("image", inline.get("image", "—")),
+                    ("network", str(inline.get("network_mode", "default")))]
+        ref = alt.config.get("compose")
+        if ref:
+            return [("compose", f"{ref.get('file', '—')}#{ref.get('service', '—')}")]
+        return [("image", "—"), ("network", "default")]
