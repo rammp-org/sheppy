@@ -42,3 +42,14 @@ def test_discover_skips_a_broken_entry_point(monkeypatch):
                         lambda group: [_Bad(), _Good()])
     reg = LauncherRegistry.discover()
     assert reg.kinds() == ["process"]           # bad one skipped, not fatal
+
+
+def test_discover_warns_on_broken_entry_point(monkeypatch, capsys):
+    class _Bad:
+        name = "boomplugin"
+        def load(self): raise ImportError("boom")
+    monkeypatch.setattr("sheppy.launch.registry.entry_points",
+                        lambda group: [_Bad()])
+    LauncherRegistry.discover()
+    err = capsys.readouterr().err
+    assert "boomplugin" in err and "boom" in err

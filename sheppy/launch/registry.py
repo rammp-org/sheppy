@@ -1,5 +1,6 @@
 """Discover launcher plugins via entry points (group 'sheppy.launchers').
 Built-ins and third-party launchers register identically."""
+import sys
 from importlib.metadata import entry_points
 
 
@@ -33,7 +34,10 @@ class LauncherRegistry:
         for ep in entry_points(group="sheppy.launchers"):
             try:
                 reg.register(ep.load()())
-            except Exception:
+            except Exception as e:
+                print(f"sheppy: skipping launcher plugin "
+                      f"{getattr(ep, 'name', ep)!r}: {type(e).__name__}: {e}",
+                      file=sys.stderr)
                 continue                        # a broken plugin never breaks discovery
         return reg
 
