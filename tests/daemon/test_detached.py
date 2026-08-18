@@ -106,6 +106,27 @@ async def test_poll_mode_without_watch(tmp_path):
     assert sup.state == pr.STOPPED
 
 
+async def test_stop_completes_when_descriptor_has_no_stop_cmd(tmp_path):
+    # A detached descriptor may legally omit 'stop'. The watch command below
+    # blocks on the state file forever (nothing ever removes it, since
+    # there's no stop command to do so) -- stop() must not hang waiting on
+    # a unit it has no way to command into exiting.
+    state = str(tmp_path / "S")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"echo up > {state}"),
+            "watch": sh(f"while [ -f {state} ]; do sleep 0.02; done; echo 0"),
+            "logs":  sh("while true; do echo tick; sleep 0.05; done")}
+    sup, _, _ = make(tmp_path, desc)
+    await sup.start()
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    assert sup._logs_proc is not None and sup._logs_proc.returncode is None
+    await asyncio.wait_for(sup.stop(), 3)     # regression hangs -> test hangs, not the suite
+    assert sup.state == pr.STOPPED
+    # the logs follower must still be reaped even without a stop command
+    await asyncio.wait_for(sup._logs_proc.wait(), 2)
+    assert sup._logs_proc.returncode is not None
+
+
 async def test_logs_follower_is_reaped_on_stop(tmp_path):
     state = str(tmp_path / "S")
     desc = {"supervise": "detached", "name": "n",

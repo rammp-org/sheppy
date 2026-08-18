@@ -187,6 +187,7 @@ class DetachedSupervisor(Supervised):
         self._launch_grace = grace.get("launch", cfg.launch_grace)
         self._poll_interval = grace.get("poll", 1.0)
         self._watch_task = None
+        self._watch_proc = None
         self._logs_proc = None
         self.adopted = False
 
@@ -242,6 +243,7 @@ class DetachedSupervisor(Supervised):
         except (OSError, ValueError):
             self._finish(None)
             return
+        self._watch_proc = proc
         # communicate() may only be awaited once; shield the same task so a
         # launch-grace timeout doesn't force a second, concurrent read.
         comm = asyncio.ensure_future(proc.communicate())
@@ -293,7 +295,22 @@ class DetachedSupervisor(Supervised):
         self._set(STOPPING)
         if self._stop_cmd:
             await self._run_once(self._stop_cmd)
-        await self._exited.wait()
+            await self._exited.wait()
+            return
+        # No stop command: we have no way to tell the unit to exit, so
+        # don't block forever on a watch/poll loop that may never observe
+        # that. Force the transition and reap the watcher ourselves.
+        if self._watch_task is not None:
+            self._watch_task.cancel()
+        # Cancelling the task only stops us awaiting it; a long-running
+        # watch subprocess (e.g. `docker wait`) is a separate OS process
+        # that keeps running unless killed directly.
+        if self._watch_proc is not None and self._watch_proc.returncode is None:
+            try:
+                self._watch_proc.kill()
+            except ProcessLookupError:
+                pass
+        self._finish(None)
 
     def mark_adopted(self, started_at) -> None:
         self._stop_requested = False
