@@ -64,3 +64,15 @@ def test_validate_rejects_bad_environment_and_volumes_types():
     assert errs
     errs = dl.validate({"container": {"image": "x", "volumes": 5}})
     assert errs
+
+
+def test_summary_does_not_raise_on_malformed_container():
+    a = alt(container="justastring")
+    rows = DockerLauncher().summary(a)
+    assert ("image", "—") in rows
+
+
+def test_summary_still_shows_image_for_well_formed_container():
+    a = alt(container={"image": "org/perc:1"})
+    rows = DockerLauncher().summary(a)
+    assert ("image", "org/perc:1") in rows

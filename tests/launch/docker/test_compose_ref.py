@@ -51,3 +51,13 @@ def test_missing_service_warns_not_crashes(tmp_path):
                         home=str(tmp_path), manifest_dir=str(tmp_path))
     d = DockerLauncher().launch(a, {}, ctx)     # must not raise
     assert any("perception" in w for w in ctx.warnings)
+
+
+def test_malformed_compose_ref_warns_not_crashes(tmp_path):
+    # 'compose' as a non-mapping (e.g. a plain string) must not crash
+    # launch(); it should warn and fall back like a missing service does.
+    a = Alternative(id="real", kind="docker", config={"compose": "juststring"})
+    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                        home=str(tmp_path), manifest_dir=str(tmp_path))
+    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
+    assert any("compose" in w for w in ctx.warnings)

@@ -19,6 +19,10 @@ class DockerLauncher:
                 return {}
             return dict(inline)
         ref = alt.config.get("compose") or {}
+        if not isinstance(ref, dict):
+            ctx.warn(f"'{ctx.node_name}': 'compose' must be a mapping, "
+                     f"got {type(ref).__name__}")
+            return {}
         path = ref.get("file", "")
         if not os.path.isabs(path):
             path = os.path.join(ctx.manifest_dir, path)
@@ -72,10 +76,10 @@ class DockerLauncher:
 
     def summary(self, alt) -> list:
         inline = alt.config.get("container")
-        if inline:
+        if isinstance(inline, dict):
             return [("image", inline.get("image", "—")),
                     ("network", str(inline.get("network_mode", "default")))]
         ref = alt.config.get("compose")
-        if ref:
+        if isinstance(ref, dict):
             return [("compose", f"{ref.get('file', '—')}#{ref.get('service', '—')}")]
         return [("image", "—"), ("network", "default")]
