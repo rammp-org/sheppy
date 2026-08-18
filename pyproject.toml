@@ -16,6 +16,12 @@ dependencies = [
 sheppy = "sheppy.cli:main"
 sheppyd = "sheppy.daemon.__main__:main"
 
+[project.entry-points."sheppy.launchers"]
+process = "sheppy.launch.builtins:ProcessLauncher"
+executable = "sheppy.launch.builtins:ExecutableLauncher"
+launch_file = "sheppy.launch.builtins:LaunchFileLauncher"
+# docker added in Task 8
+
 [dependency-groups]
 dev = [
     "pytest>=7.4",

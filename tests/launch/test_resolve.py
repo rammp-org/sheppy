@@ -1,3 +1,4 @@
+from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.resolve import LaunchSpec, diff, resolve
 from sheppy.manifest import Alternative, Machine, Manifest, Node
 
@@ -81,7 +82,8 @@ def test_launch_file_param_with_single_quote_is_escaped():
 
 
 def make_spec(node, alt="a", argv=("bash", "-c", "x")):
-    return LaunchSpec(node=node, alt_id=alt, argv=tuple(argv), params={})
+    return LaunchSpec(node=node, alt_id=alt,
+                      descriptor=LaunchDescriptor.inherit(argv), params={})
 
 
 def actual(node, state, argv=("bash", "-c", "x")):
@@ -109,3 +111,14 @@ def test_diff_crashed_desired_node_restarts_via_start():
 def test_diff_empty_when_converged():
     desired = {"a": make_spec("a")}
     assert diff(desired, {"a": actual("a", "running")}) == []
+
+
+def test_resolve_still_emits_argv_wire(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    from sheppy.launch import resolve
+    from sheppy.manifest import Alternative, Manifest
+    alt = Alternative(id="a", kind="executable", package="p", executable="e")
+    spec, warns = resolve(Manifest(machines=[], nodes=[]), "n", alt, {})
+    wire = spec.to_wire()
+    assert wire["argv"][0] == "bash" and "ros2 run p e" in wire["argv"][2]
+    assert "descriptor" not in wire            # still argv-shaped in Task 4
