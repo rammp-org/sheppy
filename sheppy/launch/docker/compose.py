@@ -74,6 +74,10 @@ def service_to_docker_args(service: dict):
     for cap in _as_list(service.get("cap_drop")):
         flags += ["--cap-drop", str(cap)]
     for port in _as_list(service.get("ports")):
+        if not isinstance(port, (str, int)):
+            errors.append("compose long-form 'ports' is not supported; "
+                          "use the 'host:container' short string form")
+            continue
         flags += ["-p", str(port)]
     if service.get("user"):
         flags += ["-u", str(service["user"])]
@@ -82,7 +86,12 @@ def service_to_docker_args(service: dict):
     if service.get("entrypoint"):
         ep = service["entrypoint"]
         flags += ["--entrypoint", ep if isinstance(ep, str) else " ".join(ep)]
-    if service.get("gpus"):
-        flags += ["--gpus", str(service["gpus"])]
+    gpus = service.get("gpus")
+    if gpus is not None:
+        if not isinstance(gpus, (str, int)):
+            errors.append("compose long-form 'gpus' is not supported; "
+                          "use e.g. gpus: all")
+        else:
+            flags += ["--gpus", str(gpus)]
 
     return flags, image or "", _command_list(service.get("command")), errors, warnings

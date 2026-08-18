@@ -43,3 +43,23 @@ def test_environment_list_form_and_volume_longform():
          "volumes": [{"source": "/s", "target": "/t", "read_only": True}]})
     assert flags[flags.index("-e") + 1] == "A=1"
     assert "/s:/t:ro" in flags
+
+
+def test_long_form_ports_is_a_hard_error():
+    _, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "ports": [{"target": 80, "published": 8080}]})
+    assert any("ports" in e for e in errs)
+
+
+def test_long_form_gpus_is_a_hard_error():
+    _, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "gpus": [{"capabilities": ["gpu"]}]})
+    assert any("gpus" in e for e in errs)
+
+
+def test_short_form_ports_and_gpus_still_work():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "ports": ["8080:80"], "gpus": "all"})
+    assert errs == []
+    assert flags[flags.index("-p") + 1] == "8080:80"
+    assert flags[flags.index("--gpus") + 1] == "all"
