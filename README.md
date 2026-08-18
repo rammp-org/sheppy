@@ -115,7 +115,9 @@ Try it without ROS: `uv run sheppy examples/local-demo.yaml`.
 
 For the full picture — architecture, node states, re-adoption, the wire
 protocol, and troubleshooting — see the **[sheppyd guide](docs/sheppyd.md)**
-(and the [docs index](docs/index.md)).
+(and the [docs index](docs/index.md)). Want to add your own launch `kind`
+(a custom process wrapper, systemd, Kubernetes, ...)? See
+**[writing a launcher plugin](docs/launcher-plugins.md)**.
 
 ### Colors washed out over SSH?
 

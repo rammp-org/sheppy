@@ -20,7 +20,8 @@ def make_table(tmp_path, events=None):
 
 
 def spec(node, argv=SLEEP, alt="a"):
-    return {"node": node, "alt_id": alt, "argv": argv, "params": {}}
+    return {"node": node, "alt_id": alt, "params": {},
+            "descriptor": {"supervise": "inherit", "start": list(argv)}}
 
 
 async def wait_state(table, node, state, timeout=5.0):
@@ -66,7 +67,7 @@ async def test_restart_relaunches_same_spec(tmp_path):
     await wait_state(table, "flaky", pr.CRASHED)
     await table.restart("flaky")
     await wait_state(table, "flaky", pr.CRASHED)   # crashes again — same spec
-    assert table.status()["flaky"]["spec"]["argv"] == CRASH
+    assert table.status()["flaky"]["spec"]["descriptor"]["start"] == list(CRASH)
 
 
 async def test_unknown_node_raises(tmp_path):

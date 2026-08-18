@@ -1,4 +1,5 @@
 # sheppy/tui/app.py
+import os
 from functools import partial
 
 from textual.app import App, ComposeResult
@@ -203,8 +204,13 @@ class SheppyApp(App):
         if alt is None:
             return True                     # running but nothing desired
         spec, _ = resolve(self.manifest, node.name, alt,
-                          self.state.effective_params(node.name))
-        return payload["spec"]["argv"] != list(spec.argv)
+                          self.state.effective_params(node.name),
+                          manifest_dir=os.path.dirname(
+                              os.path.abspath(self.path or "system.yaml")))
+        if spec is None:
+            return False
+        return (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
+                or payload["spec"].get("params") != spec.params)
 
     # ---- daemon actions -------------------------------------------------------
     async def action_converge_node(self) -> None:
@@ -229,9 +235,13 @@ class SheppyApp(App):
             await self._request_safely("stop", node=node.name)
             return
         spec, warns = resolve(self.manifest, node.name, alt,
-                              self.state.effective_params(node.name))
+                              self.state.effective_params(node.name),
+                              manifest_dir=os.path.dirname(
+                                  os.path.abspath(self.path or "system.yaml")))
         if warns:
             self._append_warnings(warns)
+        if spec is None:
+            return
         await self._request_safely("launch", spec=spec.to_wire())
 
     async def action_stop_node(self) -> None:
@@ -268,9 +278,13 @@ class SheppyApp(App):
             if alt is None:
                 continue
             spec, warns = resolve(self.manifest, node.name, alt,
-                                  self.state.effective_params(node.name))
+                                  self.state.effective_params(node.name),
+                                  manifest_dir=os.path.dirname(
+                                      os.path.abspath(self.path or "system.yaml")))
             if warns:
                 self._append_warnings(warns)
+            if spec is None:
+                continue
             desired[node.name] = spec
         known = {n: p for n, p in self.actual.items()
                  if self.manifest.node(n) is not None}    # orphans excluded
@@ -400,7 +414,15 @@ class SheppyApp(App):
         idx = self.query_one(AlternativesPanel).index
         alt = (node.alternatives[idx]
                if idx is not None and node.alternatives else None)
-        self.query_one(DetailTabs).show(node, alt)
+        rows = self._summary_rows(alt) if alt else None
+        self.query_one(DetailTabs).show(node, alt, summary_rows=rows)
+
+    def _summary_rows(self, alt) -> list:
+        from sheppy.launch.registry import default_registry, UnknownKind
+        try:
+            return default_registry().get(alt.kind).summary(alt)
+        except UnknownKind:
+            return []
 
     def _update_alts_head(self, node: Node) -> None:
         try:
@@ -461,7 +483,9 @@ class SheppyApp(App):
             self, event: AlternativesPanel.AlternativeHighlighted) -> None:
         node = self._current_node()
         if node and node.alternatives and event.index is not None:
-            self.query_one(DetailTabs).show(node, node.alternatives[event.index])
+            alt = node.alternatives[event.index]
+            self.query_one(DetailTabs).show(
+                node, alt, summary_rows=self._summary_rows(alt))
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:

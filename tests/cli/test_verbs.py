@@ -63,6 +63,49 @@ def test_up_exits_nonzero_on_crash(site, capsys):
     assert "flaky: crashed" in capsys.readouterr().out
 
 
+def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
+    # A launcher plugin raising in launch() must not crash `sheppy up`; the
+    # affected node is skipped (warned about) and the rest still launches.
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: broken_launcher\n"
+        "    alternatives:\n"
+        "      - id: boom\n"
+        "        kind: boom\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "broken_launcher": "boom"}))
+
+    class BoomLauncher:
+        kind = "boom"
+
+        def validate(self, raw_alt):
+            return []
+
+        def launch(self, alt, params, ctx):
+            raise RuntimeError("kaboom")
+
+        def summary(self, alt):
+            return []
+
+    import importlib
+    # sheppy.launch's __init__ re-binds the name "resolve" to the resolve()
+    # function, shadowing the submodule at that attribute — so `import
+    # sheppy.launch.resolve as x` would resolve to the function, not the
+    # module. Go through sys.modules via import_module to get the module.
+    resolve_mod = importlib.import_module("sheppy.launch.resolve")
+    from sheppy.launch.registry import LauncherRegistry, default_registry
+    launchers = list(default_registry()._by_kind.values()) + [BoomLauncher()]
+    monkeypatch.setattr(resolve_mod, "default_registry",
+                        lambda: LauncherRegistry(launchers))
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "kaboom" in captured.err
+    assert "camera: running" in captured.out
+
+
 def test_status_and_woof_and_logs(site, capsys):
     cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
     capsys.readouterr()

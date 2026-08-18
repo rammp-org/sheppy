@@ -11,7 +11,8 @@ SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
 
 
 def spec(node, argv=SLEEP):
-    return {"node": node, "alt_id": "a", "argv": argv, "params": {}}
+    return {"node": node, "alt_id": "a", "params": {},
+            "descriptor": {"supervise": "inherit", "start": list(argv)}}
 
 
 @pytest.fixture

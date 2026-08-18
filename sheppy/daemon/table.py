@@ -1,5 +1,6 @@
 """The daemon's heart: node -> supervised process, mirrored to a state
 file so a restarted daemon re-adopts still-live children. stdlib only."""
+import asyncio
 import json
 import os
 
@@ -33,7 +34,15 @@ class ProcessTable:
             await old.stop()
         log = NodeLog(self._cfg.log_dir, node,
                       self._cfg.ring_lines, self._cfg.keep_runs)
-        proc = pr.ManagedProcess(spec, self._cfg, log, self._on_state)
+        descriptor = spec.get("descriptor") or {}
+        supervise = descriptor.get("supervise")
+        if supervise == "inherit":
+            mp_spec = {**spec, "argv": list(descriptor["start"])}
+            proc = pr.ManagedProcess(mp_spec, self._cfg, log, self._on_state)
+        elif supervise == "detached":
+            proc = pr.DetachedSupervisor(spec, self._cfg, log, self._on_state)
+        else:
+            raise ValueError(f"unknown supervise: {supervise!r}")
         self._entries[node] = proc
         await proc.start()
 
@@ -70,6 +79,17 @@ class ProcessTable:
             return []
         adopted = []
         for node, rec in nodes.items():
+            if rec.get("detached"):
+                log = NodeLog(self._cfg.log_dir, node,
+                              self._cfg.ring_lines, self._cfg.keep_runs)
+                log.attach_latest()
+                sup = pr.DetachedSupervisor(rec["spec"], self._cfg, log,
+                                            self._on_state)
+                sup.mark_adopted(rec["started_at"])
+                self._entries[node] = sup
+                asyncio.ensure_future(sup.reattach())
+                adopted.append(node)
+                continue
             ticks = _proc_start_ticks(rec["pid"])
             if ticks is None or rec["proc_start"] is None \
                     or ticks != rec["proc_start"]:
@@ -99,16 +119,18 @@ class ProcessTable:
     def _persist(self) -> None:
         live = {}
         for node, e in self._entries.items():
-            if e.pid is None or e._exited.is_set():
+            if e._exited.is_set() or e.state in (pr.STOPPED, pr.CRASHED):
                 continue
-            if e.state in (pr.STOPPED, pr.CRASHED):
-                continue
-            ticks = _proc_start_ticks(e.pid)
-            if ticks is None:                  # already gone: not live
-                continue
-            live[node] = {"spec": e.spec, "pid": e.pid,
-                          "started_at": e.started_at,
-                          "proc_start": ticks}
+            if getattr(e, "_name", None):                  # detached
+                live[node] = {"detached": True, "spec": e.spec,
+                              "name": e._name, "started_at": e.started_at}
+            elif e.pid is not None:
+                ticks = _proc_start_ticks(e.pid)
+                if ticks is None:              # already gone: not live
+                    continue
+                live[node] = {"spec": e.spec, "pid": e.pid,
+                              "started_at": e.started_at,
+                              "proc_start": ticks}
         os.makedirs(self._cfg.home, exist_ok=True)
         path = state_path(self._cfg.home)
         tmp = path + ".tmp"

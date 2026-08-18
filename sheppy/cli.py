@@ -142,9 +142,13 @@ async def _up(args) -> int:
         if alt is None:
             continue
         spec, warns = resolve(result.manifest, node.name, alt,
-                              state.effective_params(node.name))
+                              state.effective_params(node.name),
+                              manifest_dir=os.path.dirname(
+                                  os.path.abspath(args.manifest)))
         for w in warns:
             print(f"warning: {w}", file=sys.stderr)
+        if spec is None:
+            continue
         desired[node.name] = spec
 
     client = DaemonClient()

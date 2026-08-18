@@ -1,3 +1,36 @@
+import os
+
+from sheppy.launch.descriptor import LaunchDescriptor
+from sheppy.launch.resolve import resolve
+from sheppy.manifest import load_manifest
+
+_MANIFEST_PATH = os.path.join(
+    os.path.dirname(__file__), "..", "..", "examples", "cockpit-demo.yaml")
+_manifest = None
+
+
+def _default_spec_fields(node: str, alt: str) -> dict:
+    """A descriptor + params matching what resolve() would actually produce
+    for (node, alt) -- with no overrides -- in examples/cockpit-demo.yaml
+    (the manifest every TUI test uses). This makes the app's drift
+    comparison (payload["spec"] vs. the resolved spec for the *selected*
+    alternative) meaningful: a payload for the currently-selected alt with
+    no param overrides converges (no drift); a payload for any other alt,
+    or with an override applied, drifts. Falls back to a synthetic inherit
+    descriptor for orphan node/alt combos that aren't in that manifest."""
+    global _manifest
+    if _manifest is None:
+        _manifest = load_manifest(_MANIFEST_PATH).manifest
+    n = _manifest.node(node) if _manifest else None
+    a = next((x for x in n.alternatives if x.id == alt), None) if n else None
+    if a is None:
+        descriptor = LaunchDescriptor.inherit(
+            ("bash", "-c", f"exec {node}-{alt}")).to_wire()
+        return {"descriptor": descriptor, "params": {}}
+    spec, _ = resolve(_manifest, node, a, dict(a.params))
+    return {"descriptor": spec.descriptor.to_wire(), "params": spec.params}
+
+
 class FakeDaemonClient:
     """Test double matching DaemonClient's surface. Seed `nodes` with
     daemon status payloads; `push()` fires a live event into the app."""
@@ -46,9 +79,9 @@ class FakeDaemonClient:
             cb(event)
 
 
-def payload(node, state, alt="a", argv=None, usage=None, adopted=False):
+def payload(node, state, alt="a", usage=None, adopted=False):
     return {"event": "status", "node": node, "state": state, "pid": 4242,
             "exit_code": 7 if state == "crashed" else None,
             "started_at": 0.0, "adopted": adopted, "usage": usage,
             "spec": {"node": node, "alt_id": alt,
-                     "argv": argv or ["bash", "-c", "x"], "params": {}}}
+                     **_default_spec_fields(node, alt)}}

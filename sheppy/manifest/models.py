@@ -21,6 +21,7 @@ class Alternative:
     params: dict = field(default_factory=dict)
     publishes: list[str] = field(default_factory=list)
     subscribes: list[str] = field(default_factory=list)
+    config: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

@@ -10,6 +10,32 @@ def make_app(fake):
     return SheppyApp(load_manifest(MANIFEST), path=MANIFEST, client=fake)
 
 
+def test_drift_returns_false_when_resolve_fails(monkeypatch):
+    # A launcher raising in launch() must never crash _drift, which runs
+    # on every daemon status event via the per-node refresh loop.
+    app = SheppyApp(load_manifest(MANIFEST), path=MANIFEST)
+    node = app.manifest.node("camera")
+    app.state.select("camera", "realsense")
+    monkeypatch.setattr("sheppy.tui.app.resolve",
+                        lambda *a, **kw: (None, ["boom"]))
+    payload = {"state": "running", "spec": {}}
+    assert app._drift(node, payload) is False
+
+
+async def test_converge_node_survives_launcher_raising(monkeypatch):
+    fake = FakeDaemonClient()
+    app = make_app(fake)
+    monkeypatch.setattr("sheppy.tui.app.resolve",
+                        lambda *a, **kw: (None, ["boom"]))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter", "escape")   # select camera alt
+        await pilot.press("space")                      # converge_node
+        await pilot.pause()
+        assert not any(op == "launch" for op, _ in fake.requests)
+        assert any("boom" in w for w in app._runtime_warnings)
+
+
 async def test_converge_all_shows_plan_then_executes():
     fake = FakeDaemonClient()
     app = make_app(fake)

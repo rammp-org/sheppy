@@ -55,7 +55,10 @@ async def test_space_launches_resolved_spec():
         assert launches, f"no launch in {fake.requests}"
         spec = launches[-1]["spec"]
         assert spec["node"] == "camera" and spec["alt_id"] == "realsense"
-        assert spec["argv"][0] == "bash" and "ros2 launch" in spec["argv"][2]
+        descriptor = spec["descriptor"]
+        assert descriptor["supervise"] == "inherit"
+        assert descriptor["start"][0] == "bash" and \
+            "ros2 launch" in descriptor["start"][2]
 
 
 async def test_space_without_selection_on_dead_node_warns():
@@ -100,3 +103,14 @@ async def test_drift_marker_when_selection_differs_from_running():
         await pilot.press("enter", "enter")     # select realsense (desired)
         await pilot.pause()
         assert "Δ" in str(app.query_one("#node-0 .col-status").content)
+
+
+async def test_no_drift_marker_when_selection_matches_running():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter")     # select realsense (converged)
+        await pilot.pause()
+        assert "Δ" not in str(app.query_one("#node-0 .col-status").content)

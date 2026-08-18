@@ -11,6 +11,24 @@ from sheppy.daemon.table import ProcessTable
 VERSION = "0.1"
 
 
+def _validate_descriptor(node, d) -> "str | None":
+    if not node:
+        return "spec requires 'node'"
+    if not isinstance(d, dict):
+        return "spec requires a 'descriptor'"
+    if d.get("supervise") not in ("inherit", "detached"):
+        return f"descriptor.supervise invalid: {d.get('supervise')!r}"
+    start = d.get("start")
+    if not isinstance(start, list) or not start:
+        return "descriptor needs a non-empty 'start'"
+    if d.get("supervise") == "detached":
+        if not d.get("name"):
+            return "detached descriptor needs 'name'"
+        if bool(d.get("watch")) == bool(d.get("poll")):
+            return "detached descriptor needs exactly one of 'watch'/'poll'"
+    return None
+
+
 class Server:
     def __init__(self, cfg: Config) -> None:
         self._cfg = cfg
@@ -58,7 +76,7 @@ class Server:
     async def _client(self, reader, writer) -> None:
         self._connections.add(writer)
         writer.write(encode(
-            {"event": "hello", "sheppyd": VERSION, "protocol": 1}))
+            {"event": "hello", "sheppyd": VERSION, "protocol": 2}))
         decoder = Decoder()
         try:
             while True:
@@ -98,10 +116,9 @@ class Server:
         op = msg.get("op")
         if op == "launch":
             spec = msg.get("spec") or {}
-            argv = spec.get("argv")
-            if not spec.get("node") or not isinstance(argv, list) or not argv:
-                return {"ok": False,
-                        "error": "spec requires 'node' and non-empty 'argv'"}
+            err = _validate_descriptor(spec.get("node"), spec.get("descriptor"))
+            if err:
+                return {"ok": False, "error": err}
             await self.table.launch(spec)
             return {"ok": True}
         if op == "stop":

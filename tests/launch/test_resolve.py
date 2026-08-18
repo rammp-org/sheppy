@@ -1,3 +1,4 @@
+from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.resolve import LaunchSpec, diff, resolve
 from sheppy.manifest import Alternative, Machine, Manifest, Node
 
@@ -26,7 +27,7 @@ def test_executable_kind_with_params_and_setup():
     assert "exec ros2 run cam_pkg cam_node --ros-args" in text
     assert "-p 'fps:=30'" in text and "-p 'pointcloud.enable:=true'" in text
     assert spec.to_wire() == {"node": "camera", "alt_id": "real",
-                              "argv": list(spec.argv),
+                              "descriptor": spec.descriptor.to_wire(),
                               "params": {"fps": 30,
                                          "pointcloud.enable": True}}
 
@@ -81,12 +82,14 @@ def test_launch_file_param_with_single_quote_is_escaped():
 
 
 def make_spec(node, alt="a", argv=("bash", "-c", "x")):
-    return LaunchSpec(node=node, alt_id=alt, argv=tuple(argv), params={})
+    return LaunchSpec(node=node, alt_id=alt,
+                      descriptor=LaunchDescriptor.inherit(argv), params={})
 
 
 def actual(node, state, argv=("bash", "-c", "x")):
     return {"node": node, "state": state,
-            "spec": {"node": node, "alt_id": "a", "argv": list(argv),
+            "spec": {"node": node, "alt_id": "a",
+                     "descriptor": LaunchDescriptor.inherit(argv).to_wire(),
                      "params": {}}}
 
 
@@ -109,3 +112,30 @@ def test_diff_crashed_desired_node_restarts_via_start():
 def test_diff_empty_when_converged():
     desired = {"a": make_spec("a")}
     assert diff(desired, {"a": actual("a", "running")}) == []
+
+
+def test_resolve_catches_launcher_raising_and_returns_none_spec():
+    class BoomLauncher:
+        kind = "boom"
+
+        def launch(self, alt, params, ctx):
+            raise RuntimeError("kaboom")
+
+    from sheppy.launch.registry import LauncherRegistry
+    reg = LauncherRegistry([BoomLauncher()])
+    alt = Alternative(id="a", kind="boom")
+    spec, warnings = resolve(manifest(), "n", alt, {}, registry=reg)
+    assert spec is None
+    assert any("n" in w and "boom" in w and "kaboom" in w for w in warnings)
+
+
+def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    from sheppy.launch import resolve
+    from sheppy.manifest import Alternative, Manifest
+    alt = Alternative(id="a", kind="executable", package="p", executable="e")
+    spec, _ = resolve(Manifest(machines=[], nodes=[]), "n", alt, {})
+    wire = spec.to_wire()
+    assert "argv" not in wire
+    assert wire["descriptor"]["supervise"] == "inherit"
+    assert "ros2 run p e" in wire["descriptor"]["start"][2]

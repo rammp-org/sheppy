@@ -1,16 +1,10 @@
 from sheppy.manifest.models import Machine, Alternative, Node, Manifest
 from sheppy.manifest.errors import ValidationError, LoadResult
 
-VALID_KINDS = frozenset({"executable", "launch_file", "process"})
-
-_KIND_REQUIRED = {
-    "executable": ("package", "executable"),
-    "launch_file": ("package", "launch_file"),
-    "process": ("command",),
-}
-
 
 def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) -> Alternative:
+    from sheppy.launch.registry import UnknownKind, default_registry
+
     if not isinstance(raw, dict):
         errors.append(ValidationError(loc, "alternative entry must be a mapping"))
         return Alternative(id="", kind="")
@@ -18,16 +12,21 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
     if not alt_id:
         errors.append(ValidationError(loc, "alternative is missing 'id'"))
     kind = raw.get("kind")
-    if kind not in VALID_KINDS:
+    registry = default_registry()
+    try:
+        launcher = registry.get(kind)
+    except UnknownKind:
+        launcher = None
         errors.append(ValidationError(
-            loc, f"alternative '{alt_id}' has invalid kind {kind!r}; "
-                 f"must be one of {sorted(VALID_KINDS)}"))
-    else:
-        for required in _KIND_REQUIRED[kind]:
-            if not raw.get(required):
-                errors.append(ValidationError(
-                    loc, f"alternative '{alt_id}' of kind '{kind}' "
-                         f"is missing '{required}'"))
+            loc, f"alternative '{alt_id}' has unknown kind {kind!r}; "
+                 f"known kinds: {', '.join(registry.kinds()) or '(none)'}"))
+    if launcher is not None:
+        try:
+            msgs = launcher.validate(raw)
+        except Exception as e:
+            msgs = [f"launcher {kind!r} validate() raised: {type(e).__name__}: {e}"]
+        for msg in msgs:
+            errors.append(ValidationError(loc, f"alternative '{alt_id}': {msg}"))
     machine = raw.get("machine")
     if machine is not None and machine not in machine_names:
         errors.append(ValidationError(
@@ -37,7 +36,8 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
         package=raw.get("package"), executable=raw.get("executable"),
         launch_file=raw.get("launch_file"), command=raw.get("command"),
         params=raw.get("params") or {},
-        publishes=raw.get("publishes") or [], subscribes=raw.get("subscribes") or [])
+        publishes=raw.get("publishes") or [], subscribes=raw.get("subscribes") or [],
+        config=dict(raw))
 
 
 def _build_node(raw: dict, loc: str, machine_names: set, errors: list) -> Node:

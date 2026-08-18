@@ -1,0 +1,285 @@
+# Writing a launcher plugin
+
+Sheppy resolves each alternative's `kind` (`process`, `executable`,
+`launch_file`, `docker`, ...) to a **launcher** — a small class that turns a
+manifest entry into a `LaunchDescriptor`, a plain data recipe for starting,
+watching, stopping, and reading logs for one unit. This guide is for anyone
+who wants to add a new `kind`: a custom process wrapper, a systemd unit, a
+Kubernetes pod, whatever your fleet needs.
+
+Everything here is verified against the real source: `sheppy/launch/base.py`,
+`sheppy/launch/descriptor.py`, `sheppy/launch/registry.py`,
+`sheppy/launch/builtins.py`, `sheppy/launch/docker/__init__.py`, and
+`sheppy/manifest/loader.py`.
+
+## The three-layer model
+
+```
+manifest alternative (kind: "...")
+        │  validate() / launch()
+        ▼
+   Launcher (client-side, your code)
+        │  returns
+        ▼
+  LaunchDescriptor  (plain, JSON-serializable data)
+        │  sent over the socket as spec["descriptor"]
+        ▼
+   sheppyd (the daemon: ManagedProcess / DetachedSupervisor)
+```
+
+1. **Launcher** — client-side Python. Runs inside `sheppy` (the TUI/CLI
+   process), never inside `sheppyd`. It reads the manifest alternative and
+   decides *what command to run and how to supervise it*.
+2. **`LaunchDescriptor`** — the answer, as data: an argv tuple for `start`,
+   optionally argv tuples for `watch`/`poll`/`stop`/`logs`/`stats`/`reset`.
+   It is serialized (`to_wire()`) and sent to `sheppyd` over the local
+   socket.
+3. **Daemon engine** — `sheppyd` executes the descriptor's argv tuples. It
+   never imports your launcher, never sees the manifest, and doesn't know
+   what "docker" or "echo" means — it just runs the commands the descriptor
+   gave it.
+
+**Why plugins are declarative and never run in the daemon:** `sheppyd` is a
+tiny, stdlib-only supervisor that must stay simple and trustworthy — it's the
+thing that outlives the TUI and keeps your nodes alive. If launcher code ran
+inside it, a bug or a heavy dependency in a third-party plugin could take
+down every supervised process on the machine. Because a `LaunchDescriptor` is
+just argv tuples and strings, the daemon can execute it without ever loading
+your plugin's code, its dependencies, or its entry-point machinery. Your
+plugin only needs to be importable on the machine running the TUI/CLI; it
+doesn't need to be installed wherever `sheppyd` runs relative to the nodes it
+starts.
+
+## The `Launcher` contract
+
+A launcher is any object satisfying this `Protocol` (`sheppy/launch/base.py`):
+
+```python
+class Launcher(Protocol):
+    kind: str
+
+    def validate(self, raw_alt: dict) -> list: ...
+    def launch(self, alt, params: dict, ctx: LaunchContext) -> LaunchDescriptor: ...
+    def summary(self, alt) -> list: ...
+```
+
+- **`kind`** — a class attribute; the string manifest alternatives set as
+  `kind: <this>` to select this launcher.
+- **`validate(raw_alt)`** — called at manifest-load time
+  (`sheppy/manifest/loader.py::_build_alternative`), before an `Alternative`
+  object even exists. `raw_alt` is the *raw dict* for this alternative entry
+  straight out of the YAML — not yet parsed into typed fields. Return a list
+  of human-readable error strings (empty list = valid). These become
+  `ValidationError`s attached to the alternative's location in the manifest,
+  so a bad `kind: docker` entry fails at `sheppy up`/manifest-load time, not
+  mid-launch.
+- **`launch(alt, params, ctx)`** — called at resolve time
+  (`sheppy/launch/resolve.py::resolve`), once the manifest is valid. `alt` is
+  the built `Alternative` (has `.id`, `.kind`, `.machine`, and `.config` — the
+  full raw dict for this alternative, so any custom keys your `kind` needs
+  are always available via `alt.config`, even if they aren't among the
+  built-in typed fields like `.package`/`.executable`/`.command`). `params`
+  is the resolved parameter dict for this node. `ctx` is a `LaunchContext`
+  (below). Must return a `LaunchDescriptor`.
+- **`summary(alt)`** — a list of `(label, value)` string pairs for the TUI to
+  show as a compact one-line summary of this alternative (e.g. the docker
+  launcher shows `[("image", ...), ("network", ...)]`).
+
+## The `LaunchDescriptor` vocabulary
+
+`LaunchDescriptor` (`sheppy/launch/descriptor.py`) is a frozen dataclass —
+pure, JSON-serializable data, built via one of two classmethods.
+
+### `inherit` — the simple shape
+
+```python
+LaunchDescriptor.inherit(start)
+```
+
+`start` is an argv sequence. The daemon spawns it directly as a
+`ManagedProcess`: a child in its own new process session, whose lifetime and
+supervision the daemon fully owns via the process group (SIGINT → SIGTERM →
+SIGKILL escalation, `/proc`-based CPU/RSS sampling, crash detection from the
+exit code). Use `inherit` whenever "run this argv as a normal child process"
+is the whole story — this is what `process`, `executable`, and
+`launch_file` all use.
+
+### `detached` — the general shape
+
+```python
+LaunchDescriptor.detached(
+    name, start, *,
+    watch=None, poll=None, stop=None, logs=None, stats=None, reset=None,
+    grace=None,
+)
+```
+
+For a unit that **outlives the process that started it** — a container, a
+systemd unit, anything the daemon doesn't hold a direct child pid for. The
+daemon drives it entirely through the argv tuples you supply
+(`sheppy/daemon/process.py::DetachedSupervisor`); it learns no
+runtime-specific behavior.
+
+- **`name`** (required) — a stable identifier for the unit (e.g. a container
+  name), used for re-adoption after a `sheppyd` restart.
+- **`start`** (required) — argv that starts the unit and exits (e.g.
+  `docker run -d ...`). A non-zero exit marks the launch as crashed.
+- **exactly one of `watch` or `poll`** (required) — how the daemon learns
+  the unit died:
+  - **`watch`** (preferred) — a *blocking* argv that exits when the unit
+    exits (e.g. `docker wait <name>`, which blocks and prints the container's
+    exit code). This keeps `sheppyd` at zero idle CPU: no polling loop, just
+    an `await`ed subprocess.
+  - **`poll`** — an argv run repeatedly on an interval (default 1s, see
+    `grace["poll"]` below) whose exit code indicates liveness (0 = still
+    alive). Use this only when your runtime has no blocking-wait primitive.
+- **`stop`** (optional) — argv to gracefully stop the unit (e.g.
+  `docker stop --time 10 <name>`). If omitted, the daemon has no direct
+  intervention.
+- **`logs`** (optional) — argv that *follows* logs to stdout/stderr (e.g.
+  `docker logs -f --tail 300 <name>`); the daemon runs it as a companion
+  process feeding the node's log file.
+- **`reset`** (optional) — argv run best-effort *before* `start`, to clear
+  any stale state from a previous run (e.g. `docker rm -f <name>`, so a
+  crashed container with the same name doesn't block the next launch).
+- **`stats`** (optional) — a one-shot command whose stdout is exactly two
+  whitespace-separated numbers: `<cpu_pct> <rss_mb>`. Reformatting your
+  runtime's native usage output into that fixed two-number contract is the
+  launcher's job; the daemon's parser only ever expects those two numbers.
+  **Note on current wiring:** the vocabulary and the per-node usage slot
+  support `stats`, and `DetachedSupervisor` stores the command
+  (`sheppy/daemon/process.py`), but the daemon's usage loop
+  (`sheppy/daemon/server.py::_usage_loop`) currently only samples `inherit`
+  units via `/proc`; it does not yet invoke a detached unit's `stats`
+  command. The built-in `docker` launcher does not emit `stats` either, so
+  Docker nodes currently show blank usage in the TUI. If you add `stats` to
+  your own launcher today, it will be validated and stored but not sampled
+  until the daemon side is wired up — check the current state of
+  `_usage_loop` before relying on it.
+- **`grace`** (optional dict) — timing overrides: `grace["launch"]` (seconds
+  to wait after `start` before treating a still-running unit as fully
+  "running" rather than still launching; defaults to the daemon's configured
+  `launch_grace`) and `grace["poll"]` (the `poll` interval in seconds,
+  default `1.0`).
+
+`descriptor.validate()` enforces: `supervise` is `"inherit"` or `"detached"`;
+`start` is non-empty; and for `detached`, `name` is set and exactly one of
+`watch`/`poll` is given. It's cheap and worth calling from your own tests, as
+the example test does — and the daemon independently re-checks the same
+rules against the wire dict on every incoming launch request
+(`sheppy/daemon/server.py::_validate_descriptor`), so a malformed descriptor
+is rejected even if a client skipped local validation.
+
+## `LaunchContext`
+
+`ctx: LaunchContext` (`sheppy/launch/base.py`) is passed into `launch()` and
+mediates side effects a launcher may need:
+
+- **`ctx.scratch_dir()`** — returns (creating if needed) a per-node
+  directory at `~/.sheppy/scratch/<node_name>` for any files your launcher
+  needs to write (params files, generated configs, ...).
+- **`ctx.write_params_file(params, ros_node_name=None)`** — writes `params`
+  as a ROS `params.yaml` (under the key `ros_node_name` or `/**` if omitted)
+  into `scratch_dir()` and returns the path. This is how the built-in
+  `docker` launcher mounts ROS params into a container:
+  `ctx.write_params_file(params, ...)` then bind-mounts the result read-only.
+- **`ctx.warn(msg)`** — record a non-fatal warning (e.g. "params are ignored
+  for this kind") to surface to the user; collected via `ctx.warnings` and
+  returned alongside the resolved `LaunchSpec` by `resolve()`.
+- **`ctx.manifest`** / **`ctx.manifest_dir`** / **`ctx.node_name`** — the
+  parsed `Manifest`, the manifest file's directory (for resolving relative
+  paths, e.g. a compose file reference), and the node name being launched.
+
+## Registering a launcher plugin
+
+Launchers are discovered via Python entry points in the group
+`"sheppy.launchers"` (`sheppy/launch/registry.py::LauncherRegistry.discover`).
+Add an entry in your package's `pyproject.toml`:
+
+```toml
+[project.entry-points."sheppy.launchers"]
+echo = "echo_launcher:EchoLauncher"
+```
+
+The key (`echo`) is cosmetic (the entry point *name*); what actually selects
+your launcher is the `kind` class attribute on the object your entry point
+loads. After adding or changing entry points, reinstall so Python's package
+metadata picks them up:
+
+```bash
+uv sync
+```
+
+A broken plugin (import error, exception on instantiation) is skipped with a
+warning on stderr — `sheppy: skipping launcher plugin '<name>': <error>` —
+and never breaks discovery of the other launchers
+(`LauncherRegistry.discover`).
+
+## Walk-through: `examples/launchers/echo_launcher.py`
+
+```python
+from sheppy.launch.descriptor import LaunchDescriptor
+
+
+class EchoLauncher:
+    kind = "echo"
+
+    def validate(self, raw_alt):
+        return [] if raw_alt.get("message") else ["echo alternative needs 'message'"]
+
+    def launch(self, alt, params, ctx):
+        msg = alt.config.get("message", "")
+        return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg!r}; sleep 3600"))
+
+    def summary(self, alt):
+        return [("message", alt.config.get("message", "—"))]
+```
+
+A manifest alternative for this launcher looks like:
+
+```yaml
+alternatives:
+  - id: greeter
+    kind: echo
+    message: "hello from sheppy"
+```
+
+- `validate({"kind": "echo", "message": "hello ..."})` checks the one field
+  this `kind` requires and returns `[]` (valid) or an error string.
+- `launch()` reads `alt.config["message"]` — `.config` is the full raw
+  alternative dict, so custom keys like `message` are always reachable even
+  though `Alternative` has no typed `.message` field — and returns an
+  `inherit` descriptor. The `sleep 3600` keeps the process alive after the
+  echo so there's something for `sheppyd` to supervise; a real launcher
+  would `exec` a long-running command directly instead.
+- `summary()` gives the TUI a one-line description of this alternative.
+
+`tests/test_example_launcher.py` loads the file directly with
+`importlib.util.spec_from_file_location` (no installation needed) and checks
+that the emitted descriptor passes `descriptor.validate()` and that
+`validate()` correctly rejects a missing `message`. That's a reasonable
+shape for a plugin's own test suite: exercise `validate()`'s pass/fail paths
+and confirm `launch()` produces a descriptor that validates.
+
+## The built-ins are just launchers
+
+There's no special-cased "core" launch path. `process`, `executable`,
+`launch_file` (`sheppy/launch/builtins.py`) and `docker`
+(`sheppy/launch/docker/__init__.py`) are registered through the exact same
+`sheppy.launchers` entry-point group, in `sheppy`'s own `pyproject.toml`:
+
+```toml
+[project.entry-points."sheppy.launchers"]
+process = "sheppy.launch.builtins:ProcessLauncher"
+executable = "sheppy.launch.builtins:ExecutableLauncher"
+launch_file = "sheppy.launch.builtins:LaunchFileLauncher"
+docker = "sheppy.launch.docker:DockerLauncher"
+```
+
+Reading `ProcessLauncher`/`ExecutableLauncher`/`LaunchFileLauncher` is a good
+next step for `inherit`-shaped launchers (they all wrap a shell command,
+optionally sourcing a machine's ROS setup script first). Reading
+`DockerLauncher` is the reference for a `detached`-shaped launcher: it emits
+`start`/`watch`/`stop`/`logs`/`reset` around `docker run`/`wait`/`stop`/
+`logs`/`rm`, and shows how to mount a `ctx.write_params_file()` result into a
+container.

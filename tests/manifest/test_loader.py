@@ -176,3 +176,73 @@ def test_non_list_alternatives_value():
     result = parse_manifest(data)
     assert any(e.location == "nodes[0]" for e in result.errors)
     assert result.manifest is not None
+
+
+def test_config_bag_captures_kind_specific_fields():
+    data = _valid_data()
+    data["nodes"][0]["alternatives"][0]["some_custom_field"] = {"a": 1}
+    result = parse_manifest(data)
+    alt = result.manifest.node("camera").alternatives[0]
+    assert alt.config["some_custom_field"] == {"a": 1}
+
+
+def test_unknown_kind_lists_known_kinds():
+    data = _valid_data()
+    data["nodes"][1]["alternatives"][0]["kind"] = "wizardry"
+    result = parse_manifest(data)
+    msgs = [e.message for e in result.errors]
+    assert any("wizardry" in m and "executable" in m for m in msgs)
+
+
+def test_launcher_validate_raising_is_caught(monkeypatch):
+    # The loader guard must protect against ANY launcher's validate()
+    # raising, not just docker's — a launcher plugin bug must never
+    # crash manifest loading.
+    class BoomLauncher:
+        kind = "boom"
+
+        def validate(self, raw_alt):
+            raise TypeError("kaboom")
+
+        def launch(self, alt, params, ctx):
+            raise NotImplementedError
+
+        def summary(self, alt):
+            return []
+
+    from sheppy.launch.registry import LauncherRegistry
+    fake_registry = LauncherRegistry([BoomLauncher()])
+    monkeypatch.setattr(
+        "sheppy.launch.registry.default_registry", lambda: fake_registry)
+
+    data = _valid_data()
+    data["nodes"][0]["alternatives"][0]["kind"] = "boom"
+    result = parse_manifest(data)         # must not raise
+    assert any("boom" in e.message and "kaboom" in e.message
+               for e in result.errors)
+
+
+def _docker_data(container):
+    return {"nodes": [{"name": "n", "alternatives": [
+        {"id": "d", "kind": "docker", "container": container}]}]}
+
+
+def test_malformed_docker_container_string_does_not_crash():
+    result = parse_manifest(_docker_data("myimage"))
+    assert result.manifest is not None
+    assert result.errors
+
+
+def test_malformed_docker_container_list_does_not_crash():
+    result = parse_manifest(_docker_data(["a", "b"]))
+    assert result.errors
+
+
+def test_malformed_docker_container_bad_environment_does_not_crash():
+    result = parse_manifest(_docker_data({"image": "x", "environment": 5}))
+    assert result.errors
+
+
+def test_malformed_docker_container_bad_volumes_does_not_crash():
+    result = parse_manifest(_docker_data({"image": "x", "volumes": 5}))
+    assert result.errors

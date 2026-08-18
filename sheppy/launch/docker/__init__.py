@@ -1,0 +1,85 @@
+"""The docker launcher: a compose service becomes a supervised container."""
+import os
+
+from sheppy.launch.descriptor import LaunchDescriptor
+from sheppy.launch.docker.compose import load_service, service_to_docker_args
+
+__all__ = ["DockerLauncher"]
+
+
+class DockerLauncher:
+    kind = "docker"
+
+    def _service(self, alt, ctx):
+        inline = alt.config.get("container")
+        if inline:
+            if not isinstance(inline, dict):
+                ctx.warn(f"'{ctx.node_name}': 'container' must be a mapping, "
+                         f"got {type(inline).__name__}")
+                return {}
+            return dict(inline)
+        ref = alt.config.get("compose") or {}
+        if not isinstance(ref, dict):
+            ctx.warn(f"'{ctx.node_name}': 'compose' must be a mapping, "
+                     f"got {type(ref).__name__}")
+            return {}
+        path = ref.get("file", "")
+        if not os.path.isabs(path):
+            path = os.path.join(ctx.manifest_dir, path)
+        try:
+            return load_service(path, ref.get("service"), os.environ)
+        except (OSError, KeyError) as e:
+            ctx.warn(f"'{ctx.node_name}': compose service "
+                     f"{ref.get('service')!r} in {ref.get('file')!r}: {e}")
+            return {}
+
+    def validate(self, raw_alt) -> list:
+        has_compose = bool(raw_alt.get("compose"))
+        has_inline = bool(raw_alt.get("container"))
+        if has_compose == has_inline:
+            return ["docker alternative needs exactly one of "
+                    "'compose' or 'container'"]
+        if has_inline:
+            container = raw_alt["container"]
+            if not isinstance(container, dict):
+                return [f"docker 'container' must be a mapping, "
+                       f"got {type(container).__name__}"]
+            _, _, _, errs, _ = service_to_docker_args(container)
+            return errs
+        if has_compose:
+            ref = raw_alt["compose"]
+            if not (isinstance(ref, dict) and ref.get("file") and ref.get("service")):
+                return ["docker 'compose' needs 'file' and 'service'"]
+            return []
+        return []
+
+    def launch(self, alt, params, ctx) -> LaunchDescriptor:
+        name = f"sheppy-{ctx.node_name}"
+        service = self._service(alt, ctx)
+        flags, image, command, errs, warns = service_to_docker_args(service)
+        for w in warns:
+            ctx.warn(w)
+        for e in errs:
+            ctx.warn(e)                       # validate() already flags these
+        if params:
+            host = ctx.write_params_file(params, alt.config.get("ros_node_name"))
+            flags += ["-v", f"{host}:/sheppy/params.yaml:ro"]
+            command += ["--ros-args", "--params-file", "/sheppy/params.yaml"]
+        start = (["docker", "run", "-d", "--name", name] + flags
+                 + [image] + command)
+        return LaunchDescriptor.detached(
+            name, start=start,
+            watch=["docker", "wait", name],
+            stop=["docker", "stop", "--time", "10", name],
+            logs=["docker", "logs", "-f", "--tail", "300", name],
+            reset=["docker", "rm", "-f", name])
+
+    def summary(self, alt) -> list:
+        inline = alt.config.get("container")
+        if isinstance(inline, dict):
+            return [("image", inline.get("image", "—")),
+                    ("network", str(inline.get("network_mode", "default")))]
+        ref = alt.config.get("compose")
+        if isinstance(ref, dict):
+            return [("compose", f"{ref.get('file', '—')}#{ref.get('service', '—')}")]
+        return [("image", "—"), ("network", "default")]

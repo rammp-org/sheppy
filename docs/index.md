@@ -13,6 +13,9 @@ and a quick tour.
 - **[sheppyd — the launch supervisor](sheppyd.md)** — the daemon that runs
   your nodes: architecture, lifecycle, node states, logs, configuration, the
   CLI and TUI controls, the wire protocol, and troubleshooting.
+- **[Writing a launcher plugin](launcher-plugins.md)** — add your own `kind`
+  (a custom process wrapper, systemd, Kubernetes, ...): the `Launcher`
+  contract, the `LaunchDescriptor` vocabulary, and a worked example.
 
 ## Design records
 

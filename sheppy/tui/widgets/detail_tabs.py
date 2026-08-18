@@ -57,7 +57,8 @@ class DetailTabs(Vertical):
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
 
-    def show(self, node: Node, alt: "Alternative | None") -> None:
+    def show(self, node: Node, alt: "Alternative | None",
+             summary_rows: "list | None" = None) -> None:
         try:
             detail = self.query_one("#detail", Static)
             topics = self.query_one("#detail-topics", Static)
@@ -72,7 +73,7 @@ class DetailTabs(Vertical):
             topics.update("")
             yaml_s.update("")
             return
-        detail.update(self._detail_markup(node, alt))
+        detail.update(self._detail_markup(node, alt, summary_rows))
         topics.update(self._topics(alt))
         yaml_s.update(self._yaml(alt))
 
@@ -109,7 +110,8 @@ class DetailTabs(Vertical):
             out.extend(c("fg", line) for line in lines)
         target.update("\n".join(out))
 
-    def _detail_markup(self, node: Node, alt: Alternative) -> str:
+    def _detail_markup(self, node: Node, alt: Alternative,
+                        summary_rows: "list | None" = None) -> str:
         """Styled field grid for the DETAIL tab (muted keys, colored values).
         format_detail() remains the plain-text form (YAML-adjacent, tested)."""
         def row(key: str, value: str) -> str:
@@ -120,14 +122,8 @@ class DetailTabs(Vertical):
         title = f"[bold]{escape(node.name)}[/] {c('muted', '/ ' + alt.id)}"
         lines = [title, ""]
         lines.append(row("kind", c("purple", alt.kind)))
-        if alt.kind == "executable":
-            lines.append(row("package", c("fg", alt.package or "—")))
-            lines.append(row("executable", c("fg", alt.executable or "—")))
-        elif alt.kind == "launch_file":
-            lines.append(row("package", c("fg", alt.package or "—")))
-            lines.append(row("launch_file", c("fg", alt.launch_file or "—")))
-        elif alt.kind == "process":
-            lines.append(row("command", c("fg", alt.command or "—")))
+        for label, value in (summary_rows or []):
+            lines.append(row(label, c("fg", str(value))))
         lines.append(row("machine", c("fg", alt.machine or "—")))
         if alt.params:
             pairs = ", ".join(f"{k}: {v}" for k, v in alt.params.items())
@@ -158,4 +154,6 @@ class DetailTabs(Vertical):
             "subscribes": alt.subscribes,
         }
         data = {k: v for k, v in data.items() if v not in (None, [], {})}
+        if alt.config:
+            data["config"] = alt.config
         return yaml.safe_dump(data, sort_keys=False).rstrip()

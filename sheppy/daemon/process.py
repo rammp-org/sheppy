@@ -158,3 +158,169 @@ class AdoptedProcess(Supervised):
         self.log.read_new()
         self._exited.set()
         self._set(STOPPED if self._stop_requested else CRASHED)
+
+
+def _parse_exit(out: bytes) -> "int | None":
+    try:
+        return int(out.strip().split()[-1])
+    except (ValueError, IndexError):
+        return None
+
+
+class DetachedSupervisor(Supervised):
+    """Supervises a unit that outlives the process that started it (a
+    container, a transient service). Driven entirely by the descriptor's
+    command-set; the daemon learns no runtime specifics."""
+
+    def __init__(self, spec, cfg, log, on_state) -> None:
+        super().__init__(spec, cfg, log, on_state)
+        d = spec["descriptor"]
+        self._name = d.get("name")
+        self._start_cmd = list(d["start"])
+        self._reset_cmd = d.get("reset")
+        self._watch_cmd = d.get("watch")
+        self._poll_cmd = d.get("poll")
+        self._stop_cmd = d.get("stop")
+        self._logs_cmd = d.get("logs")
+        self._stats_cmd = d.get("stats")
+        grace = d.get("grace") or {}
+        self._launch_grace = grace.get("launch", cfg.launch_grace)
+        self._poll_interval = grace.get("poll", 1.0)
+        self._watch_task = None
+        self._watch_proc = None
+        self._logs_proc = None
+        self.adopted = False
+
+    async def _run_once(self, argv, capture=False):
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                stdout=(asyncio.subprocess.PIPE if capture
+                        else asyncio.subprocess.DEVNULL),
+                stderr=asyncio.subprocess.DEVNULL,
+                stdin=asyncio.subprocess.DEVNULL)
+        except (OSError, ValueError):
+            return 127, b""
+        out, _ = await proc.communicate()
+        return proc.returncode, (out or b"")
+
+    async def _open_logs(self):
+        if not self._logs_cmd:
+            return
+        fd = self.log.open_run()
+        try:
+            self._logs_proc = await asyncio.create_subprocess_exec(
+                *self._logs_cmd, stdout=fd, stderr=fd,
+                stdin=asyncio.subprocess.DEVNULL)
+        except (OSError, ValueError):
+            self._logs_proc = None
+        finally:
+            os.close(fd)
+
+    async def start(self) -> None:
+        self._stop_requested = False
+        self._exited = asyncio.Event()
+        self.exit_code = None
+        self.started_at = time.time()
+        if self._reset_cmd:
+            await self._run_once(self._reset_cmd)          # best-effort cleanup
+        rc, _ = await self._run_once(self._start_cmd)
+        if rc != 0:
+            self._set(CRASHED)                             # launch failed
+            self._exited.set()
+            return
+        await self._open_logs()
+        self._set(LAUNCHING)
+        self._watch_task = asyncio.ensure_future(
+            self._watch() if self._watch_cmd else self._poll())
+
+    async def _watch(self) -> None:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *self._watch_cmd, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                stdin=asyncio.subprocess.DEVNULL)
+        except (OSError, ValueError):
+            self._finish(None)
+            return
+        self._watch_proc = proc
+        # communicate() may only be awaited once; shield the same task so a
+        # launch-grace timeout doesn't force a second, concurrent read.
+        comm = asyncio.ensure_future(proc.communicate())
+        try:
+            out, _ = await asyncio.wait_for(
+                asyncio.shield(comm), self._launch_grace)
+        except asyncio.TimeoutError:
+            if not self._stop_requested:
+                self._set(RUNNING)
+            out, _ = await comm
+        self._finish(_parse_exit(out))
+
+    async def _poll(self) -> None:
+        try:
+            await asyncio.wait_for(self._exited.wait(), self._launch_grace)
+            return
+        except asyncio.TimeoutError:
+            pass
+        if not self._stop_requested:
+            self._set(RUNNING)
+        while not self._stop_requested:
+            await asyncio.sleep(self._poll_interval)
+            rc, _ = await self._run_once(self._poll_cmd)
+            if rc != 0:
+                break
+        self._finish(None)
+
+    def _finish(self, code) -> None:
+        if self._exited.is_set():
+            return
+        self.exit_code = code
+        self.log.read_new()
+        self._reap_logs()
+        self._exited.set()
+        self._set(STOPPED if self._stop_requested else CRASHED)
+
+    def _reap_logs(self) -> None:
+        proc = self._logs_proc
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+
+    async def stop(self) -> None:
+        if self._exited.is_set():
+            return
+        self._stop_requested = True
+        self._set(STOPPING)
+        if self._stop_cmd:
+            await self._run_once(self._stop_cmd)
+            await self._exited.wait()
+            return
+        # No stop command: we have no way to tell the unit to exit, so
+        # don't block forever on a watch/poll loop that may never observe
+        # that. Force the transition and reap the watcher ourselves.
+        if self._watch_task is not None:
+            self._watch_task.cancel()
+        # Cancelling the task only stops us awaiting it; a long-running
+        # watch subprocess (e.g. `docker wait`) is a separate OS process
+        # that keeps running unless killed directly.
+        if self._watch_proc is not None and self._watch_proc.returncode is None:
+            try:
+                self._watch_proc.kill()
+            except ProcessLookupError:
+                pass
+        self._finish(None)
+
+    def mark_adopted(self, started_at) -> None:
+        self._stop_requested = False
+        self._exited = asyncio.Event()
+        self.exit_code = None
+        self.adopted = True
+        self.started_at = started_at
+        self.state = RUNNING
+
+    async def reattach(self) -> None:
+        await self._open_logs()
+        self._watch_task = asyncio.ensure_future(
+            self._watch() if self._watch_cmd else self._poll())
