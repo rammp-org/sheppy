@@ -33,10 +33,17 @@ async def test_inherit_descriptor_launches_via_managed_process(tmp_path):
     await table.stop_all()
 
 
-async def test_detached_descriptor_errors_until_task6(tmp_path):
+async def test_detached_descriptor_launches_via_detached_supervisor(tmp_path):
     table = make_table(tmp_path)
-    det = {"supervise": "detached", "name": "x", "start": ["true"],
-           "watch": ["true"]}
-    import pytest
-    with pytest.raises(ValueError):
-        await table.launch(spec("d", det))
+    state = str(tmp_path / "STATE")
+    det = {"supervise": "detached", "name": "d",
+           "start": ["sh", "-c", f"echo up > {state}"],
+           "watch": ["sh", "-c",
+                     f"while [ -f {state} ]; do sleep 0.02; done; echo 0"],
+           "stop": ["sh", "-c", f"rm -f {state}"]}
+    await table.launch(spec("d", det))
+    await wait_state(table, "d", pr.RUNNING)
+    payload = table.status()["d"]
+    assert payload["spec"]["descriptor"]["supervise"] == "detached"
+    await table.stop_all()
+    await wait_state(table, "d", pr.STOPPED)

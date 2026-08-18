@@ -39,7 +39,7 @@ class ProcessTable:
             mp_spec = {**spec, "argv": list(descriptor["start"])}
             proc = pr.ManagedProcess(mp_spec, self._cfg, log, self._on_state)
         elif supervise == "detached":
-            raise ValueError("detached supervision not yet supported")  # Task 6
+            proc = pr.DetachedSupervisor(spec, self._cfg, log, self._on_state)
         else:
             raise ValueError(f"unknown supervise: {supervise!r}")
         self._entries[node] = proc
