@@ -21,7 +21,11 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
             loc, f"alternative '{alt_id}' has unknown kind {kind!r}; "
                  f"known kinds: {', '.join(registry.kinds()) or '(none)'}"))
     if launcher is not None:
-        for msg in launcher.validate(raw):
+        try:
+            msgs = launcher.validate(raw)
+        except Exception as e:
+            msgs = [f"launcher {kind!r} validate() raised: {type(e).__name__}: {e}"]
+        for msg in msgs:
             errors.append(ValidationError(loc, f"alternative '{alt_id}': {msg}"))
     machine = raw.get("machine")
     if machine is not None and machine not in machine_names:

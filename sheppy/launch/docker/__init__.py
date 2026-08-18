@@ -13,6 +13,10 @@ class DockerLauncher:
     def _service(self, alt, ctx):
         inline = alt.config.get("container")
         if inline:
+            if not isinstance(inline, dict):
+                ctx.warn(f"'{ctx.node_name}': 'container' must be a mapping, "
+                         f"got {type(inline).__name__}")
+                return {}
             return dict(inline)
         ref = alt.config.get("compose") or {}
         path = ref.get("file", "")
@@ -32,7 +36,11 @@ class DockerLauncher:
             return ["docker alternative needs exactly one of "
                     "'compose' or 'container'"]
         if has_inline:
-            _, _, _, errs, _ = service_to_docker_args(raw_alt["container"])
+            container = raw_alt["container"]
+            if not isinstance(container, dict):
+                return [f"docker 'container' must be a mapping, "
+                       f"got {type(container).__name__}"]
+            _, _, _, errs, _ = service_to_docker_args(container)
             return errs
         if has_compose:
             ref = raw_alt["compose"]

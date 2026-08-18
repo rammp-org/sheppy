@@ -49,3 +49,18 @@ def test_summary_shows_compose_ref_when_no_inline_container():
     a = alt(compose={"file": "demo.compose.yml", "service": "perception"})
     rows = DockerLauncher().summary(a)
     assert rows == [("compose", "demo.compose.yml#perception")]
+
+
+def test_validate_rejects_non_mapping_container():
+    dl = DockerLauncher()
+    for bad in ("myimage", ["a", "b"], 5):
+        errs = dl.validate({"container": bad})
+        assert errs, f"expected errors for container={bad!r}"
+
+
+def test_validate_rejects_bad_environment_and_volumes_types():
+    dl = DockerLauncher()
+    errs = dl.validate({"container": {"image": "x", "environment": 5}})
+    assert errs
+    errs = dl.validate({"container": {"image": "x", "volumes": 5}})
+    assert errs

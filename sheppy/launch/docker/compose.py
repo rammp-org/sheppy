@@ -65,6 +65,9 @@ def _command_list(cmd):
 
 def service_to_docker_args(service: dict):
     errors, warnings = [], []
+    if not isinstance(service, dict):
+        return [], "", [], [f"docker service definition must be a mapping, "
+                            f"got {type(service).__name__}"], []
     deploy = service.get("deploy") or {}
     if int(deploy.get("replicas") or 1) > 1:
         errors.append("compose 'replicas > 1' is not supported by sheppy")
@@ -77,7 +80,13 @@ def service_to_docker_args(service: dict):
             warnings.append(f"compose '{key}' is ignored (sheppy owns lifecycle)")
 
     flags = []
-    for k, v in _env_pairs(service.get("environment")):
+    try:
+        env_pairs = _env_pairs(service.get("environment"))
+    except TypeError:
+        errors.append("'environment' must be a mapping or a list "
+                      "of KEY=VALUE strings")
+        env_pairs = []
+    for k, v in env_pairs:
         flags += ["-e", f"{k}={v}"]
     for ef in _as_list(service.get("env_file")):
         flags += ["--env-file", str(ef)]
@@ -88,7 +97,11 @@ def service_to_docker_args(service: dict):
     if service.get("pid"):
         flags += ["--pid", str(service["pid"])]
     for vol in _as_list(service.get("volumes")):
-        flags += ["-v", _volume_str(vol)]
+        try:
+            flags += ["-v", _volume_str(vol)]
+        except AttributeError:
+            errors.append(f"'volumes' entries must be a string or mapping, "
+                          f"got {type(vol).__name__}")
     for dev in _as_list(service.get("devices")):
         flags += ["--device", str(dev)]
     if service.get("privileged"):
