@@ -151,11 +151,13 @@ Two pull requests, so the mechanical change is reviewable apart from the prose:
 - `pytest` green, including the two new tests.
 - The Getting started walkthrough is executed literally, start to finish, and the
   documented output is confirmed to match what the tool actually prints.
-- Prose check: README + `website/content/` is **1174 lines** today (README 213;
-  index 47, getting-started 105, tui 66, manifest 58, architecture 38,
-  design-records 18; guides: sheppyd 340, launcher-plugins 289). After the
-  overhaul — with two pages added — the total must be **at or below 1174**.
-  Growth means the deduplication failed and prose needs cutting.
+- Prose check (directional, not a gate): README + `website/content/` is **1174
+  lines** today. The goal is that *duplicated explanation* shrinks — vocabulary
+  defined once in Concepts, the README no longer mirroring the site. Genuinely
+  new material (the manifest reference, the walkthrough, and content still to
+  come) may push the total above 1174, and that is fine. What is not fine is
+  the same thing explained in two places. Report the before/after count as a
+  signal; do not pad or truncate to hit a number.
 
 ## Success criteria
 
