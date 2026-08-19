@@ -20,7 +20,7 @@ machines:
 nodes:
   # Each node is one job in your system, with interchangeable ways to do it.
   - name: camera
-    description: "RGB-D source"          # optional; shown in the TUI
+    description: "RGB-D source"          # optional free text; stored but not displayed today
     select: single                       # optional; 'single' is the only value
     alternatives:
       # kind: launch_file -> ros2 launch <package> <launch_file>
