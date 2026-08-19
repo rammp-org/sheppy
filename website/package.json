@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "postbuild": "pagefind --site out --output-path out/_pagefind",
+    "postbuild": "pagefind --site out --output-path out/_pagefind && cp ../install.sh out/install.sh",
     "start": "npx serve out"
   },
   "dependencies": {

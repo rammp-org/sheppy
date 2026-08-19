@@ -6,45 +6,55 @@ import { Callout, Steps } from 'nextra/components'
 
 # Getting started
 
-## Prerequisites
+## Install
 
-- **Python 3.10+**
-- **[uv](https://docs.astral.sh/uv/)** for environment and dependency management
-  — install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-<Steps>
-### Install
+One line — installs [uv](https://docs.astral.sh/uv/) if you don't have it,
+then puts `sheppy` and `sheppyd` on your `PATH` (`~/.local/bin`) in an
+isolated environment:
 
 ```bash
-git clone git@github.com:rammp-org/sheppy.git
-cd sheppy
-uv sync          # creates .venv and installs everything from uv.lock
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
 
+Re-run the same line to upgrade. Pin a branch, tag, or commit with
+`SHEPPY_REF=<ref>`; uninstall with `uv tool uninstall sheppy`.
+
+<Callout type="info">
+Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`
+does the same thing.
+</Callout>
+
+<Steps>
 ### Run the TUI
 
 ```bash
-uv run sheppy examples/system.yaml
-```
-
-Or point it at your own manifest:
-
-```bash
-uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
 ```
 
 See [The TUI](/tui) for the key bindings and layout.
 
 ### Try it without ROS
 
-The bundled demo manifest launches plain processes, so you can see the whole
-select → launch → observe loop on any machine:
+The repo ships demo manifests that launch plain processes, so you can see the
+whole select → launch → observe loop on any machine:
 
 ```bash
-uv run sheppy examples/local-demo.yaml
+git clone https://github.com/rammp-org/sheppy.git
+sheppy sheppy/examples/local-demo.yaml
 ```
 
 </Steps>
+
+## From source (development)
+
+Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone git@github.com:rammp-org/sheppy.git
+cd sheppy
+uv sync                               # creates .venv and installs everything from uv.lock
+uv run sheppy examples/system.yaml    # run from the checkout
+```
 
 ## Launching for real: `sheppyd`
 
@@ -56,11 +66,11 @@ and everything keeps running. Reconnect and it's all still there; even if
 Headless verbs (no TUI needed):
 
 ```bash
-uv run sheppy up <profile> --manifest system.yaml   # converge to a profile
-uv run sheppy status                                # what's running
-uv run sheppy logs <node> -n 50                     # tail a node's output
-uv run sheppy woof <node>                           # restart it 🐕
-uv run sheppy down                                  # stop everything + daemon
+sheppy up <profile> --manifest system.yaml   # converge to a profile
+sheppy status                                # what's running
+sheppy logs <node> -n 50                     # tail a node's output
+sheppy woof <node>                           # restart it 🐕
+sheppy down                                  # stop everything + daemon
 ```
 
 Node output goes to `~/.sheppy/logs/<node>/<timestamp>-<id>.log` (last 5 runs
@@ -81,6 +91,8 @@ protocol, and troubleshooting — see the
 </Callout>
 
 ## Run the tests
+
+From a source checkout:
 
 ```bash
 uv run pytest          # full suite

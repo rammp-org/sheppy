@@ -24,30 +24,32 @@ unifies them into one operator console. Sheppy does.
 > Phase 2b adds `sheppyd`: select, press `space`, and the process is really
 > running — locally, surviving TUI detach.
 
-### Prerequisites
-
-- **Python 3.10+**
-- **[uv](https://docs.astral.sh/uv/)** for environment and dependency management
-  — install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
 ### Install
 
 ```bash
-git clone <your-remote>/ros2-tooling.git
-cd ros2-tooling
-uv sync          # creates .venv and installs everything from uv.lock
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
+
+Installs [uv](https://docs.astral.sh/uv/) if missing, then puts `sheppy` and
+`sheppyd` on your `PATH` (`~/.local/bin`) in an isolated environment. Re-run to
+upgrade; `SHEPPY_REF=<ref>` pins a branch/tag/commit; `uv tool uninstall sheppy`
+removes it. (Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`.)
 
 ### Run the TUI
 
 ```bash
-uv run sheppy examples/system.yaml
+sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
 ```
 
-Or point it at your own manifest:
+### From source (development)
+
+Requires **Python 3.10+** and uv:
 
 ```bash
-uv run sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+git clone git@github.com:rammp-org/sheppy.git
+cd sheppy
+uv sync                               # creates .venv and installs everything from uv.lock
+uv run sheppy examples/system.yaml    # run from the checkout
 ```
 
 **Keys:**
@@ -96,11 +98,11 @@ and everything keeps running. Reconnect and it's all still there; even if
 Headless verbs (no TUI needed):
 
 ```bash
-uv run sheppy up <profile> --manifest system.yaml   # converge to a profile
-uv run sheppy status                                # what's running
-uv run sheppy logs <node> -n 50                     # tail a node's output
-uv run sheppy woof <node>                           # restart it 🐕
-uv run sheppy down                                  # stop everything + daemon
+sheppy up <profile> --manifest system.yaml   # converge to a profile
+sheppy status                                # what's running
+sheppy logs <node> -n 50                     # tail a node's output
+sheppy woof <node>                           # restart it 🐕
+sheppy down                                  # stop everything + daemon
 ```
 
 Node output goes to `~/.sheppy/logs/<node>/<timestamp>-<id>.log` (last 5 runs
@@ -112,7 +114,7 @@ kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
  "stop_grace": 5.0, "kill_grace": 5.0}
 ```
 
-Try it without ROS: `uv run sheppy examples/local-demo.yaml`.
+Try it without ROS: `sheppy examples/local-demo.yaml` (from a checkout).
 
 For the full picture — architecture, node states, re-adoption, the wire
 protocol, and troubleshooting — see the **[sheppyd guide](https://rammp-org.github.io/sheppy/guides/sheppyd/)**

@@ -3,7 +3,7 @@ name: docs
 on:
   push:
     branches: [main]
-    paths: ['website/**', '.github/workflows/docs.yml']
+    paths: ['website/**', 'install.sh', '.github/workflows/docs.yml']
   workflow_dispatch:
 
 permissions:
