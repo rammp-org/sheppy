@@ -90,7 +90,13 @@ class DaemonClient:
                             for cb in self._callbacks:
                                 cb(msg)
                     elif msg.get("id") in self._pending:
-                        self._pending.pop(msg["id"]).set_result(msg)
+                        future = self._pending.pop(msg["id"])
+                        # The awaiting caller may have been cancelled (a
+                        # Textual exclusive worker replaced by its
+                        # successor); set_result() on a cancelled future
+                        # raises and would take the whole pump down.
+                        if not future.done():
+                            future.set_result(msg)
         except (ConnectionResetError, OSError):
             pass
         finally:

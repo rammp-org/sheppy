@@ -87,3 +87,25 @@ async def test_connect_without_spawn_returns_false(tmp_path, monkeypatch):
     assert await c.connect(spawn=False) is False
     with pytest.raises(DaemonError):
         await c.request("status")
+
+
+async def test_cancelled_request_does_not_kill_connection(client):
+    """A caller that cancels mid-flight (e.g. a Textual exclusive worker
+    replaced by its successor) must not break the pump when the daemon's
+    late reply arrives — other in-flight requests used to fail with
+    'sheppyd connection lost' while the socket was perfectly healthy."""
+    slow = {"node": "slow", "alt_id": "a", "params": {}, "descriptor": {
+        "supervise": "detached", "name": "slow",
+        "start": ["sleep", "1.0"],        # daemon busy; replies queue behind
+        "poll": ["true"]}}
+    launch = asyncio.ensure_future(client.request("launch", spec=slow))
+    await asyncio.sleep(0.1)
+    doomed = asyncio.ensure_future(client.request("status"))
+    await asyncio.sleep(0.1)
+    doomed.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await doomed
+    assert (await launch)["ok"]
+    # the late reply for `doomed` arrives here; the pump must survive it
+    assert (await client.request("status"))["ok"]
+    assert client.connected

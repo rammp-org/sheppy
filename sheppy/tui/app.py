@@ -363,7 +363,8 @@ class SheppyApp(App):
             reply = await self._client.request(op, **kw)
         except DaemonError as e:
             self.daemon_connected = False
-            self._append_warnings([str(e)])
+            self._append_warnings([f"{e} — space/L reconnects (and restarts "
+                                   f"sheppyd if it died)"])
             self._refresh_runtime()
             return None
         if not reply.get("ok"):
