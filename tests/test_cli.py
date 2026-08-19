@@ -36,3 +36,30 @@ def test_version_matches_installed_distribution():
     from sheppy import __version__
 
     assert version("sheppy") == __version__
+
+
+def test_build_app_defaults_to_sheppy_manifest(tmp_path, monkeypatch):
+    (tmp_path / "sheppy-manifest.yaml").write_text("machines: []\nnodes: []\n")
+    monkeypatch.chdir(tmp_path)
+
+    app = build_app([])
+
+    assert app.path == "sheppy-manifest.yaml"
+    assert app.manifest is not None
+
+
+def test_explicit_path_still_loads_any_filename(tmp_path):
+    p = tmp_path / "legacy-system.yaml"
+    p.write_text("machines: []\nnodes: []\n")
+
+    app = build_app([str(p)])
+
+    assert app.manifest is not None, "escape hatch must keep working"
+
+
+def test_up_manifest_flag_defaults_to_sheppy_manifest():
+    from sheppy.cli import _build_parser
+
+    args = _build_parser().parse_args(["up", "some-profile"])
+
+    assert args.manifest == "sheppy-manifest.yaml"
