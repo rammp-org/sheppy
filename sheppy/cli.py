@@ -7,6 +7,7 @@ import sys
 import time
 
 COMMANDS = {"up", "down", "status", "logs", "woof", "daemon"}
+VERSION_FLAGS = {"--version", "-V"}
 
 
 # ---- TUI path (unchanged behavior) ----------------------------------------
@@ -22,6 +23,10 @@ def build_app(argv: list[str]):
 
 def main(argv: "list[str] | None" = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] in VERSION_FLAGS:
+        from sheppy import __version__
+        print(f"sheppy {__version__}")
+        return 0
     if argv and argv[0] in COMMANDS:
         return _run_verb(argv)
     app = build_app(argv)
