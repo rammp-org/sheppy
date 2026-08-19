@@ -55,7 +55,7 @@ from.
 
 | Page | Owns | Action |
 |---|---|---|
-| Introduction | What sheppy is; relation to `ros2 launch`; install; the four words | Rewrite |
+| Introduction | What sheppy is; relation to `ros2 launch`; install; the four words (node, alternative, profile, daemon) | Rewrite |
 | **Concepts** *(new)* | Desired vs actual; live-launch vs converge; manifest node ≠ ROS node | Create |
 | Getting started | One 90-second walkthrough, expected output at each step | Rewrite |
 | The TUI | Keys, glyphs, panes, SSH colours | Light edits |
@@ -109,6 +109,9 @@ Four Mermaid diagrams, each replacing prose or a broken ASCII drawing.
 
 ## Code changes (minimal)
 
+These exist because the maintainer asked for the manifest rename, not because
+issue #5 raised them. Review findings that need code are out of scope (below).
+
 1. `sheppy/cli.py` — `build_app` default and the `--manifest` default become
    `sheppy-manifest.yaml`.
 2. `install.sh:45` — closing message names the new file.
@@ -119,6 +122,17 @@ Four Mermaid diagrams, each replacing prose or a broken ASCII drawing.
    cannot silently rot (the failure mode behind review finding M4).
 
 No other behaviour changes. Explicit paths keep working.
+
+## Delivery
+
+Two pull requests, so the mechanical change is reviewable apart from the prose:
+
+1. **Rename** — `cli.py` defaults, `install.sh`, `examples/sheppy-manifest.yaml`,
+   the two new tests, and the mechanical `system.yaml` → `sheppy-manifest.yaml`
+   updates in existing docs. Small, verifiable, lands fast.
+2. **Docs overhaul** — new pages, diagrams, rewrites, corrections, README trim.
+
+`main` requires a PR with both CI checks green, so neither can be pushed directly.
 
 ## Out of scope — file as issues
 
@@ -137,8 +151,11 @@ No other behaviour changes. Explicit paths keep working.
 - `pytest` green, including the two new tests.
 - The Getting started walkthrough is executed literally, start to finish, and the
   documented output is confirmed to match what the tool actually prints.
-- Prose check: total non-diagram line count across README + `website/content/`
-  should not exceed today's. Growth means the dedup failed.
+- Prose check: README + `website/content/` is **1174 lines** today (README 213;
+  index 47, getting-started 105, tui 66, manifest 58, architecture 38,
+  design-records 18; guides: sheppyd 340, launcher-plugins 289). After the
+  overhaul — with two pages added — the total must be **at or below 1174**.
+  Growth means the deduplication failed and prose needs cutting.
 
 ## Success criteria
 
