@@ -1,0 +1,71 @@
+# sheppy-manifest.yaml — the complete field reference, as a runnable file.
+#
+#   sheppy examples/sheppy-manifest.yaml     # open the TUI on it
+#
+# A "node" here is a LOGICAL UNIT of your system, not a ROS node. One entry
+# below may start a launch file that spawns a dozen ROS nodes.
+
+# Machines sheppy can launch on. Omit this block entirely to run everything
+# locally. 'name', 'host' and 'user' are all required.
+machines:
+  - name: robot
+    host: 10.0.0.20
+    user: researcher
+    # Sourced before every command that runs on this machine.
+    ros_setup: /opt/ros/humble/setup.bash
+  - name: workstation
+    host: 10.0.0.5
+    user: researcher
+
+nodes:
+  # Each node is one job in your system, with interchangeable ways to do it.
+  - name: camera
+    description: "RGB-D source"          # optional; shown in the TUI
+    select: single                       # optional; 'single' is the only value
+    alternatives:
+      # kind: launch_file -> ros2 launch <package> <launch_file>
+      - id: realsense
+        kind: launch_file
+        package: realsense2_camera
+        launch_file: rs_launch.py
+        machine: robot
+        params:                          # passed as name:=value
+          depth_module.profile: 848x480x30
+        publishes: [/camera/color/image_raw, /camera/depth/points]
+
+      # kind: executable -> ros2 run <package> <executable>
+      - id: mock_camera
+        kind: executable
+        package: our_mocks
+        executable: mock_camera
+        machine: workstation
+        params:                          # passed as --ros-args -p name:=value
+          frame_rate: 30
+        publishes: [/camera/color/image_raw]
+
+  - name: perception
+    description: "Detector, shipped as a container"
+    alternatives:
+      # kind: docker -> a container supervised like any other process.
+      # Provided by the docker launcher plugin, not the core.
+      # Give exactly one of 'container' (inline) or 'compose' (a service
+      # from an existing compose file).
+      - id: gpu_detector
+        kind: docker
+        machine: workstation
+        subscribes: [/camera/color/image_raw]
+        publishes: [/detections]
+        container:
+          image: ghcr.io/rammp-org/detector:latest
+          network_mode: host
+          command: ["--model", "yolo"]
+
+  - name: sim_gui
+    description: "Anything that is just a command"
+    alternatives:
+      # kind: process -> the command, run as-is. NOTE: 'params' is ignored
+      # for this kind and sheppy will warn if you set it.
+      - id: unreal
+        kind: process
+        command: "/opt/sim/UnrealEditor MyProject -game"
+        machine: workstation
