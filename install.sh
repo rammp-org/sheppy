@@ -42,7 +42,7 @@ uv tool install --force --quiet "$SRC"
 
 # 3. PATH check
 if command -v sheppy >/dev/null 2>&1; then
-  say "installed — run: sheppy path/to/system.yaml"
+  say "installed — run: sheppy path/to/sheppy-manifest.yaml"
 else
   BIN_DIR="$(uv tool dir --bin 2>/dev/null || echo "$HOME/.local/bin")"
   say "installed to ${BIN_DIR}, which is not on your PATH."

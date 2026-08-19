@@ -38,7 +38,7 @@ removes it. (Already have uv? `uv tool install git+https://github.com/rammp-org/
 ### Run the TUI
 
 ```bash
-sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml if omitted
 ```
 
 ### From source (development)
@@ -49,7 +49,7 @@ Requires **Python 3.10+** and uv:
 git clone git@github.com:rammp-org/sheppy.git
 cd sheppy
 uv sync                               # creates .venv and installs everything from uv.lock
-uv run sheppy examples/system.yaml    # run from the checkout
+uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
 ```
 
 **Keys:**
@@ -98,7 +98,7 @@ and everything keeps running. Reconnect and it's all still there; even if
 Headless verbs (no TUI needed):
 
 ```bash
-sheppy up <profile> --manifest system.yaml   # converge to a profile
+sheppy up <profile> --manifest sheppy-manifest.yaml   # converge to a profile
 sheppy status                                # what's running
 sheppy logs <node> -n 50                     # tail a node's output
 sheppy woof <node>                           # restart it 🐕
@@ -156,7 +156,7 @@ without the UI; the TUI is exercised end-to-end with Textual's async pilot.
 │  TUI client  │◄──────────────────────►│  sheppyd (supervisor, per host)│
 │  (Textual)   │                        │  • owns child processes        │
 │  reads       │   manifest (shared)    │    (launch / kill / restart)   │
-│  system.yaml │◄───────────────────────│  • embeds rclpy node for       │
+│  sheppy-manifest.yaml │◄───────────────────────│  • embeds rclpy node for       │
 └──────────────┘                        │    graph introspection         │
                                         └──────────────────────────────┘
   multi-machine = one sheppyd per host; the TUI connects to each;
@@ -166,7 +166,7 @@ without the UI; the TUI is exercised end-to-end with Textual's async pilot.
 - **Tech:** Python + [Textual](https://textual.textualize.io/) (TUI), `rclpy` (ROS graph access).
 - **Daemon-backed:** the TUI is a thin client; `sheppyd` owns the processes so the
   system survives the TUI detaching or crashing.
-- **Manifest is the source of truth:** a curated, version-controlled `system.yaml`.
+- **Manifest is the source of truth:** a curated, version-controlled `sheppy-manifest.yaml`.
 - **Introspection is graph-API only:** no custom node base class. The manifest's
   declared `publishes`/`subscribes` is the *expected* contract; the live ROS graph
   is the *actual*. A declared subscription with zero matching publishers = starved.
