@@ -202,7 +202,7 @@ or Textual installed).
 
 | Command | What it does |
 |---------|--------------|
-| `sheppy up <profile> [--manifest PATH]` | resolve the profile, print the plan, converge the running system to it, wait until it settles, print final states. Exits non-zero if any node crashed. `--manifest` defaults to `system.yaml`. |
+| `sheppy up <profile> [--manifest PATH]` | resolve the profile, print the plan, converge the running system to it, wait until it settles, print final states. Exits non-zero if any node crashed. `--manifest` defaults to `sheppy-manifest.yaml`. |
 | `sheppy status` | one line per supervised node (state, alternative, pid, uptime/exit code) |
 | `sheppy logs <node> [-n N]` | print the last `N` (default 50) log lines for a node |
 | `sheppy woof <node>` | restart a node 🐕 |

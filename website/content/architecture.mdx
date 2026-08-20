@@ -5,12 +5,12 @@ title: Architecture & roadmap
 # Architecture
 
 ```
-┌──────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
-│  TUI client  │◄──────────────────────►│  sheppyd (supervisor, per host)│
-│  (Textual)   │                        │  • owns child processes        │
-│  reads       │   manifest (shared)    │    (launch / kill / restart)   │
-│  system.yaml │◄───────────────────────│  • embeds rclpy node for       │
-└──────────────┘                        │    graph introspection         │
+┌────────────────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
+│  TUI client            │◄──────────────────────►│  sheppyd (supervisor, per host)│
+│  (Textual)             │                        │  • owns child processes        │
+│  reads                 │   manifest (shared)    │    (launch / kill / restart)   │
+│  sheppy-manifest.yaml  │◄───────────────────────│  • embeds rclpy node for       │
+└────────────────────────┘                        │    graph introspection         │
                                         └──────────────────────────────┘
   multi-machine = one sheppyd per host; the TUI connects to each;
   SSH bootstraps remote daemons.
@@ -19,7 +19,7 @@ title: Architecture & roadmap
 - **Tech:** Python + [Textual](https://textual.textualize.io/) (TUI), `rclpy` (ROS graph access).
 - **Daemon-backed:** the TUI is a thin client; `sheppyd` owns the processes so the
   system survives the TUI detaching or crashing.
-- **Manifest is the source of truth:** a curated, version-controlled `system.yaml`.
+- **Manifest is the source of truth:** a curated, version-controlled `sheppy-manifest.yaml`.
 - **Introspection is graph-API only:** no custom node base class. The manifest's
   declared `publishes`/`subscribes` is the *expected* contract; the live ROS graph
   is the *actual*. A declared subscription with zero matching publishers = starved.

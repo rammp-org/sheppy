@@ -9,12 +9,14 @@ import time
 COMMANDS = {"up", "down", "status", "logs", "woof", "daemon"}
 VERSION_FLAGS = {"--version", "-V"}
 
+DEFAULT_MANIFEST = "sheppy-manifest.yaml"
+
 
 # ---- TUI path (unchanged behavior) ----------------------------------------
 def build_app(argv: list[str]):
     from sheppy.manifest import load_manifest
     from sheppy.tui.app import SheppyApp
-    path = argv[0] if argv else "system.yaml"
+    path = argv[0] if argv else DEFAULT_MANIFEST
     result = load_manifest(path)
     profiles_dir = os.path.join(os.path.dirname(os.path.abspath(path)),
                                 "profiles")
@@ -35,12 +37,12 @@ def main(argv: "list[str] | None" = None) -> int:
 
 
 # ---- headless verbs --------------------------------------------------------
-def _run_verb(argv: list[str]) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sheppy")
     sub = p.add_subparsers(dest="cmd", required=True)
     up = sub.add_parser("up", help="converge to a profile")
     up.add_argument("profile")
-    up.add_argument("--manifest", default="system.yaml")
+    up.add_argument("--manifest", default=DEFAULT_MANIFEST)
     sub.add_parser("down", help="stop everything, then stop sheppyd")
     sub.add_parser("status", help="one line per supervised node")
     lg = sub.add_parser("logs", help="tail a node's output")
@@ -50,7 +52,11 @@ def _run_verb(argv: list[str]) -> int:
     wf.add_argument("node")
     dm = sub.add_parser("daemon", help="daemon lifecycle")
     dm.add_argument("action", choices=["status", "stop"])
-    args = p.parse_args(argv)
+    return p
+
+
+def _run_verb(argv: list[str]) -> int:
+    args = _build_parser().parse_args(argv)
     return asyncio.run(_dispatch(args))
 
 

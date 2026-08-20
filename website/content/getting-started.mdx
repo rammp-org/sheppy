@@ -28,7 +28,7 @@ does the same thing.
 ### Run the TUI
 
 ```bash
-sheppy path/to/system.yaml      # defaults to ./system.yaml if omitted
+sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml if omitted
 ```
 
 See [The TUI](/tui) for the key bindings and layout.
@@ -53,7 +53,7 @@ Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
 git clone git@github.com:rammp-org/sheppy.git
 cd sheppy
 uv sync                               # creates .venv and installs everything from uv.lock
-uv run sheppy examples/system.yaml    # run from the checkout
+uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
 ```
 
 ## Launching for real: `sheppyd`
@@ -66,7 +66,7 @@ and everything keeps running. Reconnect and it's all still there; even if
 Headless verbs (no TUI needed):
 
 ```bash
-sheppy up <profile> --manifest system.yaml   # converge to a profile
+sheppy up <profile> --manifest sheppy-manifest.yaml   # converge to a profile
 sheppy status                                # what's running
 sheppy logs <node> -n 50                     # tail a node's output
 sheppy woof <node>                           # restart it 🐕
