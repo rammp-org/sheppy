@@ -152,12 +152,12 @@ without the UI; the TUI is exercised end-to-end with Textual's async pilot.
 ## Architecture
 
 ```
-┌──────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
-│  TUI client  │◄──────────────────────►│  sheppyd (supervisor, per host)│
-│  (Textual)   │                        │  • owns child processes        │
-│  reads       │   manifest (shared)    │    (launch / kill / restart)   │
-│  sheppy-manifest.yaml │◄───────────────────────│  • embeds rclpy node for       │
-└──────────────┘                        │    graph introspection         │
+┌────────────────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
+│  TUI client            │◄──────────────────────►│  sheppyd (supervisor, per host)│
+│  (Textual)             │                        │  • owns child processes        │
+│  reads                 │   manifest (shared)    │    (launch / kill / restart)   │
+│  sheppy-manifest.yaml  │◄───────────────────────│  • embeds rclpy node for       │
+└────────────────────────┘                        │    graph introspection         │
                                         └──────────────────────────────┘
   multi-machine = one sheppyd per host; the TUI connects to each;
   SSH bootstraps remote daemons.
