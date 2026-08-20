@@ -1,0 +1,82 @@
+---
+title: Concepts
+---
+
+# Concepts
+
+Four words carry all of sheppy. Learn them here and the rest of the docs are
+just detail.
+
+## A node is not a ROS node
+
+A **node** in a sheppy manifest is a *logical unit of your system* — "the
+camera", "perception", "the sim". It is not a ROS node. One sheppy node may be
+a launch file that starts a dozen ROS nodes, or a container, or a bare command.
+
+Where both meanings appear together, these docs say **manifest node** and
+**ROS node**.
+
+## Alternatives
+
+Each node lists **alternatives**: interchangeable ways to do that job. The
+camera might be the real RealSense driver or a mock publisher. Exactly one
+alternative per node is selected at a time.
+
+```mermaid
+flowchart TB
+  M["sheppy-manifest.yaml"] --> N1["node: camera"]
+  M --> N2["node: perception"]
+  N1 --> A1["alt: realsense<br/>kind: launch_file"]
+  N1 --> A2["alt: mock_camera<br/>kind: executable"]
+  N2 --> A3["alt: gpu_detector<br/>kind: docker"]
+  P["profile: mock"] -. "picks one per node" .-> A2
+  P -. "picks one per node" .-> A3
+```
+
+## Profiles
+
+A **profile** is a saved selection — which alternative each node should use,
+plus any parameter overrides. `profiles/mock.yaml` next to your manifest is a
+profile. Profiles are how you say "bring up the whole system this way" instead
+of choosing node by node.
+
+## Desired vs actual
+
+This is the idea everything else rests on.
+
+- **Desired** is what you asked for: the alternatives currently selected, from
+  a profile or from clicking around the TUI.
+- **Actual** is what `sheppyd` is really running right now.
+
+They drift apart constantly — a node crashes, you launch something by hand,
+you switch profiles. sheppy never hides the gap; it shows it and lets you
+close it in either direction.
+
+```mermaid
+flowchart LR
+  subgraph D["DESIRED — what you asked for"]
+    A["camera → mock_camera"]
+  end
+  subgraph A2["ACTUAL — what sheppyd is running"]
+    B["camera → realsense<br/>running, pid 4821"]
+  end
+  D -->|"space: launch what you selected"| A2
+  A2 -->|"! : adopt what's running"| D
+```
+
+A `Δ` in the TUI marks a node where the two disagree. `space` pushes desired
+onto actual by launching your selection; `!` pulls actual into desired by
+adopting whatever is already running.
+
+## Two ways to drive sheppy
+
+Both are first-class; use whichever fits.
+
+| | Live launching | Converging a profile |
+|---|---|---|
+| How | The TUI: select an alternative, press `space` | `sheppy up <profile>` |
+| Good for | Poking at one node, debugging, trying an alternative | Bringing the whole system up a known way |
+| Scope | One node at a time | Every node in the manifest |
+
+`sheppy up` is idempotent: nodes already running the right thing are left
+alone, missing ones start, wrong ones restart.
