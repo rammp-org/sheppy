@@ -3,12 +3,59 @@ title: Introduction
 ---
 
 import { Cards } from 'nextra/components'
+import Link from 'next/link'
+import { CrookIcon } from '../components/logo'
 
-# Sheppy 🐑🐕
+<div
+  style={{
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+    gap: '1rem',
+    padding: '3.5rem 1rem 2.5rem'
+  }}
+>
+  <div style={{ color: '#3b82f6' }}>
+    <CrookIcon size={64} />
+  </div>
+  <h1 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-.03em', margin: 0 }}>
+    Sheppy
+  </h1>
+  <p style={{ fontSize: '1.25rem', maxWidth: '38rem', margin: 0, opacity: 0.8 }}>
+    Herds the ROS2 nodes of a distributed robotics project — catalog them,
+    switch mock vs. real, launch and supervise them from one operator console.
+  </p>
+  <div style={{ display: 'flex', gap: '.75rem', marginTop: '.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+    <Link
+      href="/getting-started"
+      style={{
+        background: '#3b82f6',
+        color: '#fff',
+        padding: '.6rem 1.4rem',
+        borderRadius: '.5rem',
+        fontWeight: 600,
+        textDecoration: 'none'
+      }}
+    >
+      Get started
+    </Link>
+    <a
+      href="https://github.com/rammp-org/sheppy"
+      style={{
+        border: '1px solid #3b82f680',
+        padding: '.6rem 1.4rem',
+        borderRadius: '.5rem',
+        fontWeight: 600,
+        textDecoration: 'none'
+      }}
+    >
+      GitHub
+    </a>
+  </div>
+</div>
 
-A TUI + background supervisor that **herds the ROS2 nodes** of a distributed
-assistive-robotics project — catalog them, switch alternatives (mock vs. real),
-launch/kill across machines, and introspect message flow.
+## Why Sheppy?
 
 Sheppy exists because integration sprints kept hitting the same walls: no single
 view of what nodes exist or which are interchangeable, hand-managed launch files,
@@ -17,13 +64,9 @@ what it's actually *receiving*. The ROS2 primitives exist (`rqt_graph`,
 `ros2 launch`, `ros2 topic info -v`, community SSH-launch projects) but nothing
 unifies them into one operator console. Sheppy does.
 
-```bash
-curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
-```
-
 - **CLI:** `sheppy`
 - **Daemon:** `sheppyd`
-- **Restart a node:** `sheppy woof`
+- **Restart a node:** `sheppy woof` 🐕
 
 ## Where to go next
 
@@ -31,9 +74,9 @@ curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
   <Cards.Card title="Getting started" href="/getting-started" arrow />
   <Cards.Card title="The TUI" href="/tui" arrow />
   <Cards.Card title="The manifest" href="/manifest" arrow />
+  <Cards.Card title="CLI reference" href="/cli" arrow />
   <Cards.Card title="sheppyd — the launch supervisor" href="/guides/sheppyd" arrow />
   <Cards.Card title="Writing a launcher plugin" href="/guides/launcher-plugins" arrow />
-  <Cards.Card title="Architecture & roadmap" href="/architecture" arrow />
 </Cards>
 
 ## What works today
