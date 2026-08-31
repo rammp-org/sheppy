@@ -1,0 +1,146 @@
+---
+title: Manifest reference
+---
+
+# Manifest reference
+
+Field-by-field lookup for `sheppy-manifest.yaml`. If you want to learn
+manifest authoring by example, start with [The manifest](/manifest) instead
+— this page is the companion you come back to once you know what you're
+looking for.
+
+## Top level
+
+| Field | Required | Type | Meaning |
+|---|---|---|---|
+| `machines` | no | list of [machine](#machines) | Declares the machines an alternative can reference. Omit entirely to run everything locally. |
+| `nodes` | no* | list of [node](#nodes) | The logical units of your system. *Not enforced by the loader, but a manifest with no nodes has nothing to launch. |
+
+## Machines
+
+```yaml
+machines:
+  - name: robot
+    host: 10.0.0.20
+    user: researcher
+    ros_setup: /opt/ros/humble/setup.bash
+```
+
+| Field | Required | Type | Meaning |
+|---|---|---|---|
+| `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty or missing. |
+| `host` | **yes** | string | Stored on the machine record. The loader errors if empty or missing. |
+| `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing — this one surprises people, see [below](#things-that-surprise-people). |
+| `ros_setup` | no | string | A path `source`d before the command of any alternative whose `machine:` names this machine. |
+
+## Nodes
+
+```yaml
+nodes:
+  - name: camera
+    description: "RGB-D source"
+    select: single
+    alternatives: [...]
+```
+
+| Field | Required | Type | Meaning |
+|---|---|---|---|
+| `name` | **yes** | string | Must be unique across the manifest; the loader errors on a duplicate. |
+| `description` | no | string | Stored, but rendered nowhere in the TUI today. |
+| `select` | no | string | Defaults to `single`, the only accepted value — see [below](#things-that-surprise-people). |
+| `alternatives` | **yes** | non-empty list of [alternative](#alternatives) | The interchangeable ways to do this job. |
+
+## Alternatives
+
+Common fields, valid regardless of `kind`:
+
+| Field | Required | Type | Meaning |
+|---|---|---|---|
+| `id` | **yes** | string | Unique within its node; the loader errors on a duplicate. |
+| `kind` | **yes** | string | Must name a registered launcher — one of `executable`, `launch_file`, `process`, `docker`, or a kind added by a third-party plugin. |
+| `machine` | no | string | Must name a declared machine (validated). Selects that machine's `ros_setup` to source before the command, and is shown in the TUI's host column and detail panel. It does **not** launch the command remotely — see [below](#things-that-surprise-people). |
+| `params` | no | mapping | How it's used depends on `kind` — see the per-kind sections below. |
+| `publishes` | no | list of string | Documentation only — see [below](#things-that-surprise-people). |
+| `subscribes` | no | list of string | Documentation only — see [below](#things-that-surprise-people). |
+
+Everything else in an alternative's mapping is kind-specific — `package`,
+`executable`, `launch_file`, `command`, `container`, `compose` — documented
+per kind below.
+
+## Kinds
+
+Every kind, builtin or plugin, registers through the same `sheppy.launchers`
+entry-point group in `pyproject.toml`. `executable`, `launch_file`, and
+`process` ship in sheppy's core; **`docker` ships as a separate plugin
+module** (`sheppy.launch.docker`) using that same mechanism. A third party
+adds a new kind exactly the same way — see
+[Writing a launcher plugin](/guides/launcher-plugins).
+
+| Kind | Source | Requires | Optional fields |
+|---|---|---|---|
+| [`executable`](#executable-core) | core | `package`, `executable` | `params`, `machine`, `publishes`, `subscribes` |
+| [`launch_file`](#launch_file-core) | core | `package`, `launch_file` | `params`, `machine`, `publishes`, `subscribes` |
+| [`process`](#process-core) | core | `command` | `machine`, `publishes`, `subscribes` (`params` accepted but ignored) |
+| [`docker`](#docker-plugin) | plugin (`sheppy.launch.docker`) | exactly one of `compose` or `container` | `params`, `ros_node_name`, `machine`, `publishes`, `subscribes` |
+
+### `executable` (core)
+
+Runs `ros2 run <package> <executable>`.
+
+| Field | Required | Meaning |
+|---|---|---|
+| `package` | **yes** | ROS package name. |
+| `executable` | **yes** | Executable name within the package. |
+| `params` | no | Appended as `--ros-args -p key:=value` for each entry. |
+
+### `launch_file` (core)
+
+Runs `ros2 launch <package> <launch_file>`.
+
+| Field | Required | Meaning |
+|---|---|---|
+| `package` | **yes** | ROS package name. |
+| `launch_file` | **yes** | Launch file name within the package. |
+| `params` | no | Appended as `key:=value` for each entry, ROS launch-argument style. |
+
+### `process` (core)
+
+Runs `command` as-is, with no ROS wrapping — for anything that isn't a ROS
+process, like a simulator GUI.
+
+| Field | Required | Meaning |
+|---|---|---|
+| `command` | **yes** | The shell command to run, verbatim. |
+| `params` | no | **Ignored.** sheppy emits a warning if you set it. |
+
+### `docker` (plugin)
+
+Runs a container, supervised like any other process. Provided by the
+`sheppy.launch.docker` plugin, registered under the `docker` kind. Requires
+exactly one of:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `container` | one of `container`/`compose` | An inline container definition (e.g. `image`, `network_mode`, `command`). |
+| `compose` | one of `container`/`compose` | A reference to an existing compose file: needs `file` and `service`. |
+| `params` | no | If non-empty, always written to a params file that's mounted read-only into the container and passed via `--ros-args --params-file`. |
+| `ros_node_name` | no | Scopes the written params file to that node name; without it the params apply under the ROS wildcard `/**`. |
+
+## Things that surprise people
+
+- **`machines[].user` is required, not optional.** The loader errors if it's
+  missing or empty, same as `name` and `host`.
+- **`select:` accepts exactly one value: `single`.** It reads like a choice
+  of selection strategies; it isn't one. Anything else is a validation
+  error.
+- **`params` on a `process` alternative are ignored**, with a warning at
+  load time — `process` runs `command` verbatim and has nowhere to splice
+  parameters in.
+- **`publishes`/`subscribes` are documentation only.** sheppy stores and
+  displays them but never checks them against the live ROS graph — nothing
+  flags a starved subscription today.
+- **`machine:` does not launch remotely.** It selects that machine's
+  `ros_setup` to source before the command and is shown in the TUI's host
+  column and detail panel — but `sheppyd` itself always runs locally, and
+  the `docker` launcher doesn't even read `alt.machine`, so container
+  alternatives get no `ros_setup` sourcing at all.
