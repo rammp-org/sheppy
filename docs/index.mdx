@@ -3,8 +3,6 @@ title: Introduction
 ---
 
 import { Cards } from 'nextra/components'
-import Link from 'next/link'
-import { CrookIcon } from '../components/logo'
 
 <div
   style={{
@@ -17,7 +15,20 @@ import { CrookIcon } from '../components/logo'
   }}
 >
   <div style={{ color: '#3b82f6' }}>
-    <CrookIcon size={64} />
+    <svg
+      width={64}
+      height={64}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M15.5 21.5V8.5C15.5 5.5 13.8 3.5 11.5 3.5C9.2 3.5 7.5 5.5 7.5 8.5V10" />
+      <circle cx="7" cy="17" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="20" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
   </div>
   <h1 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-.03em', margin: 0 }}>
     Sheppy
@@ -27,8 +38,8 @@ import { CrookIcon } from '../components/logo'
     switch mock vs. real, launch and supervise them from one operator console.
   </p>
   <div style={{ display: 'flex', gap: '.75rem', marginTop: '.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-    <Link
-      href="/getting-started"
+    <a
+      href="./getting-started"
       style={{
         background: '#3b82f6',
         color: '#fff',
@@ -39,7 +50,7 @@ import { CrookIcon } from '../components/logo'
       }}
     >
       Get started
-    </Link>
+    </a>
     <a
       href="https://github.com/rammp-org/sheppy"
       style={{
@@ -82,22 +93,22 @@ processes so they outlive your terminal.
 curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
 
-Four words carry the rest — see [Concepts](/concepts) for the full picture:
+Four words carry the rest — see [Concepts](./concepts) for the full picture:
 
-- **[Node](/concepts#a-node-is-not-a-ros-node)** — a logical unit of your system, not a ROS node.
-- **[Alternative](/concepts#alternatives)** — one of the interchangeable ways to run a node (mock vs. real).
-- **[Profile](/concepts#profiles)** — a saved selection of alternatives for the whole system.
-- **[Daemon](/concepts#desired-vs-actual)** — `sheppyd`, which actually launches and supervises processes.
+- **[Node](./concepts#a-node-is-not-a-ros-node)** — a logical unit of your system, not a ROS node.
+- **[Alternative](./concepts#alternatives)** — one of the interchangeable ways to run a node (mock vs. real).
+- **[Profile](./concepts#profiles)** — a saved selection of alternatives for the whole system.
+- **[Daemon](./concepts#desired-vs-actual)** — `sheppyd`, which actually launches and supervises processes.
 
 ## Where to go next
 
 <Cards>
-  <Cards.Card title="Getting started" href="/getting-started" arrow />
-  <Cards.Card title="The TUI" href="/tui" arrow />
-  <Cards.Card title="The manifest" href="/manifest" arrow />
-  <Cards.Card title="CLI reference" href="/cli" arrow />
-  <Cards.Card title="sheppyd — the launch supervisor" href="/guides/sheppyd" arrow />
-  <Cards.Card title="Writing a launcher plugin" href="/guides/launcher-plugins" arrow />
+  <Cards.Card title="Getting started" href="./getting-started" arrow />
+  <Cards.Card title="The TUI" href="./tui" arrow />
+  <Cards.Card title="The manifest" href="./manifest" arrow />
+  <Cards.Card title="CLI reference" href="./cli" arrow />
+  <Cards.Card title="sheppyd — the launch supervisor" href="./guides/sheppyd" arrow />
+  <Cards.Card title="Writing a launcher plugin" href="./guides/launcher-plugins" arrow />
 </Cards>
 
 ## What works today
@@ -108,4 +119,4 @@ plus per-alternative parameter overrides — as named **profiles** (Phase 2a).
 Phase 2b adds `sheppyd`: select, press `space`, and the process is really
 running — locally, surviving TUI detach. Multi-machine launch (Phase 3) and
 live graph introspection (Phase 4) are planned; see the
-[roadmap](/architecture#project-phases).
+[roadmap](./architecture#project-phases).

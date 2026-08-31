@@ -5,7 +5,7 @@ title: CLI reference
 # CLI reference
 
 The `sheppy` command has two faces. Given a manifest path (or nothing), it
-opens [the TUI](/tui); given a **verb**, it runs headless — the verbs never
+opens [the TUI](../tui); given a **verb**, it runs headless — the verbs never
 import Textual, so they work on a machine with no display.
 
 ```bash
@@ -58,7 +58,7 @@ the daemon itself. Exits 0 even if the daemon wasn't running.
 
 Report whether `sheppyd` is running and how many nodes it supervises, or stop
 the daemon **while leaving the children running** — a restarted daemon
-[re-adopts them](/guides/sheppyd#survivability-and-re-adoption). This is the
+[re-adopts them](../guides/sheppyd#survivability-and-re-adoption). This is the
 difference from `sheppy down`, which stops the nodes too.
 
 ## Exit codes at a glance
@@ -77,7 +77,7 @@ You normally never run the daemon yourself — the first launch action spawns
 it. Running `sheppyd` by hand starts it in the foreground: it takes the
 single-instance lock, re-adopts surviving children, and serves on the local
 socket until SIGTERM/SIGINT. See the
-[sheppyd guide](/guides/sheppyd) for its lifecycle, configuration, and
+[sheppyd guide](../guides/sheppyd) for its lifecycle, configuration, and
 protocol.
 
 ## Environment
@@ -85,4 +85,4 @@ protocol.
 | Variable | Effect |
 |----------|--------|
 | `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy` (the socket otherwise prefers `$XDG_RUNTIME_DIR`). Useful for test isolation. |
-| `COLORTERM=truecolor` | Required for the TUI's full palette over SSH — see [colors washed out over SSH?](/tui#colors-washed-out-over-ssh) |
+| `COLORTERM=truecolor` | Required for the TUI's full palette over SSH — see [colors washed out over SSH?](../tui#colors-washed-out-over-ssh) |

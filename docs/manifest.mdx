@@ -6,7 +6,7 @@ title: The manifest
 
 The **manifest is the source of truth**: a curated, version-controlled
 `sheppy-manifest.yaml` describing your machines, nodes, and their
-alternatives. Both the TUI and the CLI read it; [`sheppyd`](/guides/sheppyd)
+alternatives. Both the TUI and the CLI read it; [`sheppyd`](../guides/sheppyd)
 never does.
 
 This page teaches manifest authoring by walking
@@ -18,8 +18,8 @@ launcher kinds. Open it yourself:
 sheppy examples/sheppy-manifest.yaml
 ```
 
-For [node](/concepts), alternative, and profile vocabulary, see
-[Concepts](/concepts) first — this page assumes it.
+For [node](../concepts), alternative, and profile vocabulary, see
+[Concepts](../concepts) first — this page assumes it.
 
 ## Manifest anatomy
 
@@ -101,7 +101,7 @@ nodes:
 The manifest's declared `publishes`/`subscribes` describe the *expected*
 contract; sheppy does not yet compare it against the live ROS graph to
 flag starved subscriptions. That comparison is on the
-[roadmap](/architecture#project-phases).
+[roadmap](../architecture#project-phases).
 
 ## The other two kinds
 
@@ -145,12 +145,12 @@ kind, and sheppy warns if you set them:
 ```
 
 A launcher plugin can add further kinds; see
-[Launcher plugins](/guides/launcher-plugins).
+[Launcher plugins](../guides/launcher-plugins).
 
 ## Full field reference
 
 For the complete field-by-field tables — every field, whether it's
-required, and its type — see the [manifest reference](/manifest-reference).
+required, and its type — see the [manifest reference](../manifest-reference).
 
 ## Other examples
 
