@@ -9,13 +9,16 @@ on:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
+    # DOCS_DISPATCH_TOKEN is not provisioned yet; skip cleanly until the
+    # org secret exists rather than failing red on every docs push.
+    # `secrets` isn't a usable context in an `if:` (job- or step-level), so
+    # it's routed through `env:` first, which the step's `if:` can read.
+    env:
+      DOCS_DISPATCH_TOKEN: ${{ secrets.DOCS_DISPATCH_TOKEN }}
     steps:
-      # DOCS_DISPATCH_TOKEN is not provisioned yet; skip cleanly until the
-      # org secret exists rather than failing red on every docs push.
-      # (`secrets` isn't usable in a job-level `if`, only a step-level one.)
-      - if: ${{ secrets.DOCS_DISPATCH_TOKEN != '' }}
+      - if: ${{ env.DOCS_DISPATCH_TOKEN != '' }}
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.DOCS_DISPATCH_TOKEN }}
+          token: ${{ env.DOCS_DISPATCH_TOKEN }}
           repository: rammp-org/rammp-org.github.io
           event-type: docs-updated
