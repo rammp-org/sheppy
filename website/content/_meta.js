@@ -5,6 +5,7 @@ export default {
   tui: 'The TUI',
   manifest: 'The manifest',
   'manifest-reference': 'Manifest reference',
+  cli: 'CLI reference',
   guides: 'Guides',
   architecture: 'Architecture & roadmap',
   'design-records': 'Design records'

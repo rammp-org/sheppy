@@ -24,6 +24,17 @@ Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`
 does the same thing.
 </Callout>
 
+## From source (development)
+
+Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone git@github.com:rammp-org/sheppy.git
+cd sheppy
+uv sync                               # creates .venv and installs everything from uv.lock
+uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
+```
+
 ## Run the demo — no ROS required
 
 The repo ships `examples/local-demo.yaml`, a manifest that launches plain
