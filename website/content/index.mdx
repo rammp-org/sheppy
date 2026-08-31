@@ -57,16 +57,37 @@ import { CrookIcon } from '../components/logo'
 
 ## Why Sheppy?
 
-Sheppy exists because integration sprints kept hitting the same walls: no single
-view of what nodes exist or which are interchangeable, hand-managed launch files,
-ad-hoc multi-machine SSH, and no easy way to see what each node *expects* vs.
-what it's actually *receiving*. The ROS2 primitives exist (`rqt_graph`,
-`ros2 launch`, `ros2 topic info -v`, community SSH-launch projects) but nothing
-unifies them into one operator console. Sheppy does.
+```mermaid
+flowchart TB
+  M["sheppy-manifest.yaml<br/>what CAN run"] --> S
+  P["profiles/*.yaml<br/>what SHOULD run"] --> S
+  S["sheppy<br/>select · launch · supervise · observe"]
+  S --> L1["ros2 launch"]
+  S --> L2["ros2 run"]
+  S --> L3["docker run"]
+  S --> L4["any command"]
+  L1 --> N["your running system"]
+  L2 --> N
+  L3 --> N
+  L4 --> N
+```
 
-- **CLI:** `sheppy`
-- **Daemon:** `sheppyd`
-- **Restart a node:** `sheppy woof` 🐕
+Sheppy does not replace `ros2 launch` — it calls it. An alternative of kind
+`launch_file` shells out to `ros2 launch`; `executable` shells out to
+`ros2 run`. Sheppy is the layer above: it catalogs which launch files are
+interchangeable, remembers which set you picked, and supervises the
+processes so they outlive your terminal.
+
+```bash
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
+```
+
+Four words carry the rest — see [Concepts](/concepts) for the full picture:
+
+- **[Node](/concepts#a-node-is-not-a-ros-node)** — a logical unit of your system, not a ROS node.
+- **[Alternative](/concepts#alternatives)** — one of the interchangeable ways to run a node (mock vs. real).
+- **[Profile](/concepts#profiles)** — a saved selection of alternatives for the whole system.
+- **[Daemon](/concepts#desired-vs-actual)** — `sheppyd`, which actually launches and supervises processes.
 
 ## Where to go next
 

@@ -24,27 +24,6 @@ Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`
 does the same thing.
 </Callout>
 
-<Steps>
-### Run the TUI
-
-```bash
-sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml if omitted
-```
-
-See [The TUI](/tui) for the key bindings and layout.
-
-### Try it without ROS
-
-The repo ships demo manifests that launch plain processes, so you can see the
-whole select → launch → observe loop on any machine:
-
-```bash
-git clone https://github.com/rammp-org/sheppy.git
-sheppy sheppy/examples/local-demo.yaml
-```
-
-</Steps>
-
 ## From source (development)
 
 Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
@@ -56,52 +35,102 @@ uv sync                               # creates .venv and installs everything fr
 uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
 ```
 
-## Launching for real: `sheppyd`
+## Run the demo — no ROS required
 
-The first launch action auto-starts `sheppyd`, a tiny supervisor daemon
-(stdlib-only, ~zero idle CPU) that owns the child processes — quit the TUI
-and everything keeps running. Reconnect and it's all still there; even if
-`sheppyd` itself dies, a restarted daemon re-adopts the survivors.
-
-Headless verbs (no TUI needed):
+The repo ships `examples/local-demo.yaml`, a manifest that launches plain
+Python processes instead of ROS nodes. It's the fastest way to see sheppy
+actually run something, on any machine, with nothing else installed:
 
 ```bash
-sheppy up <profile> --manifest sheppy-manifest.yaml   # converge to a profile
-sheppy status                                # what's running
-sheppy logs <node> -n 50                     # tail a node's output
-sheppy woof <node>                           # restart it 🐕
-sheppy down                                  # stop everything + daemon
-sheppy --version                             # print the installed version
+git clone https://github.com/rammp-org/sheppy.git
+cd sheppy
+sheppy examples/local-demo.yaml
 ```
 
-The [CLI reference](/cli) documents every verb, flag, and exit code.
+The manifest declares two nodes: `clock` (an alternative called `ticker`
+that prints the time every second) and `worker` (`steady`, which just sleeps,
+and `flaky`, which exits with status 1 after three seconds). That's enough to
+walk through everything below.
 
-Node output goes to `~/.sheppy/logs/<node>/<timestamp>-<id>.log` (last 5 runs
-kept). Optional flat-JSON config at `~/.sheppy/sheppyd.json`:
+## The 90-second walkthrough
 
-```json
-{"ring_lines": 300, "keep_runs": 5, "coredumps": false,
- "usage_interval": 2.0, "launch_grace": 2.0,
- "stop_grace": 5.0, "kill_grace": 5.0}
+<Steps>
+### Select `clock` → `ticker`
+
+`Enter` opens `clock`'s alternatives, `Enter` again selects `ticker` (its
+only one), `Esc` returns focus to the node list. The row's ALTERNATIVE
+column now reads `ticker`.
+
+### Launch it — `space`
+
+Within a couple of seconds the row's status glyph turns `●` (green) and the
+footer reads `sheppyd ● 1/2 running` — `sheppyd` auto-started on this first
+launch.
+
+### Watch it run
+
+Press `3` for the PROCESS tab: `state`, `pid`, a live `uptime`, and a "last
+output" tail printing `clock`'s heartbeat, one new line per second.
+
+### Crash it on purpose
+
+Move to `worker` (`↓`), select `flaky` (`Enter`, `↓`, `Enter`, `Esc`), then
+`space` to launch it. It runs for about three seconds, then its glyph turns
+`✕` (crashed) with a `Δ` — desired (`flaky`) no longer matches actual
+(nothing running); see [desired vs actual](/concepts#desired-vs-actual).
+
+### Read its logs
+
+From a second terminal:
+
 ```
+$ sheppy status
+clock                running    ticker         pid=4074426 up 15s
+worker               crashed    flaky          pid=4074572 exit=1
+```
+
+`flaky` never prints anything before it dies, so `sheppy logs worker` comes
+back empty — the exit code, not a log line, is the signal:
+
+```
+$ sheppy logs worker
+(no output)
+```
+
+### Save the selection as a profile — `s`
+
+Type a name (e.g. `demo`), `Enter`. The header now reads `◆ profile demo`,
+and `profiles/demo.yaml` appears next to the manifest:
+
+```yaml
+selections:
+  clock: ticker
+  worker: flaky
+```
+
+Running the demo from a clone drops that `profiles/` directory into the
+checked-out `examples/` folder — expected, not a bug.
+
+### Tear down
+
+Quit the TUI (`Ctrl+Q`), then from a shell:
+
+```
+$ sheppy down
+stopped clock
+stopped worker
+sheppyd stopped
+```
+</Steps>
 
 <Callout type="info">
-For the full picture — architecture, node states, re-adoption, the wire
-protocol, and troubleshooting — see the
-[sheppyd guide](/guides/sheppyd). Want to add your own launch `kind`
-(a custom process wrapper, systemd, Kubernetes, ...)? See
-[writing a launcher plugin](/guides/launcher-plugins).
+`sheppyd` is the tiny supervisor daemon that actually owns these processes —
+quit the TUI and they keep running; reconnect and they're still there. For
+architecture, node states, and troubleshooting, see the
+[sheppyd guide](/guides/sheppyd).
 </Callout>
 
-## Run the tests
+## Now describe your own system
 
-From a source checkout:
-
-```bash
-uv run pytest          # full suite
-uv run pytest -v       # verbose
-uv run pytest tests/manifest        # just the manifest/loader tests
-```
-
-The model, loader/validator, and selection logic are pure Python and tested
-without the UI; the TUI is exercised end-to-end with Textual's async pilot.
+`local-demo.yaml` is a toy. See [The manifest](/manifest) to write one for
+your own nodes, alternatives, and machines.
