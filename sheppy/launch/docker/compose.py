@@ -1,11 +1,70 @@
 """Translate a docker-compose service definition into docker-run arguments.
 We reuse compose's config vocabulary but not its orchestrator."""
+import difflib
 import re
 import shlex
 
 import yaml
 
-_WARN_KEYS = ("restart", "depends_on", "healthcheck")
+# Compose keys that docker run spells differently. Everything in _MECHANICAL
+# below translates as --kebab-case with no entry here, so most compose keys
+# — present and future — need no code at all.
+_ALIAS = {
+    "environment": "-e", "volumes": "-v", "ports": "-p", "user": "-u",
+    "working_dir": "-w", "network_mode": "--network", "devices": "--device",
+    "ulimits": "--ulimit", "sysctls": "--sysctl", "labels": "--label",
+    "annotations": "--annotation",
+    "device_cgroup_rules": "--device-cgroup-rule",
+    "extra_hosts": "--add-host", "stdin_open": "--interactive",
+    "userns_mode": "--userns", "cgroupns_mode": "--cgroupns",
+    "dns_opt": "--dns-option", "mem_limit": "--memory",
+    "mem_reservation": "--memory-reservation",
+    "memswap_limit": "--memory-swap",
+    "mem_swappiness": "--memory-swappiness",
+    "cpuset": "--cpuset-cpus", "pull_policy": "--pull",
+    "cgroup": "--cgroupns",
+}
+
+# Keys whose docker flag is exactly --kebab-case of the key.
+_MECHANICAL = frozenset({
+    "env_file", "ipc", "pid", "uts", "privileged", "cap_add", "cap_drop",
+    "gpus", "entrypoint", "hostname", "domainname", "mac_address", "init",
+    "read_only", "tty", "shm_size", "security_opt", "group_add", "tmpfs",
+    "dns", "dns_search", "cgroup_parent", "runtime", "platform", "isolation",
+    "expose", "volumes_from", "storage_opt", "pids_limit", "oom_kill_disable",
+    "oom_score_adj", "cpus", "cpu_shares", "cpu_period", "cpu_quota",
+    "cpu_rt_runtime", "cpu_rt_period", "cpu_count", "stop_signal",
+    "label_file", "cpu_percent",
+})
+
+# Compose vocabulary sheppy deliberately does not act on, and why.
+_NOT_APPLICABLE = {
+    "restart": "sheppy owns lifecycle",
+    "depends_on": "sheppy owns lifecycle",
+    "healthcheck": "sheppy owns lifecycle",
+    "stop_grace_period": "sheppy owns lifecycle",
+    "build": "sheppy runs images, it does not build them",
+    "container_name": "sheppy names containers sheppy-<node>",
+    "scale": "sheppy runs one container per node",
+    "profiles": "sheppy selects alternatives, not compose profiles",
+    "networks": "sheppy does not manage container networks",
+    "links": "sheppy does not manage container networks",
+    "external_links": "sheppy does not manage container networks",
+    "configs": "sheppy does not manage compose configs",
+    "secrets": "sheppy does not manage compose secrets",
+    "extends": "sheppy reads one service, not a compose inheritance tree",
+    "develop": "sheppy does not run compose watch",
+    "logging": "sheppy captures container logs",
+    "attach": "sheppy captures container logs",
+    "post_start": "sheppy owns lifecycle",
+    "pre_stop": "sheppy owns lifecycle",
+    "blkio_config": "sheppy does not translate compose's nested blkio_config",
+}
+
+# Handled by their own code below rather than by the generic translation.
+_BESPOKE = frozenset({"image", "command", "deploy"})
+
+_KNOWN = frozenset(_ALIAS) | _MECHANICAL | frozenset(_NOT_APPLICABLE) | _BESPOKE
 
 _VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
@@ -35,18 +94,6 @@ def _as_list(v):
     return list(v) if isinstance(v, (list, tuple)) else [v]
 
 
-def _env_pairs(env):
-    if not env:
-        return []
-    if isinstance(env, dict):
-        return [(str(k), str(v)) for k, v in env.items()]
-    out = []
-    for item in env:
-        k, _, v = str(item).partition("=")
-        out.append((k, v))
-    return out
-
-
 def _volume_str(vol):
     if isinstance(vol, str):
         return vol
@@ -63,6 +110,92 @@ def _command_list(cmd):
     return list(cmd) if isinstance(cmd, (list, tuple)) else shlex.split(cmd)
 
 
+def _ulimit_pair(name, limit):
+    if isinstance(limit, dict):
+        return f"{name}={limit.get('soft')}:{limit.get('hard')}"
+    return f"{name}={limit}"
+
+
+# How one entry of a mapping-valued key becomes a single flag argument.
+_PAIR = {
+    "ulimits": _ulimit_pair,
+    "extra_hosts": lambda host, addr: f"{host}:{addr}",
+}
+
+
+def _check_environment(value, errors):
+    if isinstance(value, (dict, list, tuple)):
+        return value
+    errors.append("'environment' must be a mapping or a list "
+                  "of KEY=VALUE strings")
+    return None
+
+
+def _check_volumes(value, errors):
+    out = []
+    for vol in _as_list(value):
+        try:
+            out.append(_volume_str(vol))
+        except AttributeError:
+            errors.append(f"'volumes' entries must be a string or mapping, "
+                          f"got {type(vol).__name__}")
+    return out
+
+
+def _check_ports(value, errors):
+    out = []
+    for port in _as_list(value):
+        if isinstance(port, (str, int)):
+            out.append(port)
+        else:
+            errors.append("compose long-form 'ports' is not supported; "
+                          "use the 'host:container' short string form")
+    return out
+
+
+def _check_gpus(value, errors):
+    if isinstance(value, (str, int)):
+        return value
+    errors.append("compose long-form 'gpus' is not supported; "
+                  "use e.g. gpus: all")
+    return None
+
+
+def _check_entrypoint(value, errors):
+    return value if isinstance(value, str) else " ".join(str(v) for v in value)
+
+
+_CHECK = {
+    "environment": _check_environment, "volumes": _check_volumes,
+    "ports": _check_ports, "gpus": _check_gpus,
+    "entrypoint": _check_entrypoint,
+}
+
+
+def _flag(key):
+    return _ALIAS.get(key) or "--" + key.replace("_", "-")
+
+
+def _emit(key, value):
+    """One compose key/value pair as docker run flags. The value's YAML type
+    decides the shape: bool is a bare flag, a mapping or list repeats."""
+    flag = _flag(key)
+    if isinstance(value, bool):
+        return [flag] if value else []
+    if isinstance(value, dict):
+        pair = _PAIR.get(key, lambda k, v: f"{k}={v}")
+        return [a for k, v in value.items() for a in (flag, pair(k, v))]
+    if isinstance(value, (list, tuple)):
+        return [a for item in value for a in (flag, str(item))]
+    return [flag, str(value)]
+
+
+def _unknown_key_error(key):
+    near = difflib.get_close_matches(key, _KNOWN, n=1)
+    hint = f"; did you mean '{near[0]}'?" if near else ""
+    return f"sheppy does not translate compose key '{key}'{hint}"
+
+
 def service_to_docker_args(service: dict):
     errors, warnings = [], []
     if not isinstance(service, dict):
@@ -75,60 +208,22 @@ def service_to_docker_args(service: dict):
     if not image:
         errors.append("docker service needs an 'image' "
                       "(build-only services are unsupported)")
-    for key in _WARN_KEYS:
-        if key in service:
-            warnings.append(f"compose '{key}' is ignored (sheppy owns lifecycle)")
 
     flags = []
-    try:
-        env_pairs = _env_pairs(service.get("environment"))
-    except TypeError:
-        errors.append("'environment' must be a mapping or a list "
-                      "of KEY=VALUE strings")
-        env_pairs = []
-    for k, v in env_pairs:
-        flags += ["-e", f"{k}={v}"]
-    for ef in _as_list(service.get("env_file")):
-        flags += ["--env-file", str(ef)]
-    if service.get("network_mode"):
-        flags += ["--network", str(service["network_mode"])]
-    if service.get("ipc"):
-        flags += ["--ipc", str(service["ipc"])]
-    if service.get("pid"):
-        flags += ["--pid", str(service["pid"])]
-    for vol in _as_list(service.get("volumes")):
-        try:
-            flags += ["-v", _volume_str(vol)]
-        except AttributeError:
-            errors.append(f"'volumes' entries must be a string or mapping, "
-                          f"got {type(vol).__name__}")
-    for dev in _as_list(service.get("devices")):
-        flags += ["--device", str(dev)]
-    if service.get("privileged"):
-        flags += ["--privileged"]
-    for cap in _as_list(service.get("cap_add")):
-        flags += ["--cap-add", str(cap)]
-    for cap in _as_list(service.get("cap_drop")):
-        flags += ["--cap-drop", str(cap)]
-    for port in _as_list(service.get("ports")):
-        if not isinstance(port, (str, int)):
-            errors.append("compose long-form 'ports' is not supported; "
-                          "use the 'host:container' short string form")
+    for key, value in service.items():
+        if key in _BESPOKE:
             continue
-        flags += ["-p", str(port)]
-    if service.get("user"):
-        flags += ["-u", str(service["user"])]
-    if service.get("working_dir"):
-        flags += ["-w", str(service["working_dir"])]
-    if service.get("entrypoint"):
-        ep = service["entrypoint"]
-        flags += ["--entrypoint", ep if isinstance(ep, str) else " ".join(ep)]
-    gpus = service.get("gpus")
-    if gpus is not None:
-        if not isinstance(gpus, (str, int)):
-            errors.append("compose long-form 'gpus' is not supported; "
-                          "use e.g. gpus: all")
-        else:
-            flags += ["--gpus", str(gpus)]
+        if key in _NOT_APPLICABLE:
+            warnings.append(f"compose '{key}' is ignored "
+                            f"({_NOT_APPLICABLE[key]})")
+            continue
+        if key not in _KNOWN:
+            errors.append(_unknown_key_error(key))
+            continue
+        if key in _CHECK:
+            value = _CHECK[key](value, errors)
+        if value is None:
+            continue
+        flags += _emit(key, value)
 
     return flags, image or "", _command_list(service.get("command")), errors, warnings

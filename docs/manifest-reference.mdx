@@ -126,8 +126,55 @@ exactly one of:
 | `params` | no | If non-empty, always written to a params file that's mounted read-only into the container and passed via `--ros-args --params-file`. |
 | `ros_node_name` | no | Scopes the written params file to that node name; without it the params apply under the ROS wildcard `/**`. |
 
+#### Which compose keys sheppy translates
+
+The same table applies to an inline `container` and to a service read from a
+`compose` file. sheppy borrows compose's vocabulary and turns each key into a
+`docker run` flag; it does not run compose.
+
+| Compose key | Becomes |
+|---|---|
+| `image`, `command`, `entrypoint` | The image and its argv. |
+| `environment`, `env_file` | `-e`, `--env-file` |
+| `volumes`, `tmpfs`, `volumes_from`, `read_only` | `-v` (short and long form), `--tmpfs`, `--volumes-from`, `--read-only` |
+| `devices`, `device_cgroup_rules`, `gpus` | `--device`, `--device-cgroup-rule`, `--gpus` (short form only, e.g. `gpus: all`) |
+| `network_mode`, `ipc`, `pid`, `uts`, `userns_mode`, `cgroup`, `cgroupns_mode` | `--network`, `--ipc`, `--pid`, `--uts`, `--userns`, `--cgroupns`, `--cgroupns` |
+| `ports`, `expose` | `-p` (short `host:container` form only), `--expose` |
+| `hostname`, `domainname`, `mac_address`, `extra_hosts`, `dns`, `dns_search`, `dns_opt` | `--hostname`, `--domainname`, `--mac-address`, `--add-host`, `--dns`, `--dns-search`, `--dns-option` |
+| `privileged`, `cap_add`, `cap_drop`, `security_opt`, `user`, `group_add` | `--privileged`, `--cap-add`, `--cap-drop`, `--security-opt`, `-u`, `--group-add` |
+| `ulimits`, `sysctls`, `shm_size`, `pids_limit` | `--ulimit`, `--sysctl`, `--shm-size`, `--pids-limit` |
+| `cpus`, `cpuset`, `cpu_shares`, `cpu_period`, `cpu_quota`, `cpu_rt_period`, `cpu_rt_runtime`, `cpu_count`, `cpu_percent` | The matching `--cpu*` flags. |
+| `mem_limit`, `mem_reservation`, `memswap_limit`, `mem_swappiness`, `oom_kill_disable`, `oom_score_adj` | `--memory`, `--memory-reservation`, `--memory-swap`, `--memory-swappiness`, `--oom-kill-disable`, `--oom-score-adj` |
+| `labels`, `label_file`, `annotations` | `--label`, `--label-file`, `--annotation` |
+| `working_dir`, `init`, `tty`, `stdin_open`, `stop_signal` | `-w`, `--init`, `--tty`, `--interactive`, `--stop-signal` |
+| `runtime`, `platform`, `isolation`, `cgroup_parent`, `storage_opt`, `pull_policy` | `--runtime`, `--platform`, `--isolation`, `--cgroup-parent`, `--storage-opt`, `--pull` |
+
+`ulimits` accepts both compose forms — `rtprio: 99` becomes `--ulimit rtprio=99`,
+and `nofile: {soft: 1024, hard: 4096}` becomes `--ulimit nofile=1024:4096`.
+
+**Keys sheppy ignores, with a warning** naming the reason: `restart`,
+`depends_on`, `healthcheck`, `stop_grace_period`, `post_start`, `pre_stop`
+(sheppy owns lifecycle); `build` (sheppy runs images, it doesn't build them);
+`container_name`, `scale`, `profiles`, `extends`; `networks`, `links`,
+`external_links`; `configs`, `secrets`; `develop`; `logging`, `attach`; and
+`blkio_config`.
+
+**Any other key is a validation error**, with a `did you mean` suggestion —
+`ulimit: 99` is rejected rather than silently dropped. For an inline
+`container` the error fails manifest validation; for a `compose` reference it
+surfaces as a warning when the node launches.
+
+
 ## Things that surprise people
 
+- **`privileged: true` does not raise rlimits.** Capabilities and rlimits are
+  separate mechanisms: a privileged container still gets `RLIMIT_RTPRIO` of 0,
+  so `sched_setscheduler(SCHED_FIFO, …)` fails with `EPERM` no matter which
+  capabilities it holds. A real-time node needs `cap_add: [SYS_NICE]` *and*
+  `ulimits: {rtprio: 99, memlock: -1}`. Both are necessary and neither is
+  sufficient — the host also has to be RT-tuned (`isolcpus`, `nohz_full`,
+  `rcu_nocbs`, CPU affinity), which the container contract cannot express. A
+  successful `ulimits` declaration does not mean you have real-time.
 - **`machines[].user` is required, not optional.** The loader errors if it's
   missing or empty, same as `name` and `host`.
 - **`select:` accepts exactly one value: `single`.** It reads like a choice
