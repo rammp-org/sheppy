@@ -77,6 +77,29 @@ async def test_node_list_navigation_keeps_focus():
         )
 
 
+def _alt_ids(panel):
+    return [str(item.query(".alt-main").first().content).split()[-1]
+            for item in panel.children]
+
+
+async def test_rebuild_after_apply_does_not_outrun_the_node_cursor():
+    """Regression for #19. The repopulation that follows an apply must not
+    interleave with the node cursor's own — moving the cursor while it runs
+    used to leave the previous node's alternatives in the pane."""
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        panel = app.query_one("#alternatives")
+        assert _alt_ids(panel) == ["realsense", "mock"]
+
+        app._rebuild_after_apply()          # queues a reshow of camera
+        app.query_one("#nodes").index = 1   # cursor moves to planner
+        for _ in range(3):
+            await pilot.pause()
+        assert _alt_ids(panel) == ["astar"]
+
+
 # --- Task 6: format_detail pure-function tests ---
 
 def test_format_detail_launch_file():

@@ -632,9 +632,15 @@ class SheppyApp(App):
         self._refresh_runtime()   # selections changed -> drift may too
         node = self._current_node()
         if node:
-            self.run_worker(self._reshow(node), exclusive=False)
+            # call_next, not run_worker: show() awaits between rows, so a
+            # worker would interleave with the node cursor's own show() and
+            # leave the pane holding another node's alternatives. On the
+            # message pump it runs after — never during — the other handlers.
+            self.call_next(self._reshow, node)
 
     async def _reshow(self, node: Node) -> None:
+        if node is not self._current_node():
+            return                  # cursor moved on; its handler owns the pane
         sel = self.state.selected(node.name) if self.state else None
         await self.query_one(AlternativesPanel).show(node, sel)
         self._show_detail(node)
