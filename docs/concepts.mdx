@@ -42,7 +42,9 @@ of choosing node by node.
 ## Desired vs actual
 
 - **Desired** is what you asked for: the alternatives currently selected, from
-  a profile or from clicking around the TUI.
+  a profile or from clicking around the TUI. Open the TUI with nothing selected
+  and whatever `sheppyd` is already supervising becomes the starting selection
+  (see [opening without a profile](../tui#opening-without-a-profile)).
 - **Actual** is what `sheppyd` is really running right now.
 
 They drift apart constantly — a node crashes, you launch something by hand,
@@ -61,7 +63,8 @@ flowchart LR
   A2 -->|"! : adopt what's running"| D
 ```
 
-A `Δ` in the TUI marks a node where the two disagree. `space` pushes desired
+A `Δ` in the TUI marks a node where the two disagree, and the PROCESS tab says
+[why](../guides/sheppyd#drift-reasons). `space` pushes desired
 onto actual by launching your selection; `!` pulls actual into desired by
 adopting whatever is already running.
 

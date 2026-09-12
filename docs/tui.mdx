@@ -51,6 +51,25 @@ Profiles are stored as one YAML file per profile in a `profiles/` directory next
 to your manifest (e.g. `profiles/mock.yaml`); the filename is the
 profile name. They're plain, version-controllable text.
 
+## Opening without a profile
+
+The TUI always opens with no profile loaded (`profile <none>` in the header).
+If `sheppyd` is already supervising nodes when the TUI connects and nothing is
+selected yet, the TUI takes what's running as the starting selection,
+including each node's parameter overrides. A system you brought up earlier,
+for example with `sheppy up`, doesn't show as drift.
+
+- Running, launching, and crashed nodes are adopted. A crashed node keeps its
+  `Δ` (selected, not running), and `space` relaunches it.
+- Stopped nodes are not adopted.
+- Nodes that aren't in this manifest stay under the
+  [orphans](../guides/sheppyd#orphans) divider.
+- Selections you made before `sheppyd` was running are kept.
+- Nodes started from elsewhere after the TUI connects show `Δ` as usual.
+
+The header still reads `profile <none>` with no `*`; press `s` to save the
+adopted selection as a profile.
+
 ## Colors washed out over SSH?
 
 Sheppy's palette needs 24-bit color. The decision is made on the machine

@@ -235,6 +235,20 @@ marker when what's running differs from what's selected, and per-node CPU/RSS.
 The **PROCESS** detail tab shows the highlighted node's live state, pid,
 uptime, exit code, resource usage, and log tail.
 
+### Drift reasons
+
+When a node has a `Δ`, the PROCESS tab adds a `drift` line under its state
+saying why:
+
+| `drift` line | Meaning |
+|--------------|---------|
+| `Δ <alt> selected, not running` | the selected alternative isn't running — never launched, stopped, or crashed |
+| `Δ running <alt>, nothing selected` | `sheppyd` is running the node but nothing is selected for it |
+| `Δ running <alt>, selected <other>` | a different alternative is running than the one selected |
+| `Δ params differ: <names>` | the running process was launched with different values for these parameters |
+| `Δ launch command changed since start` | the selection now resolves to a different command than the one running, usually because the manifest was edited after launch |
+| `Δ running <alt>, not in this manifest` | the running alternative is no longer listed under this node |
+
 `space`/`L` push what you selected onto what's running; `!` pulls it back. See
 [desired vs actual](../../concepts#desired-vs-actual).
 
