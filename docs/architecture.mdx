@@ -4,35 +4,39 @@ title: Architecture & roadmap
 
 # Architecture
 
-```
-┌────────────────────────┐    gRPC / unix-socket  ┌──────────────────────────────┐
-│  TUI client            │◄──────────────────────►│  sheppyd (supervisor, per host)│
-│  (Textual)             │                        │  • owns child processes        │
-│  reads                 │   manifest (shared)    │    (launch / kill / restart)   │
-│  sheppy-manifest.yaml  │◄───────────────────────│  • embeds rclpy node for       │
-└────────────────────────┘                        │    graph introspection         │
-                                        └──────────────────────────────┘
-  multi-machine = one sheppyd per host; the TUI connects to each;
-  SSH bootstraps remote daemons.
+```mermaid
+flowchart LR
+  TUI["sheppy — TUI"] -->|NDJSON over a unix socket| D
+  CLI["sheppy up / status / logs / woof"] -->|NDJSON over a unix socket| D
+  D["sheppyd<br/>stdlib only · owns the children"]
+  D --> C1["node process"]
+  D --> C2["node process"]
+  D --> C3["container"]
+  D -.->|"re-adopts survivors on restart<br/>(matches /proc start-time, not just pid)"| C1
 ```
 
-- **Tech:** Python + [Textual](https://textual.textualize.io/) (TUI), `rclpy` (ROS graph access).
-- **Daemon-backed:** the TUI is a thin client; `sheppyd` owns the processes so the
-  system survives the TUI detaching or crashing.
+- **Tech:** Python + [Textual](https://textual.textualize.io/) for the TUI. `sheppyd`
+  imports only the standard library.
+- **Smart client, dumb daemon:** the TUI and CLI read the manifest and resolve each
+  alternative into a launch descriptor; `sheppyd` never sees YAML and runs exactly
+  what it is sent. See the [sheppyd guide](../guides/sheppyd).
+- **Daemon-backed:** `sheppyd` owns the processes, so the system survives the TUI
+  detaching or crashing.
 - **Manifest is the source of truth:** a curated, version-controlled `sheppy-manifest.yaml`.
-- **Introspection is graph-API only:** no custom node base class. The manifest's
-  declared `publishes`/`subscribes` is the *expected* contract; the live ROS graph
-  is the *actual*. A declared subscription with zero matching publishers = starved.
+- **Kinds are launchers:** `executable`, `launch_file`, `process` and `docker` all
+  register through the `sheppy.launchers` entry-point group, so a plugin can add
+  more. See [Writing a launcher plugin](../guides/launcher-plugins).
 
-## Project phases
+## Roadmap
 
-Each phase builds on the shared manifest data model and ships with its own
-spec → plan → implementation cycle (see [Design records](../design-records)).
+Each step ships with its own spec → plan → implementation cycle (see
+[Design records](../design-records)).
 
-| Phase | Name | Scope | Status |
-|------:|------|-------|--------|
-| **1** | Manifest schema + Catalog browser TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; single-select an alternative per node (mock vs. real). No launching, no daemon. | ✅ Done |
-| **2a** | Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. No launching. | ✅ Done |
-| **2b** | `sheppyd` + local launch | Supervisor daemon + gRPC/socket protocol; launch a profile's processes locally with live status, kill/restart. | ✅ Done |
-| **3** | Multi-machine launch / kill via SSH | One `sheppyd` per host; TUI connects to each; SSH bootstraps remote daemons; live process status, kill/restart/restart-on-crash. | ⬜ Planned |
-| **4** | Live introspection | Graph-API comparison of each node's declared contract vs. the live graph; flag starved subscriptions. | ⬜ Planned |
+| Step | Scope | Status |
+|------|-------|--------|
+| Manifest + catalog TUI | YAML schema for machines/nodes/alternatives; Textual app to load, validate, and browse it; select one alternative per node (mock vs. real). | ✅ Done |
+| Profiles | Save/load named selection sets + declared-param overrides as per-profile YAML, managed in the TUI. | ✅ Done |
+| `sheppyd` + local launch | Supervisor daemon speaking NDJSON over a unix socket; launch processes locally with live status, stop/restart. | ✅ Done |
+| Launcher plugins + Docker | Kinds discovered through entry points; the `docker` kind runs containers and compose services. | ✅ Done |
+| Multi-machine launch via SSH | One `sheppyd` per host; the TUI connects to each; SSH bootstraps remote daemons. Until then the `machine:` field is accepted but every launch is local. | ⬜ Planned |
+| Live introspection | Graph-API only, no custom node base class: the manifest's declared `publishes`/`subscribes` is the *expected* contract, the live ROS graph (read through `rclpy`) is the *actual*. A declared subscription with zero matching publishers is flagged as starved. | ⬜ Planned |
