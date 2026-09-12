@@ -9,7 +9,7 @@ opens [the TUI](../tui); given a **verb**, it runs headless — the verbs never
 import Textual, so they work on a machine with no display.
 
 ```bash
-sheppy [MANIFEST]          # open the TUI (MANIFEST defaults to ./system.yaml)
+sheppy [MANIFEST]          # open the TUI (MANIFEST defaults to ./sheppy-manifest.yaml)
 sheppy <verb> [...]        # headless: up, down, status, logs, woof, daemon
 ```
 
@@ -20,7 +20,7 @@ Everything below is verified against `sheppy/cli.py`.
 ### `sheppy up <profile> [--manifest PATH]`
 
 Resolve the profile against the manifest (`--manifest` defaults to
-`system.yaml`), print the plan (`start` / `stop` / `restart` per node),
+`sheppy-manifest.yaml`), print the plan (`start` / `stop` / `restart` per node),
 converge the running system to it, wait until every node settles (30 s
 timeout), and print the final state per node.
 
