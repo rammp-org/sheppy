@@ -35,6 +35,30 @@ async def test_process_tab_offline_and_unsupervised_states():
         assert "offline" in str(app.query_one("#detail-process").content)
 
 
+async def test_process_tab_explains_drift_on_running_node():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="mock_camera")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "up", "enter")     # select realsense
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        text = str(app.query_one("#detail-process").content)
+        assert "running mock_camera, selected realsense" in text
+
+
+async def test_process_tab_explains_drift_on_unsupervised_node():
+    app = make_app(FakeDaemonClient())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter")           # select realsense
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        text = str(app.query_one("#detail-process").content)
+        assert "realsense selected, not running" in text
+
+
 async def test_orphan_rows_render_and_stop_works():
     fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
                                                      "running",

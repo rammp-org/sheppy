@@ -100,9 +100,72 @@ async def test_drift_marker_when_selection_differs_from_running():
     app = make_app(fake)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("enter", "enter")     # select realsense (desired)
+        # enter lands on the adopted mock_camera; up + enter picks realsense
+        await pilot.press("enter", "up", "enter")
         await pilot.pause()
+        assert app.state.selected("camera") == "realsense"
         assert "Δ" in str(app.query_one("#node-0 .col-status").content)
+
+
+async def test_launch_without_profile_adopts_running_nodes_cleanly():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="mock_camera")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock_camera"
+        assert "Δ" not in str(app.query_one("#node-0 .col-status").content)
+        assert "mock_camera" in str(app.query_one("#node-0 .col-alt").content)
+        assert app.state.is_dirty is False
+        assert app.state.active_profile_name is None
+
+
+async def test_adoption_carries_param_overrides_without_drift():
+    fake = FakeDaemonClient({"camera": payload(
+        "camera", "running", alt="realsense", params={"enable_depth": False})})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.state.effective_params("camera")["enable_depth"] is False
+        assert "Δ" not in str(app.query_one("#node-0 .col-status").content)
+
+
+async def test_adoption_includes_crashed_so_space_relaunches_it():
+    fake = FakeDaemonClient({"camera": payload("camera", "crashed",
+                                               alt="mock_camera")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("space")
+        await pilot.pause()
+        launches = [kw for op, kw in fake.requests if op == "launch"]
+        assert launches and launches[-1]["spec"]["alt_id"] == "mock_camera"
+
+
+async def test_adoption_skips_deliberately_stopped_nodes():
+    fake = FakeDaemonClient({"camera": payload("camera", "stopped",
+                                               alt="mock_camera")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.state.selected("camera") is None
+
+
+async def test_connecting_later_keeps_selections_made_offline():
+    fake = FakeDaemonClient(connect_ok=False)
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter", "escape")   # select realsense
+        # sheppyd comes up (spawned by space) already running mock_camera
+        fake._ok = True
+        fake.nodes = {"camera": payload("camera", "running",
+                                        alt="mock_camera")}
+        await pilot.press("space")
+        await pilot.pause()
+        assert app.state.selected("camera") == "realsense"
+        launches = [kw for op, kw in fake.requests if op == "launch"]
+        assert launches and launches[-1]["spec"]["alt_id"] == "realsense"
 
 
 async def test_no_drift_marker_when_selection_matches_running():

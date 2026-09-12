@@ -1,3 +1,5 @@
+import pytest
+
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.daemon_modals import ConvergeModal
@@ -10,7 +12,7 @@ def make_app(fake):
     return SheppyApp(load_manifest(MANIFEST), path=MANIFEST, client=fake)
 
 
-def test_drift_returns_false_when_resolve_fails(monkeypatch):
+def test_drift_returns_none_when_resolve_fails(monkeypatch):
     # A launcher raising in launch() must never crash _drift, which runs
     # on every daemon status event via the per-node refresh loop.
     app = SheppyApp(load_manifest(MANIFEST), path=MANIFEST)
@@ -18,8 +20,40 @@ def test_drift_returns_false_when_resolve_fails(monkeypatch):
     app.state.select("camera", "realsense")
     monkeypatch.setattr("sheppy.tui.app.resolve",
                         lambda *a, **kw: (None, ["boom"]))
-    payload = {"state": "running", "spec": {}}
-    assert app._drift(node, payload) is False
+    payload = {"state": "running", "spec": {"alt_id": "realsense"}}
+    assert app._drift(node, payload) is None
+
+
+def _relaunched_differently():
+    p = payload("camera", "running", alt="realsense")
+    p["spec"]["descriptor"] = {**p["spec"]["descriptor"],
+                               "start": ["bash", "-c", "exec old-realsense"]}
+    return p
+
+
+@pytest.mark.parametrize("selected, running, reason", [
+    (None, None, None),
+    ("realsense", payload("camera", "running", alt="realsense"), None),
+    ("realsense", None, "realsense selected, not running"),
+    ("realsense", payload("camera", "crashed", alt="realsense"),
+     "realsense selected, not running"),
+    (None, payload("camera", "running", alt="mock_camera"),
+     "running mock_camera, nothing selected"),
+    ("realsense", payload("camera", "running", alt="mock_camera"),
+     "running mock_camera, selected realsense"),
+    ("realsense", payload("camera", "running", alt="realsense",
+                          params={"enable_depth": False}),
+     "params differ: enable_depth"),
+    ("realsense", _relaunched_differently(),
+     "launch command changed since start"),
+    ("realsense", payload("camera", "running", alt="bag_v9"),
+     "running bag_v9, not in this manifest"),
+])
+def test_drift_names_the_reason(selected, running, reason):
+    app = SheppyApp(load_manifest(MANIFEST), path=MANIFEST)
+    if selected:
+        app.state.select("camera", selected)
+    assert app._drift(app.manifest.node("camera"), running) == reason
 
 
 async def test_converge_node_survives_launcher_raising(monkeypatch):
