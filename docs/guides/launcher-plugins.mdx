@@ -248,6 +248,11 @@ alternatives:
     message: "hello from sheppy"
 ```
 
+> **Not runnable as shipped.** Nothing registers `echo_launcher.py` under
+> `sheppy.launchers`, so a manifest using `kind: echo` fails validation with
+> an unknown-kind error until you package the file and register it as shown
+> above. It is a reference to read and test, not a plugin you can use as-is.
+
 - `validate({"kind": "echo", "message": "hello ..."})` checks the one field
   this `kind` requires and returns `[]` (valid) or an error string.
 - `launch()` reads `alt.config["message"]` — `.config` is the full raw

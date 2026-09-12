@@ -15,9 +15,9 @@ later, and everything is still running — and still controllable. Even if
 `sheppyd` itself is killed, the child processes keep running and a freshly
 started daemon re-adopts them.
 
-> **Scope.** As of Phase 2b, `sheppyd` is *local only* — it supervises
-> processes on the machine it runs on and ignores the `machine:` field on
-> alternatives. Multi-machine supervision over SSH is a later phase.
+> **Scope.** Today `sheppyd` is *local only* — it supervises processes on the
+> machine it runs on and ignores the `machine:` field on alternatives.
+> Multi-machine supervision over SSH is on the [roadmap](../../architecture#roadmap).
 
 ## Mental model: dumb daemon, smart client
 
@@ -34,18 +34,19 @@ manifest, a profile, or any YAML.** All of that lives client-side.
 ```
 
 - **Clients** (the TUI and the `sheppy` CLI) read the manifest and the active
-  profile, and *resolve* each selected node into a final `LaunchSpec`: the
-  exact `argv` to run, plus the node name and its parameters (for display).
+  profile, and *resolve* each selected node into a final `LaunchSpec`: a
+  *descriptor* — plain data giving the exact argv to start and how to supervise
+  it — plus the node name and its parameters (for display).
 - **`sheppyd`** is a durable process table. It receives a `LaunchSpec`, runs
-  exactly that `argv`, watches the child, and reports state. It has no opinion
-  about what the process *is*.
+  exactly what the descriptor says, watches the result, and reports state. It
+  has no opinion about what the process *is*.
 
 Consequences worth knowing:
 
 - The daemon imports **only the Python standard library** — not even a YAML
   parser. It is small enough to read end to end.
 - Manifest schema changes never touch the daemon.
-- How a node's `kind` (`executable` / `launch_file` / `process`) becomes a
+- How a node's `kind` (`executable` / `launch_file` / `process` / `docker`) becomes a
   command is entirely a client-side concern (see [Launch
   resolution](#launch-resolution)).
 
@@ -132,8 +133,8 @@ signalled — not just the direct child.
 If a node exits on its own, `sheppyd` marks it **crashed**, records the exit
 code (or the terminating signal), and leaves it stopped. It does **not**
 restart it. Restarting is an operator decision (`r` in the TUI, or
-`sheppy woof <node>`). Automatic restart-on-crash is intentionally out of
-scope for this phase.
+`sheppy woof <node>`). Automatic restart-on-crash is intentionally not
+implemented.
 
 ## Logs
 
@@ -234,18 +235,8 @@ marker when what's running differs from what's selected, and per-node CPU/RSS.
 The **PROCESS** detail tab shows the highlighted node's live state, pid,
 uptime, exit code, resource usage, and log tail.
 
-### Desired vs actual
-
-Sheppy separates two things:
-
-- **Desired** — the alternative you've selected for each node, and any
-  parameter overrides. This is what a profile stores. Editing it never touches
-  a running process.
-- **Actual** — what `sheppyd` reports is really running.
-
-`space`/`L` push desired onto actual (converge); `!` pulls actual back into
-desired (snapshot). The `Δ` marker is simply "these two disagree for this
-node."
+`space`/`L` push what you selected onto what's running; `!` pulls it back. See
+[desired vs actual](../../concepts#desired-vs-actual).
 
 ### Orphans
 
@@ -259,23 +250,27 @@ them.
 ## Launch resolution
 
 Clients turn a manifest alternative into a `LaunchSpec` before handing it to
-the daemon. The resolved command depends on the alternative's `kind`:
+the daemon. Each `kind` is a launcher discovered through the
+`sheppy.launchers` entry-point group, not a hardcoded list, so plugins can add
+more (see [Writing a launcher plugin](../launcher-plugins)). The kinds sheppy
+ships with:
 
-| `kind` | Resolved command |
-|--------|------------------|
-| `executable` | `ros2 run <package> <executable> --ros-args -p k:=v …` |
-| `launch_file` | `ros2 launch <package> <launch_file> k:=v …` |
-| `process` | the `command` string, run verbatim |
+| `kind` | Source | Resolved command |
+|--------|--------|------------------|
+| `executable` | core | `ros2 run <package> <executable> --ros-args -p k:=v …` |
+| `launch_file` | core | `ros2 launch <package> <launch_file> k:=v …` |
+| `process` | core | the `command` string, run verbatim |
+| `docker` | plugin | `docker run -d …` from an inline `container:` or a translated `compose:` service, then supervised through `docker wait` / `docker stop` / `docker logs` |
 
-If the alternative's machine declares a `ros_setup`, the command is prefixed
-with `source <ros_setup> &&`. The whole thing is run as
-`bash -c "<command>"`. Every value drawn from the manifest — package names,
-parameter values, everything — is shell-quoted when the command is composed,
-so a stray quote or shell metacharacter in a parameter value can't break out
-of the command.
+For the three core kinds, if the alternative's machine declares a
+`ros_setup`, the command is prefixed with `source <ros_setup> &&`, and the
+whole thing is run as `bash -c "<command>"`. Every value drawn from the
+manifest — package names, parameter values, everything — is shell-quoted when
+the command is composed, so a stray quote or shell metacharacter in a
+parameter value can't break out of the command.
 
-Parameters on a `process`-kind alternative are ignored (with a warning) in
-this phase — there's no ROS argument convention to map them onto.
+Parameters on a `process`-kind alternative are ignored (with a warning) —
+there's no ROS argument convention to map them onto.
 
 ## Protocol
 
@@ -290,14 +285,16 @@ Clients talk to `sheppyd` over the unix socket using newline-delimited JSON
 Requests carry an `id`; the matching reply echoes it and carries `ok`:
 
 ```json
-→ {"id": 3, "op": "launch", "spec": {"node": "camera", "alt_id": "realsense",
-                                     "argv": ["bash", "-c", "…"], "params": {}}}
+→ {"id": 3, "op": "launch", "spec": {"node": "sim_gui", "alt_id": "unreal", "params": {}, "descriptor": {"supervise": "inherit", "start": ["bash", "-c", "/opt/sim/UnrealEditor MyProject -game"]}}}
 ← {"id": 3, "ok": true}
 ```
 
+A `spec` without a `descriptor` is rejected. The request above is the
+`sim_gui` node from `examples/sheppy-manifest.yaml`, resolved by the client.
+
 | `op` | Effect |
 |------|--------|
-| `launch` | spawn `spec.argv`; replaces any different process already running for that node (one process per node) |
+| `launch` | start `spec.descriptor`; replaces any different process already running for that node (one process per node) |
 | `stop` | begin the stop escalation for a node |
 | `restart` | stop, then relaunch the same spec |
 | `status` | return the full table: per node `{state, pid, exit_code, started_at, usage, spec}` |
@@ -331,7 +328,7 @@ in-memory log tails restart empty, but the on-disk log files are intact.
 distinct from `○` (stopped) on purpose: `?` means "state unknown," not
 "nothing running."
 
-## Limitations (this phase)
+## Limitations
 
 - **Local only.** The `machine:` field on alternatives is ignored; every
   launch runs on the local machine.
