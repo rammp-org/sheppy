@@ -27,15 +27,16 @@ sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml if
 | `L` | Converge everything to the current selection (shows a plan first) |
 | `X` | Stop all running nodes (confirmation; includes orphans) |
 | `!` | Snapshot: copy what's running into the selection (then save-as) |
-| `Ctrl+C` | Quit |
+| `Ctrl+Q` | Quit |
 
 ## Layout
 
 The TUI uses an operator-cockpit layout: a header bar (profile · source ·
 errors · clock), a machines strip, the three-pane body (nodes · alternatives ·
 tabbed detail), and a footer of key hints. Process status is live via
-[`sheppyd`](../guides/sheppyd); live machine connections (phase 3) and the
-topics "live" column (phase 4) remain placeholders.
+[`sheppyd`](../guides/sheppyd); live machine connections and the topics "live"
+column are placeholders until multi-machine launch and live introspection land
+(see the [roadmap](../architecture#roadmap)).
 
 ## Errors never crash the app
 
@@ -47,7 +48,7 @@ overlay and the applicable remainder still loads.
 ## Profiles
 
 Profiles are stored as one YAML file per profile in a `profiles/` directory next
-to your manifest (e.g. `examples/profiles/all-mock.yaml`); the filename is the
+to your manifest (e.g. `profiles/mock.yaml`); the filename is the
 profile name. They're plain, version-controllable text.
 
 ## Colors washed out over SSH?
