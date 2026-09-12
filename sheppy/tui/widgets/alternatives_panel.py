@@ -1,3 +1,5 @@
+import asyncio
+
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Label, ListItem, ListView
@@ -41,17 +43,22 @@ class AlternativesPanel(ListView):
 
     def __init__(self, **kwargs):
         super().__init__(id="alternatives", **kwargs)
+        # Two overlapping rebuilds (a highlight and a worker's reshow) would
+        # interleave clear/append and mount duplicate alt-N ids.
+        self._rebuild = asyncio.Lock()
 
     async def show(self, node: Node, selected_id: "str | None") -> None:
-        await self.clear()
-        for j, alt in enumerate(node.alternatives):
-            await self.append(
-                ListItem(self._widget(alt, alt.id == selected_id), id=f"alt-{j}"))
+        async with self._rebuild:
+            await self.clear()
+            for j, alt in enumerate(node.alternatives):
+                await self.append(ListItem(
+                    self._widget(alt, alt.id == selected_id), id=f"alt-{j}"))
 
     async def show_note(self, text: str) -> None:
-        await self.clear()
-        await self.append(ListItem(
-            Label(text, classes="alt-note", markup=False), disabled=True))
+        async with self._rebuild:
+            await self.clear()
+            await self.append(ListItem(
+                Label(text, classes="alt-note", markup=False), disabled=True))
 
     def _widget(self, alt, is_sel):
         radio = "◉" if is_sel else "○"

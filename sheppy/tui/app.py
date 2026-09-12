@@ -136,7 +136,19 @@ class SheppyApp(App):
             return False
         self.actual = reply["nodes"]
         self.daemon_connected = True
-        self._refresh_runtime()
+        if (self.state and self.state.active_profile_name is None
+                and not self.state.is_dirty
+                and not self._current_selection()):
+            # No profile and nothing chosen: what sheppyd already supervises
+            # is the baseline, so it isn't flagged as drift (#16). Crashed
+            # nodes count (space relaunches them); stopped ones were stopped
+            # on purpose.
+            selections, overrides, _ = self._selections_from_actual(
+                ("launching", "running", "crashed"))
+            self.state.apply(selections, overrides, None)
+            self._rebuild_after_apply()
+        else:
+            self._refresh_runtime()
         return True
 
     async def _ensure_daemon(self) -> bool:
@@ -195,22 +207,35 @@ class SheppyApp(App):
             pass
         self._refresh_header()
 
-    def _drift(self, node, payload) -> bool:
+    def _drift(self, node, payload) -> "str | None":
+        """Why the node's running state differs from its selection (shown
+        on the PROCESS tab), or None when they agree."""
         alive = payload is not None and payload["state"] in ("launching",
                                                              "running")
         alt = self.state.selected_alt(node.name) if self.state else None
         if not alive:
-            return alt is not None          # desired but not running
+            return f"{alt.id} selected, not running" if alt else None
+        running = payload["spec"]["alt_id"]
+        if not any(a.id == running for a in node.alternatives):
+            return f"running {running}, not in this manifest"
         if alt is None:
-            return True                     # running but nothing desired
+            return f"running {running}, nothing selected"
+        if alt.id != running:
+            return f"running {running}, selected {alt.id}"
         spec, _ = resolve(self.manifest, node.name, alt,
                           self.state.effective_params(node.name),
                           manifest_dir=os.path.dirname(
                               os.path.abspath(self.path or "system.yaml")))
         if spec is None:
-            return False
-        return (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
-                or payload["spec"].get("params") != spec.params)
+            return None
+        params = payload["spec"].get("params") or {}
+        changed = sorted(k for k in params.keys() | spec.params.keys()
+                         if params.get(k) != spec.params.get(k))
+        if changed:
+            return f"params differ: {', '.join(changed)}"
+        if payload["spec"].get("descriptor") != spec.descriptor.to_wire():
+            return "launch command changed since start"
+        return None
 
     # ---- daemon actions -------------------------------------------------------
     async def action_converge_node(self) -> None:
@@ -330,9 +355,23 @@ class SheppyApp(App):
         if not self.daemon_connected:
             self._append_warnings(["sheppyd offline — nothing to snapshot"])
             return
+        selections, overrides, skipped = self._selections_from_actual(
+            ("launching", "running"))
+        self.state.apply(selections, overrides,
+                         self.state.active_profile_name)
+        self.state.is_dirty = True
+        if skipped:
+            self._append_warnings(
+                [f"snapshot skipped (not in manifest): {', '.join(skipped)}"])
+        self._rebuild_after_apply()
+        self._refresh_runtime()
+
+    def _selections_from_actual(self, states: tuple) -> tuple:
+        """Selections + param overrides reproducing the supervised nodes in
+        `states`, plus the names that can't be expressed in this manifest."""
         selections, overrides, skipped = {}, {}, []
         for name, payload in self.actual.items():
-            if payload["state"] not in ("launching", "running"):
+            if payload["state"] not in states:
                 continue
             node = self.manifest.node(name)
             if node is None:
@@ -348,14 +387,7 @@ class SheppyApp(App):
                     if k in alt.params and alt.params[k] != v}
             if over:
                 overrides[name] = over
-        self.state.apply(selections, overrides,
-                         self.state.active_profile_name)
-        self.state.is_dirty = True
-        if skipped:
-            self._append_warnings(
-                [f"snapshot skipped (not in manifest): {', '.join(skipped)}"])
-        self._rebuild_after_apply()
-        self._refresh_runtime()
+        return selections, overrides, skipped
 
     async def _request_safely(self, op: str, **kw) -> "dict | None":
         from sheppy.daemon.client import DaemonError
@@ -525,7 +557,9 @@ class SheppyApp(App):
             reply = await self._request_safely("logs", node=name, n=15)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
-        tabs.show_process(payload, lines, True)
+        node = None if self._current_orphan else self.manifest.node(name)
+        tabs.show_process(payload, lines, True,
+                          drift=self._drift(node, payload) if node else None)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:

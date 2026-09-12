@@ -19,7 +19,7 @@ def _selected_alt(node: Node, selected_id):
 @dataclass
 class RuntimeCell:
     status: st.Status
-    drift: bool = False
+    drift: "str | None" = None    # reason, when running ≠ selected
     usage: str = ""
 
 

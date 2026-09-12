@@ -78,7 +78,7 @@ class DetailTabs(Vertical):
         yaml_s.update(self._yaml(alt))
 
     def show_process(self, payload: "dict | None", lines: list,
-                     connected: bool) -> None:
+                     connected: bool, drift: "str | None" = None) -> None:
         try:
             target = self.query_one("#detail-process", Static)
         except NoMatches:
@@ -86,14 +86,17 @@ class DetailTabs(Vertical):
         if not connected:
             target.update(c("muted", "sheppyd ○ offline"))
             return
-        if payload is None:
-            target.update(c("muted", "not supervised — space to launch"))
-            return
         def row(key, value):
             return f"{c('muted', f'{key:<12}')}{value}"
+        drift_rows = [row("drift", c("yellow", f"Δ {drift}"))] if drift else []
+        if payload is None:
+            target.update("\n".join(
+                [c("muted", "not supervised — space to launch"), *drift_rows]))
+            return
         status = st.runtime(payload["state"])
         out = [row("state", c(st.color_key(status),
-                              f"{st.glyph(status)} {payload['state']}"))]
+                              f"{st.glyph(status)} {payload['state']}")),
+               *drift_rows]
         out.append(row("pid", c("fg", payload["pid"] or "—")))
         if payload["state"] == "running" and payload["started_at"]:
             up = int(time.time() - payload["started_at"])

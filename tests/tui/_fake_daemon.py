@@ -9,7 +9,8 @@ _MANIFEST_PATH = os.path.join(
 _manifest = None
 
 
-def _default_spec_fields(node: str, alt: str) -> dict:
+def _default_spec_fields(node: str, alt: str,
+                         params: "dict | None" = None) -> dict:
     """A descriptor + params matching what resolve() would actually produce
     for (node, alt) -- with no overrides -- in examples/cockpit-demo.yaml
     (the manifest every TUI test uses). This makes the app's drift
@@ -27,7 +28,7 @@ def _default_spec_fields(node: str, alt: str) -> dict:
         descriptor = LaunchDescriptor.inherit(
             ("bash", "-c", f"exec {node}-{alt}")).to_wire()
         return {"descriptor": descriptor, "params": {}}
-    spec, _ = resolve(_manifest, node, a, dict(a.params))
+    spec, _ = resolve(_manifest, node, a, {**a.params, **(params or {})})
     return {"descriptor": spec.descriptor.to_wire(), "params": spec.params}
 
 
@@ -79,9 +80,9 @@ class FakeDaemonClient:
             cb(event)
 
 
-def payload(node, state, alt="a", usage=None, adopted=False):
+def payload(node, state, alt="a", usage=None, adopted=False, params=None):
     return {"event": "status", "node": node, "state": state, "pid": 4242,
             "exit_code": 7 if state == "crashed" else None,
             "started_at": 0.0, "adopted": adopted, "usage": usage,
             "spec": {"node": node, "alt_id": alt,
-                     **_default_spec_fields(node, alt)}}
+                     **_default_spec_fields(node, alt, params)}}
