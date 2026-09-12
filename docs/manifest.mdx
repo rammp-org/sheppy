@@ -91,10 +91,15 @@ nodes:
         publishes: [/camera/color/image_raw]
 ```
 
-`kind: launch_file` runs `ros2 launch <package> <launch_file>`;
-`kind: executable` runs `ros2 run <package> <executable>`. Both take
-`params`, passed differently per kind as the comments above show, plus
-`publishes`/`subscribes` — see below for what those actually do.
+`kind: launch_file` runs `ros2 launch <package> <launch_file>`, and its
+`params` become launch arguments, so the launch file must declare them.
+`kind: executable` runs `ros2 run <package> <executable>`, and its `params`
+become node parameters. Both also take `publishes`/`subscribes` — see below
+for what those actually do.
+
+Before pointing either at a real workspace, read
+[Running with ROS 2](../ros2): nodes get their ROS environment from the
+terminal that starts `sheppyd`, not from the manifest.
 
 ## publishes/subscribes are documentation, not verification
 

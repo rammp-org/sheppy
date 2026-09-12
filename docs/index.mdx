@@ -98,7 +98,7 @@ Four words carry the rest — see [Concepts](./concepts) for the full picture:
 - **[Node](./concepts#a-node-is-not-a-ros-node)** — a logical unit of your system, not a ROS node.
 - **[Alternative](./concepts#alternatives)** — one of the interchangeable ways to run a node (mock vs. real).
 - **[Profile](./concepts#profiles)** — a saved selection of alternatives for the whole system.
-- **[Daemon](./concepts#desired-vs-actual)** — `sheppyd`, which actually launches and supervises processes.
+- **[Daemon](./concepts#what-happens-when-you-press-space)** — `sheppyd`, which actually launches and supervises processes.
 
 ## Where to go next
 
@@ -113,9 +113,13 @@ Four words carry the rest — see [Concepts](./concepts) for the full picture:
 
 ## What works today
 
-Load a manifest, browse nodes and their alternatives, and select one
-alternative (mock vs. real) per node. Save and load those choices — plus
-per-alternative parameter overrides — as named **profiles**. Select, press
-`space`, and `sheppyd` really runs it — locally, surviving TUI detach.
-Multi-machine launch and live graph introspection are planned; see the
-[roadmap](./architecture#roadmap).
+Load a manifest, pick one alternative (mock vs. real) per node, save those
+picks with their parameter overrides as **profiles**, and launch and supervise
+the nodes with `sheppyd`. They keep running after the TUI closes.
+
+Not yet: launching on a second machine, restarting crashed nodes
+automatically, starting nodes in dependency order, or checking declared topics
+against the live ROS graph. See the [roadmap](./architecture#roadmap).
+
+Sheppy is built around ROS 2, but `process` and `docker` alternatives don't
+need ROS at all.

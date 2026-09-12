@@ -208,10 +208,17 @@ echo = "echo_launcher:EchoLauncher"
 The key (`echo`) is cosmetic (the entry point *name*); what actually selects
 your launcher is the `kind` class attribute on the object your entry point
 loads. After adding or changing entry points, reinstall so Python's package
-metadata picks them up:
+metadata picks them up. From a source checkout:
 
 ```bash
 uv sync
+```
+
+If sheppy was installed with the one-line installer, add your plugin to that
+tool environment instead:
+
+```bash
+uv tool install --force --with <your-plugin> git+https://github.com/rammp-org/sheppy
 ```
 
 A broken plugin (import error, exception on instantiation) is skipped with a

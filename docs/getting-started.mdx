@@ -24,17 +24,6 @@ Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`
 does the same thing.
 </Callout>
 
-## From source (development)
-
-Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
-
-```bash
-git clone git@github.com:rammp-org/sheppy.git
-cd sheppy
-uv sync                               # creates .venv and installs everything from uv.lock
-uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
-```
-
 ## Run the demo — no ROS required
 
 The repo ships `examples/local-demo.yaml`, a manifest that launches plain
@@ -57,9 +46,11 @@ walk through everything below.
 <Steps>
 ### Select `clock` → `ticker`
 
-`Enter` opens `clock`'s alternatives, `Enter` again selects `ticker` (its
-only one), `Esc` returns focus to the node list. The row's ALTERNATIVE
-column now reads `ticker`.
+Both rows start with a `?`: `sheppyd` isn't running yet, so their state is
+unknown. `Enter` opens `clock`'s alternatives, `Enter` again selects `ticker`
+(its only one), `Esc` returns focus to the node list. The row's ALTERNATIVE
+column now reads `ticker`, and the header shows `profile <none>*` — an
+unsaved selection.
 
 ### Launch it — `space`
 
@@ -76,8 +67,18 @@ output" tail printing `clock`'s heartbeat, one new line per second.
 
 Move to `worker` (`↓`), select `flaky` (`Enter`, `↓`, `Enter`, `Esc`), then
 `space` to launch it. It runs for about three seconds, then its glyph turns
-`✕` (crashed) with a `Δ` — desired (`flaky`) no longer matches actual
-(nothing running); see [desired vs actual](../concepts#desired-vs-actual).
+`✕` (crashed) with a `Δ`: you selected `flaky`, but nothing is running. The
+PROCESS tab says so:
+
+```
+state       ✕ crashed
+drift       Δ flaky selected, not running
+pid         3948421
+exit code   1
+```
+
+See [desired vs actual](../concepts#desired-vs-actual), and
+[the TUI](../tui#the-screen) for what the whole screen looks like now.
 
 ### Read its logs
 
@@ -133,4 +134,5 @@ architecture, node states, and troubleshooting, see the
 ## Now describe your own system
 
 `local-demo.yaml` is a toy. See [The manifest](../manifest) to write one for
-your own nodes, alternatives, and machines.
+your own nodes, alternatives, and machines, then read
+[Running with ROS 2](../ros2) before launching real ROS nodes.

@@ -1,0 +1,85 @@
+---
+title: Profiles
+---
+
+# Profiles
+
+A **profile** is a saved selection: one alternative per node, plus any
+parameter overrides. It is how you bring a system up the same way every time,
+in the TUI or headless with `sheppy up`.
+
+## Where they live
+
+One YAML file per profile, in a `profiles/` directory next to the manifest.
+The filename is the profile's name: `profiles/mock.yaml` is the profile `mock`.
+
+```
+my_robot/
+├── sheppy-manifest.yaml
+└── profiles/
+    ├── mock.yaml
+    └── real.yaml
+```
+
+Profiles are plain text; commit them alongside the manifest.
+
+## The format
+
+```yaml
+# profiles/mock.yaml
+selections:              # node name -> alternative id
+  camera: mock_camera
+  perception: gpu_detector
+overrides:               # optional: node name -> param -> value
+  camera:
+    frame_rate: 15
+```
+
+- A node missing from `selections` has nothing selected. If it's running,
+  `sheppy up` stops it.
+- An override only applies to a param the selected alternative lists under
+  `params` in the manifest. Any other key is dropped with a warning, and so is
+  an override for a node that isn't selected.
+- A selection that names a node or alternative the manifest doesn't have is
+  dropped with a warning. The rest of the profile still loads.
+
+## Making one
+
+- **In the TUI:** select alternatives, edit params with `p`, then press `s` and
+  type a name. `l` lists profiles to load; `d` in that list deletes one.
+- **By hand:** write the file in the format above.
+- **From what's running:** `!` in the TUI copies what `sheppyd` is running into
+  the selection. Press `s` to save it.
+
+In the TUI header, a `*` after the profile name means the selection has
+changed since you last loaded or saved.
+
+## Bringing a profile up
+
+```bash
+sheppy up mock                                       # uses ./sheppy-manifest.yaml
+sheppy up mock --manifest /home/me/robot/sheppy-manifest.yaml
+```
+
+`sheppy up` compares the profile with what's running. It:
+
+- starts selected nodes that aren't running;
+- restarts nodes that are running a different alternative, command, or params;
+- **stops nodes in the manifest that the profile doesn't select**;
+- leaves nodes from other manifests alone.
+
+It prints that plan first, sends every start at once (there's no ordering
+between nodes), waits up to 30 seconds for them to settle, and prints each
+node's final state. It exits 1 if any node crashed. Running it again prints
+`already converged`. See the [CLI reference](../cli#sheppy-up-profile---manifest-path)
+for the details.
+
+In the TUI, `L` does the same for the current selection, after showing the
+plan and asking you to confirm.
+
+## Profiles in the TUI
+
+The TUI always opens with no profile loaded; see
+[opening without a profile](../tui#opening-without-a-profile). Loading one
+with `l` changes the selection only. Nothing starts until you press `space`
+or `L`.

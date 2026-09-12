@@ -47,9 +47,9 @@ of choosing node by node.
   (see [opening without a profile](../tui#opening-without-a-profile)).
 - **Actual** is what `sheppyd` is really running right now.
 
-They drift apart constantly — a node crashes, you launch something by hand,
-you switch profiles. sheppy never hides the gap; it shows it and lets you
-close it in either direction.
+They drift apart constantly — a node crashes, someone runs `sheppy up` from
+another terminal, you switch profiles. sheppy never hides the gap; it shows it
+and lets you close it in either direction.
 
 ```mermaid
 flowchart LR
@@ -60,13 +60,41 @@ flowchart LR
     B["camera → realsense<br/>running, pid 4821"]
   end
   D -->|"space: launch what you selected"| A2
-  A2 -->|"! : adopt what's running"| D
+  A2 -->|"! : copy what's running"| D
 ```
 
 A `Δ` in the TUI marks a node where the two disagree, and the PROCESS tab says
-[why](../guides/sheppyd#drift-reasons). `space` pushes desired
-onto actual by launching your selection; `!` pulls actual into desired by
-adopting whatever is already running.
+[why](../tui#drift). `space` pushes desired onto actual by launching your
+selection; `!` pulls actual into desired by copying whatever is already
+running.
+
+## What happens when you press `space`
+
+```mermaid
+sequenceDiagram
+  participant You
+  participant S as sheppy (TUI or CLI)
+  participant D as sheppyd
+  participant N as your node
+  You->>S: space on camera
+  S->>S: read the manifest, build the command for the selected alternative
+  S->>D: launch camera (starting sheppyd first if needed)
+  D->>N: bash -c "ros2 launch …" in sheppyd's environment
+  N-->>D: output into ~/.sheppy/logs/camera/
+  D-->>S: launching → running, or crashed
+```
+
+- **sheppy does the thinking.** The TUI and CLI read the manifest and profile
+  and build the exact command. `sheppyd` never reads YAML.
+- **`sheppyd` owns the processes.** It's a small background daemon, one per
+  user account, started automatically by the first launch. Quit the TUI or
+  lose your SSH session and the nodes keep running; open the TUI again and it
+  reconnects.
+- **Nodes inherit `sheppyd`'s environment**, which came from the terminal that
+  started it. For ROS that decides what's sourced and which `ROS_DOMAIN_ID`
+  nodes use — see [Running with ROS 2](../ros2).
+
+The [sheppyd guide](../guides/sheppyd) covers the daemon in depth.
 
 ## Two ways to drive sheppy
 

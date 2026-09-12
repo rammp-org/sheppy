@@ -5,51 +5,97 @@ title: The TUI
 # The TUI
 
 ```bash
-sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml if omitted
+sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml
 ```
+
+## The screen
+
+This is the [Getting started](../getting-started) demo with `clock` running
+and `worker` crashed, with the PROCESS tab open:
+
+```
+ 🐑 sheppy │ ◆ profile <none>* │ examples/local-demo.yaml · 2 nodes · ● 1 running          ✓ no errors  │ ◷ 18:07:49
+ MACHINES  — none declared — · …
+       NODE       ALTERNATIVE   HOST    USAGE     │  ALTERNATIVES · worker · single      │DETAIL TOPICS PROCESS YAML
+█ ●    clock      ticker        —       0% 15M    │█ ○ steady                            │
+█ ✕ Δ  worker     flaky         —       0% 15M    │█ process · python3 -c 'import time;  │  state       ✕ crashed
+                                                  │█                                     │  drift       Δ flaky selected, not running
+                                                  │█ ◉ flaky                             │  pid         3948421
+                                                  │█ process · python3 -c 'import time;  │  exit code   1
+  ↑↓  move   ⏎  select   s  save   l  load   p  params   e  errors   1-4  tabs   ␣  apply   x  stop   r  woof   L  converge   !  snap
+```
+
+- **Header:** the loaded profile (`<none>` until you load or save one; `*`
+  means unsaved changes), the manifest file, how many nodes are running,
+  validation errors, and the time.
+- **Machines strip:** the machines the manifest declares. Sheppy doesn't
+  connect to them yet.
+- **Nodes (left):** one row per manifest node — its state, a `Δ` if it has
+  [drifted](#drift), the selected alternative, its machine, and CPU and memory.
+- **Alternatives (middle):** the highlighted node's alternatives. `◉` marks
+  the selected one.
+- **Detail (right):** DETAIL shows the alternative's settings, TOPICS its
+  declared `publishes`/`subscribes`, PROCESS its live state and last output,
+  and YAML the raw manifest entry.
+- **Footer:** key hints, and whether `sheppyd` is running.
+
+## Node states
+
+| Glyph | State | Meaning |
+|:-----:|-------|---------|
+| `○` | stopped | not running: never started, or stopped cleanly |
+| `◐` | launching | started, and still inside the launch grace period (2 s by default) |
+| `●` | running | alive past the launch grace period |
+| `◑` | stopping | a stop was requested; sheppy is escalating signals |
+| `✕` | crashed | exited on its own; the exit code is on the PROCESS tab |
+| `?` | unknown | `sheppyd` isn't running, so sheppy can't tell |
+
+Sheppy never restarts a crashed node by itself.
+
+## Drift
+
+A `Δ` means what's running differs from what's selected (see
+[desired vs actual](../concepts#desired-vs-actual)). The PROCESS tab adds a
+`drift` line saying why:
+
+| `drift` line | Meaning |
+|--------------|---------|
+| `Δ <alt> selected, not running` | the selected alternative isn't running: never launched, stopped, or crashed |
+| `Δ running <alt>, nothing selected` | `sheppyd` is running the node but nothing is selected for it |
+| `Δ running <alt>, selected <other>` | a different alternative is running than the one selected |
+| `Δ params differ: <names>` | the running process was launched with different values for these params |
+| `Δ launch command changed since start` | the selection now builds a different command than the one running, usually because the manifest was edited after launch |
+| `Δ running <alt>, not in this manifest` | the running alternative is no longer listed under this node |
+
+`space` on the node closes the gap by launching the selection.
 
 ## Keys
 
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` | Move through the node list (left pane) |
-| `Enter` (on a node) | Descend into that node's alternatives (right pane) |
-| `↑` / `↓` | Move through alternatives; the detail pane updates |
-| `Enter` (on an alternative) | Select it for the node (mock vs. real) |
-| `Esc` | Return focus to the node list |
-| `s` | Save the current selections + overrides as a profile |
-| `l` | Load a profile (Enter to load, `d` to delete) |
-| `p` | Edit the highlighted node's declared parameters |
-| `e` | Toggle the validation-error overlay |
-| `1`–`4` | Switch detail tab (Detail / Topics / Process / YAML) |
-| `Space` | Launch/converge the highlighted node to its selected alternative |
-| `x` / `r` | Stop / restart the highlighted node |
-| `L` | Converge everything to the current selection (shows a plan first) |
-| `X` | Stop all running nodes (confirmation; includes orphans) |
-| `!` | Snapshot: copy what's running into the selection (then save-as) |
-| `Ctrl+Q` | Quit |
+| `↑` / `↓` | Move through the node list, or through the alternatives once you're in them |
+| `Enter` | On a node: move into its alternatives. On an alternative: select it |
+| `Esc` | Back to the node list |
+| `1`–`4` | Switch detail tab: DETAIL, TOPICS, PROCESS, YAML |
+| `space` | Apply the selection to the highlighted node: launch the selected alternative (replacing whatever that node is running), or stop the node if nothing is selected |
+| `x` | Stop the highlighted node |
+| `r` | Restart the highlighted node with the command it was launched with. To apply a manifest or param edit, use `space` |
+| `L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone |
+| `X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
+| `!` | Snapshot: set the selection to what's running. Press `s` to save it |
+| `s` | Save the selection and param overrides as a [profile](../profiles) |
+| `l` | Load a profile (`Enter` loads, `d` deletes) |
+| `p` | Edit the highlighted node's params — the ones its selected alternative lists in the manifest |
+| `e` | Show or hide the error overlay: manifest errors and launch warnings |
+| `Ctrl+Q` | Quit. Running nodes keep running |
 
-## Layout
+## Orphans
 
-The TUI uses an operator-cockpit layout: a header bar (profile · source ·
-errors · clock), a machines strip, the three-pane body (nodes · alternatives ·
-tabbed detail), and a footer of key hints. Process status is live via
-[`sheppyd`](../guides/sheppyd); live machine connections and the topics "live"
-column are placeholders until multi-machine launch and live introspection land
-(see the [roadmap](../architecture#roadmap)).
-
-## Errors never crash the app
-
-A malformed manifest never crashes the app — errors are listed in the overlay
-(`e`) and the rest stays browsable. The same holds for profiles: a corrupt
-profile file or one that has drifted from the manifest surfaces warnings in the
-overlay and the applicable remainder still loads.
-
-## Profiles
-
-Profiles are stored as one YAML file per profile in a `profiles/` directory next
-to your manifest (e.g. `profiles/mock.yaml`); the filename is the
-profile name. They're plain, version-controllable text.
+If `sheppyd` is running nodes that aren't in the manifest you opened — started
+from another manifest, say — they appear under a `─ not in this manifest ─`
+divider. You can stop one with `x` and read its logs, but `space`, `r`, and
+`p` don't apply, and `L` leaves them alone. `X` and `sheppy down` stop them
+along with everything else.
 
 ## Opening without a profile
 
@@ -62,13 +108,20 @@ for example with `sheppy up`, doesn't show as drift.
 - Running, launching, and crashed nodes are adopted. A crashed node keeps its
   `Δ` (selected, not running), and `space` relaunches it.
 - Stopped nodes are not adopted.
-- Nodes that aren't in this manifest stay under the
-  [orphans](../guides/sheppyd#orphans) divider.
+- Nodes that aren't in this manifest stay under the [orphans](#orphans)
+  divider.
 - Selections you made before `sheppyd` was running are kept.
 - Nodes started from elsewhere after the TUI connects show `Δ` as usual.
 
 The header still reads `profile <none>` with no `*`; press `s` to save the
 adopted selection as a profile.
+
+## Errors never crash the app
+
+A malformed manifest never crashes the app — errors are listed in the overlay
+(`e`) and the rest stays browsable. The same holds for profiles: a corrupt
+profile file or one that has drifted from the manifest surfaces warnings in the
+overlay and the applicable remainder still loads.
 
 ## Colors washed out over SSH?
 
