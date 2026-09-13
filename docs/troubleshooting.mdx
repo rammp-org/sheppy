@@ -46,9 +46,12 @@ if your nodes need longer to shut down.
 
 ## The TUI
 
-**The TUI opens with no nodes.** The manifest didn't load. Press `e` for the
-error overlay. With no argument, `sheppy` looks for `./sheppy-manifest.yaml`
-in the current directory.
+**`sheppy` prints a manifest error and exits.** The file is missing or isn't
+valid YAML. With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
+the current directory.
+
+**Nodes or alternatives are missing in the TUI.** Their manifest entries have
+errors. Press `e` for the error overlay.
 
 **Every row shows `?`.** `sheppyd` isn't running, so sheppy doesn't know what
 state anything is in. `?` means unknown, not stopped. The first launch starts

@@ -32,6 +32,10 @@ def main(argv: "list[str] | None" = None) -> int:
     if argv and argv[0] in COMMANDS:
         return _run_verb(argv)
     app = build_app(argv)
+    if app.manifest is None:            # nothing to browse, so say why (#27)
+        for e in app.load_result.errors:
+            print(f"sheppy: {e.message}", file=sys.stderr)
+        return 1
     app.run()
     return 0
 

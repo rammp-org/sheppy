@@ -102,8 +102,9 @@ along with everything else.
 
 ## Errors
 
-A malformed manifest never crashes the app — errors are listed in the overlay
-(`e`) and the rest stays browsable. The same holds for profiles: a corrupt
+A manifest with errors in some entries still opens: the errors are listed in
+the overlay (`e`) and the rest stays browsable. If the file is missing or
+isn't valid YAML, `sheppy` prints the error and exits instead. The same holds for profiles: a corrupt
 profile file or one that has drifted from the manifest surfaces warnings in the
 overlay and the applicable remainder still loads.
 
