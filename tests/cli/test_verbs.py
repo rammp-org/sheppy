@@ -134,6 +134,36 @@ def test_verbs_without_daemon_are_graceful(site, capsys):
     assert cli.main(["restart", "camera"]) == 1
 
 
+STATUS = {
+    "camera": {"state": "running", "started_at": 1.0, "exit_code": None,
+               "pid": 11, "spec": {"alt_id": "fake"}},
+    "flaky": {"state": "crashed", "started_at": 1.0, "exit_code": 4,
+              "pid": 12, "spec": {"alt_id": "dies"}},
+}
+
+
+def test_status_is_colored_on_a_terminal(capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    cli._print_status(STATUS)
+    out = capsys.readouterr().out
+    assert out.isascii()
+    assert "\033[32mrunning" in out and "\033[31mcrashed" in out
+    assert "\033[31mexit=4" in out
+
+
+def test_status_is_plain_when_piped_or_no_color(capsys, monkeypatch):
+    cli._print_status(STATUS)                  # capsys stdout is not a tty
+    piped = capsys.readouterr().out
+    assert "\033[" not in piped
+    assert piped.splitlines()[1].startswith(
+        "flaky                crashed    dies           pid=12 exit=4")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    cli._print_status(STATUS)
+    assert capsys.readouterr().out == piped
+
+
 def test_unknown_profile_errors(site, capsys):
     rc = cli.main(["up", "nope", "--manifest", str(site / "system.yaml")])
     assert rc == 1

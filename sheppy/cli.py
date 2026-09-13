@@ -11,6 +11,30 @@ VERSION_FLAGS = {"--version", "-V"}
 
 DEFAULT_MANIFEST = "sheppy-manifest.yaml"
 
+# ANSI colors for the headless verbs (#39): plain escape codes, no rich.
+_ANSI = {"bold": "1", "dim": "2", "red": "31", "green": "32", "yellow": "33"}
+# Same colors the TUI gives each state (sheppy/tui/widgets/status.py).
+_STATE_STYLE = {"running": "green", "launching": "yellow",
+                "stopping": "yellow", "crashed": "red", "stopped": "dim"}
+_ACTION_STYLE = {"start": "green", "restart": "yellow", "stop": "yellow"}
+
+
+def _style(text: str, style: "str | None", stream=None) -> str:
+    """Wrap text in an ANSI color, but only for a terminal with NO_COLOR
+    unset, so pipes and redirects get plain text."""
+    stream = sys.stdout if stream is None else stream
+    if style is None or os.environ.get("NO_COLOR") or not stream.isatty():
+        return text
+    return f"\033[{_ANSI[style]}m{text}\033[0m"
+
+
+def _warn(msg: str) -> None:
+    print(f"{_style('warning:', 'yellow', sys.stderr)} {msg}", file=sys.stderr)
+
+
+def _error(msg: str) -> None:
+    print(_style(msg, "red", sys.stderr), file=sys.stderr)
+
 
 # ---- TUI path (unchanged behavior) ----------------------------------------
 def build_app(argv: list[str]):
@@ -34,7 +58,7 @@ def main(argv: "list[str] | None" = None) -> int:
     app = build_app(argv)
     if app.manifest is None:            # nothing to browse, so say why (#27)
         for e in app.load_result.errors:
-            print(f"sheppy: {e.message}", file=sys.stderr)
+            _error(f"sheppy: {e.message}")
         return 1
     app.run()
     return 0
@@ -72,14 +96,14 @@ async def _dispatch(args) -> int:
     from sheppy.daemon.client import DaemonClient
     client = DaemonClient()
     if not await client.connect(spawn=False):
-        print("sheppyd: not running")
+        print(f"sheppyd: {_style('not running', 'dim')}")
         return 0 if args.cmd in ("down", "status", "daemon") else 1
     try:
         if args.cmd == "down":
             nodes = (await client.request("status"))["nodes"]
             for node in sorted(nodes):
                 await client.request("stop", node=node)
-                print(f"stopped {node}")
+                print(f"{_style('stopped', 'dim')} {node}")
             await client.request("shutdown")
             print("sheppyd stopped")
             return 0
@@ -89,7 +113,7 @@ async def _dispatch(args) -> int:
         if args.cmd == "logs":
             reply = await client.request("logs", node=args.node, n=args.n)
             if not reply["ok"]:
-                print(reply["error"], file=sys.stderr)
+                _error(reply["error"])
                 return 1
             for line in reply["lines"]:
                 print(line)
@@ -97,14 +121,15 @@ async def _dispatch(args) -> int:
         if args.cmd == "restart":
             reply = await client.request("restart", node=args.node)
             if not reply["ok"]:
-                print(reply["error"], file=sys.stderr)
+                _error(reply["error"])
                 return 1
-            print(f"restarted {args.node}")
+            print(f"{_style('restarted', 'yellow')} {args.node}")
             return 0
         # daemon status|stop
         if args.action == "status":
             nodes = (await client.request("status"))["nodes"]
-            print(f"sheppyd: running ({len(nodes)} nodes supervised)")
+            print(f"sheppyd: {_style('running', 'green')} "
+                  f"({len(nodes)} nodes supervised)")
             return 0
         await client.request("shutdown")
         print("sheppyd stopped (children left running)")
@@ -120,11 +145,15 @@ def _print_status(nodes: dict) -> None:
     for node, p in sorted(nodes.items()):
         extra = ""
         if p["state"] == "crashed" and p["exit_code"] is not None:
-            extra = f" exit={p['exit_code']}"
+            extra = " " + _style(f"exit={p['exit_code']}", "red")
         elif p["started_at"] and p["state"] == "running":
-            extra = f" up {int(time.time() - p['started_at'])}s"
-        print(f"{node:<20} {p['state']:<10} "
-              f"{p['spec']['alt_id']:<14} pid={p['pid']}{extra}")
+            extra = " " + _style(
+                f"up {int(time.time() - p['started_at'])}s", "dim")
+        # pad before styling so the escape codes don't skew the columns
+        name = _style(f"{node:<20}", "bold")
+        state = _style(f"{p['state']:<10}", _STATE_STYLE.get(p["state"]))
+        pid = _style(f"pid={p['pid']}", "dim")
+        print(f"{name} {state} {p['spec']['alt_id']:<14} {pid}{extra}")
 
 
 async def _up(args) -> int:
@@ -136,20 +165,20 @@ async def _up(args) -> int:
     result = load_manifest(args.manifest)
     if result.manifest is None:
         for e in result.errors:
-            print(f"{e.location}: {e.message}", file=sys.stderr)
+            _error(f"{e.location}: {e.message}")
         return 1
     for e in result.errors:
-        print(f"warning: {e.location}: {e.message}", file=sys.stderr)
+        _warn(f"{e.location}: {e.message}")
     profiles_dir = os.path.join(
         os.path.dirname(os.path.abspath(args.manifest)), "profiles")
     loaded = ProfileStore(profiles_dir).load(args.profile)
     if loaded.profile is None:
         for err in loaded.errors:
-            print(err, file=sys.stderr)
+            _error(str(err))
         return 1
     rec = reconcile(loaded.profile, result.manifest)
     for w in rec.warnings:
-        print(f"warning: {w}", file=sys.stderr)
+        _warn(w)
     state = ProfileState(result.manifest)
     state.apply(rec.selections, rec.overrides, args.profile)
 
@@ -163,7 +192,7 @@ async def _up(args) -> int:
                               manifest_dir=os.path.dirname(
                                   os.path.abspath(args.manifest)))
         for w in warns:
-            print(f"warning: {w}", file=sys.stderr)
+            _warn(w)
         if spec is None:
             continue
         desired[node.name] = spec
@@ -171,11 +200,11 @@ async def _up(args) -> int:
     from sheppy.daemon.config import sheppy_home, socket_path_error
     reason = socket_path_error(sheppy_home())
     if reason:                          # the daemon couldn't bind it (#35)
-        print(f"could not start sheppyd: {reason}", file=sys.stderr)
+        _error(f"could not start sheppyd: {reason}")
         return 1
     client = DaemonClient()
     if not await client.connect(spawn=True):
-        print("could not start sheppyd", file=sys.stderr)
+        _error("could not start sheppyd")
         return 1
     try:
         nodes = (await client.request("status"))["nodes"]
@@ -183,10 +212,10 @@ async def _up(args) -> int:
                   if result.manifest.node(n) is not None}   # orphans untouched
         actions = diff(desired, actual)
         if not actions:
-            print("already converged")
+            print(_style("already converged", "green"))
             return 0
         for verb, node in actions:
-            print(f"{verb} {node}")
+            print(f"{_style(verb, _ACTION_STYLE.get(verb))} {node}")
         for verb, node in actions:
             if verb == "stop":
                 await client.request("stop", node=node)
@@ -205,8 +234,9 @@ async def _wait_stable(client, desired: dict, timeout: float = 30.0) -> int:
         states = {n: nodes.get(n, {}).get("state") for n in desired}
         if not any(s in ("launching", "stopping") for s in states.values()):
             for n in sorted(states):
-                print(f"{n}: {states[n]}")
+                style = _STATE_STYLE.get(states[n])
+                print(f"{n}: {_style(str(states[n]), style)}")
             return 1 if "crashed" in states.values() else 0
         await asyncio.sleep(0.2)
-    print("timed out waiting for nodes to settle", file=sys.stderr)
+    _error("timed out waiting for nodes to settle")
     return 1
