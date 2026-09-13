@@ -444,9 +444,8 @@ class SheppyApp(App):
         return self.manifest.nodes[idx]
 
     def _show_detail(self, node: Node) -> None:
-        idx = self.query_one(AlternativesPanel).index
-        alt = (node.alternatives[idx]
-               if idx is not None and node.alternatives else None)
+        row = self.query_one(AlternativesPanel).highlighted_row()
+        alt = row.alt if row and row.node is node else None
         rows = self._summary_rows(alt) if alt else None
         self.query_one(DetailTabs).show(node, alt, summary_rows=rows)
 
@@ -514,23 +513,22 @@ class SheppyApp(App):
 
     def on_alternatives_panel_alternative_highlighted(
             self, event: AlternativesPanel.AlternativeHighlighted) -> None:
-        node = self._current_node()
-        if node and node.alternatives and event.index is not None:
-            alt = node.alternatives[event.index]
-            self.query_one(DetailTabs).show(
-                node, alt, summary_rows=self._summary_rows(alt))
+        # The pane repopulates asynchronously, so it can still hold another
+        # node's rows; act only on rows that belong to the highlighted node.
+        if event.node is not self._current_node():
+            return
+        self.query_one(DetailTabs).show(
+            event.node, event.alt, summary_rows=self._summary_rows(event.alt))
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:
-        node = self._current_node()
-        if node is None or not self.state or event.index is None:
+        if not self.state or event.node is not self._current_node():
             return
-        alt = node.alternatives[event.index]
-        self.state.select(node.name, alt.id)
+        self.state.select(event.node.name, event.alt.id)
         self.query_one(NodeList).set_selection(self._current_selection())
         self._refresh_header()
         self._refresh_runtime()   # selection changed -> drift may too
-        await self.query_one(AlternativesPanel).show(node, alt.id)
+        await self.query_one(AlternativesPanel).show(event.node, event.alt.id)
 
     # ---- PROCESS tab -------------------------------------------------------
     def on_tabbed_content_tab_activated(self, event) -> None:
