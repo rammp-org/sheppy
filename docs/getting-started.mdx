@@ -27,8 +27,8 @@ does the same thing.
 ## Run the demo — no ROS required
 
 The repo ships `examples/local-demo.yaml`, a manifest that launches plain
-Python processes instead of ROS nodes. It's the fastest way to see sheppy
-actually run something, on any machine, without ROS installed:
+Python processes instead of ROS nodes, so you can watch sheppy run something
+on any machine without ROS installed:
 
 ```bash
 git clone https://github.com/rammp-org/sheppy.git
@@ -90,8 +90,8 @@ clock                running    ticker         pid=3948253 up 22s
 worker               crashed    flaky          pid=3948421 exit=1
 ```
 
-`flaky` never prints anything before it dies, so `sheppy logs worker` comes
-back empty — the exit code, not a log line, is the signal:
+`flaky` exits without printing anything, so `sheppy logs worker` comes back
+empty; the exit code in `sheppy status` is what tells you it failed:
 
 ```
 $ sheppy logs worker
@@ -109,8 +109,8 @@ selections:
   worker: flaky
 ```
 
-Running the demo from a clone drops that `profiles/` directory into the
-checked-out `examples/` folder — expected, not a bug.
+Because the demo manifest is in `examples/`, that `profiles/` directory is
+created inside your clone.
 
 ### Tear down
 
@@ -125,14 +125,15 @@ sheppyd stopped
 </Steps>
 
 <Callout type="info">
-`sheppyd` is the tiny supervisor daemon that actually owns these processes —
-quit the TUI and they keep running; reconnect and they're still there. For
+`sheppyd` is the background daemon that runs these processes. They keep
+running when you quit the TUI, and the TUI shows them again when you reopen
+it. For
 architecture, node states, and troubleshooting, see the
 [sheppyd guide](../guides/sheppyd).
 </Callout>
 
 ## Now describe your own system
 
-`local-demo.yaml` is a toy. See [Manifest](../manifest) to write one for
+`local-demo.yaml` is only a demo. See [Manifest](../manifest) to write one for
 your own nodes, alternatives, and machines, then read
 [ROS integration](../ros-integration) before launching real ROS nodes.

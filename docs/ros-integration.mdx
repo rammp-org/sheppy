@@ -30,7 +30,7 @@ What that means in practice:
 - **`~/.bashrc` is not read.** Nodes run under a non-interactive `bash -c`. A
   `source` line in `~/.bashrc` only counts if it was already in effect in the
   terminal that started `sheppyd`.
-- **Changing your shell later changes nothing.** Re-sourcing, or exporting a
+- **Later changes to your shell don't reach `sheppyd`.** Re-sourcing, or exporting a
   different `ROS_DOMAIN_ID` in another terminal, doesn't reach a `sheppyd`
   that is already running. To switch, stop everything and bring it back up
   from a terminal that has the new environment:
@@ -151,7 +151,7 @@ resolved relative to the manifest.
 
 `publishes` and `subscribes` in the manifest are documentation. The TUI's
 TOPICS tab lists them, but sheppy doesn't read the ROS graph, so nothing checks
-them against what is actually on the wire. Use `ros2 topic info -v` for that.
+them against what is on the wire. Use `ros2 topic info -v` for that.
 
 ## One machine only
 

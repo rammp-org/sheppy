@@ -5,19 +5,26 @@ mock vs. real, launch and supervise them from one operator console.
 
 - **Swap alternatives quickly:** mock or real driver, one planner or another,
   different camera configs.
-- **Profiles instead of launch-file sprawl:** save the configuration you
+- **Profiles instead of long launch files:** save the configuration you
   picked and bring it back with `sheppy up <profile>`.
-- **See and tune every node:** state, CPU and memory, latest output, and
-  parameters, from one TUI.
-- **More than `ros2 launch`:** Docker containers and non-ROS commands like
-  simulator GUIs, supervised the same way.
+- **A terminal UI with a persistent daemon:** bring nodes up from a TUI that
+  works over SSH; a background daemon keeps them running after you close it,
+  so you don't need long commands in tmux panes.
+- **Node status and parameters in one place:** state, CPU and memory,
+  latest output, and parameters for each node, in one TUI. Crashed nodes
+  show their exit code and keep their logs.
+- **Containers and non-ROS programs too:** Docker containers (inline or from
+  an existing compose file) and non-ROS commands like simulator GUIs,
+  supervised the same way.
+- **A CLI for scripts and SSH:** `sheppy up`, `status`, `logs`, `woof`, and
+  `down` work without the TUI.
 
 **Docs: https://rammp-org.github.io/sheppy**
 
 ```mermaid
 flowchart TB
-  M["sheppy-manifest.yaml<br/>what CAN run"] --> S
-  P["profiles/*.yaml<br/>what SHOULD run"] --> S
+  M["sheppy-manifest.yaml<br/>what can run"] --> S
+  P["profiles/*.yaml<br/>what should run"] --> S
   S["sheppy<br/>select · launch · supervise · observe"]
   S --> L1["ros2 launch"]
   S --> L2["ros2 run"]
@@ -29,11 +36,11 @@ flowchart TB
   L4 --> N
 ```
 
-Sheppy does not replace `ros2 launch` — it calls it. An alternative of kind
+Sheppy calls `ros2 launch` rather than replacing it. An alternative of kind
 `launch_file` shells out to `ros2 launch`; `executable` shells out to
 `ros2 run`. Sheppy is the layer above: it catalogs which launch files are
 interchangeable, remembers which set you picked, and supervises the processes
-so they outlive your terminal.
+so they keep running after you close the terminal.
 
 ## Install
 

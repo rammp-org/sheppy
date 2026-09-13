@@ -9,11 +9,10 @@ processes: it spawns them, watches them, stops and restarts them, and reports
 their live state back to the TUI and the CLI. Everything in Sheppy that
 *runs* something runs it through `sheppyd`.
 
-The daemon exists so that **the system outlives the operator's terminal**. You
-can launch your nodes, quit the TUI (or lose your SSH connection), come back
-later, and everything is still running — and still controllable. Even if
-`sheppyd` itself is killed, the child processes keep running and a freshly
-started daemon re-adopts them.
+The daemon lets your nodes keep running after the TUI exits. You can launch
+them, quit the TUI (or lose your SSH connection), and come back later to find
+them still running and still under sheppy's control. If `sheppyd` itself is
+killed, the nodes keep running, and the next daemon to start re-adopts them.
 
 > **Scope.** `sheppyd` runs every node on the machine it runs on. An
 > alternative's `machine:` only chooses which `ros_setup` gets sourced; nothing
@@ -25,10 +24,10 @@ started daemon re-adopts them.
 > [TUI](../../tui), and for problems see
 > [Troubleshooting](../../troubleshooting).
 
-## Mental model: dumb daemon, smart client
+## Design: the clients do the work
 
-The single most important design decision is that **`sheppyd` never sees a
-manifest, a profile, or any YAML.** All of that lives client-side.
+**`sheppyd` never reads a manifest, a profile, or any YAML.** The TUI and CLI
+handle all of that.
 
 ```
  sheppy TUI ──┐                             ┌─────────────────────────────┐
@@ -83,8 +82,8 @@ detected and replaced.
 
 Stopping the daemon (`sheppy daemon stop`, or `SIGTERM`/`SIGINT` to the
 process) does **not** stop the nodes. The daemon exits; the children keep
-running. This is deliberate — a supervisor restart must never take the robot
-down. To actually stop everything, use `sheppy down`, which stops every node
+running. This is deliberate: restarting the supervisor must never take the
+robot down. To stop everything, use `sheppy down`, which stops every node
 first and *then* stops the daemon.
 
 ### Survivability and re-adoption
@@ -106,7 +105,7 @@ therefore report `exit_code: null` when they terminate.
 timers at all** — it wakes only for socket traffic and child-exit events. The
 per-node CPU/RSS sampler runs only while at least one client is subscribed,
 and stops the moment the last subscriber disconnects. This matters on
-resource-starved machines: an idle daemon costs approximately nothing.
+resource-starved machines: an idle daemon uses almost no CPU.
 
 ## Node states
 
@@ -149,7 +148,7 @@ Each launch gets its own file; the last `keep_runs` (default 5) files per node
 are kept and older ones are pruned. The daemon also keeps an in-memory
 **ring buffer** of the last `ring_lines` (default 300) lines per node as a
 tail view over the current file — this is what `sheppy logs` and the TUI's
-PROCESS tab display, including a crashed node's dying words.
+PROCESS tab display, including a crashed node's last output.
 
 The daemon's own log lives at `~/.sheppy/logs/sheppyd.log`.
 

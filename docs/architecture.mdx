@@ -17,12 +17,12 @@ flowchart LR
 
 - **Tech:** Python + [Textual](https://textual.textualize.io/) for the TUI. `sheppyd`
   imports only the standard library.
-- **Smart client, dumb daemon:** the TUI and CLI read the manifest and resolve each
+- **The clients do the work:** the TUI and CLI read the manifest and resolve each
   alternative into a launch descriptor; `sheppyd` never sees YAML and runs exactly
   what it is sent. See the [sheppyd guide](../guides/sheppyd).
 - **Daemon-backed:** `sheppyd` owns the processes, so the system survives the TUI
   detaching or crashing.
-- **Manifest is the source of truth:** a curated, version-controlled `sheppy-manifest.yaml`.
+- **The manifest describes the system:** a version-controlled `sheppy-manifest.yaml`.
 - **Kinds are launchers:** `executable`, `launch_file`, `process` and `docker` all
   register through the `sheppy.launchers` entry-point group, so a plugin can add
   more. See [Writing a launcher plugin](../guides/launcher-plugins).

@@ -23,20 +23,10 @@ to keep that selection as a profile.
 
 ## The screen
 
-This is the [Getting started](../getting-started) demo with `clock` running
-and `worker` crashed, with the PROCESS tab open:
+![The sheppy TUI on the local demo: clock is running, worker has crashed and shows a drift marker, and the PROCESS tab explains why](./images/tui-drift.png)
 
-```
- 🐑 sheppy │ ◆ profile <none>* │ examples/local-demo.yaml · 2 nodes · ● 1 running          ✓ no errors  │ ◷ 18:07:49
- MACHINES  — none declared — · …
-       NODE       ALTERNATIVE   HOST    USAGE     │  ALTERNATIVES · worker · single      │DETAIL TOPICS PROCESS YAML
-█ ●    clock      ticker        —       0% 15M    │█ ○ steady                            │
-█ ✕ Δ  worker     flaky         —       0% 15M    │█ process · python3 -c 'import time;  │  state       ✕ crashed
-                                                  │█                                     │  drift       Δ flaky selected, not running
-                                                  │█ ◉ flaky                             │  pid         3948421
-                                                  │█ process · python3 -c 'import time;  │  exit code   1
-  ↑↓  move   ⏎  select   s  save   l  load   p  params   e  errors   1-4  tabs   ␣  apply   x  stop   r  woof   L  converge   !  snap
-```
+This is the [Getting started](../getting-started) demo with `clock` running
+and `worker` crashed, with the PROCESS tab open.
 
 - **Header:** the loaded profile (`<none>` until you load or save one; `*`
   means unsaved changes), the manifest file, how many nodes are running,
@@ -110,7 +100,7 @@ divider. You can stop one with `x` and read its logs, but `space`, `r`, and
 `p` don't apply, and `L` leaves them alone. `X` and `sheppy down` stop them
 along with everything else.
 
-## Errors never crash the app
+## Errors
 
 A malformed manifest never crashes the app — errors are listed in the overlay
 (`e`) and the rest stays browsable. The same holds for profiles: a corrupt
@@ -122,7 +112,7 @@ overlay and the applicable remainder still loads.
 Sheppy's palette needs 24-bit color. The decision is made on the machine
 *running* sheppy: with `COLORTERM` unset (SSH does not forward it by default)
 and `TERM=xterm-256color`, Textual quantizes every color to the 256-color
-palette and the subtle background layering collapses. On the remote machine:
+palette and the background shading is lost. On the remote machine:
 
 ```bash
 export COLORTERM=truecolor   # add to your remote ~/.bashrc / ~/.zshrc

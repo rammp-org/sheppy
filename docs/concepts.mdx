@@ -4,8 +4,6 @@ title: Concepts
 
 # Concepts
 
-A handful of ideas carry all of sheppy.
-
 ## A node is not a ROS node
 
 A **node** in a sheppy manifest is a *logical unit of your system* — "the
@@ -49,18 +47,18 @@ of choosing node by node.
   a profile or from clicking around the TUI. Open the TUI with nothing selected
   and whatever `sheppyd` is already supervising becomes the starting selection
   (see [TUI](../tui)).
-- **Actual** is what `sheppyd` is really running right now.
+- **Actual** is what `sheppyd` is running right now.
 
-They drift apart constantly — a node crashes, someone runs `sheppy up` from
-another terminal, you switch profiles. sheppy never hides the gap; it shows it
-and lets you close it in either direction.
+The two often differ: a node crashes, someone runs `sheppy up` from another
+terminal, or you switch profiles. The TUI marks each node where they differ,
+and you can bring either side in line with the other.
 
 ```mermaid
 flowchart LR
-  subgraph D["DESIRED — what you asked for"]
+  subgraph D["Desired: what you selected"]
     A["camera → mock_camera"]
   end
-  subgraph A2["ACTUAL — what sheppyd is running"]
+  subgraph A2["Actual: what sheppyd is running"]
     B["camera → realsense<br/>running, pid 4821"]
   end
   D -->|"space: launch what you selected"| A2
@@ -88,8 +86,8 @@ sequenceDiagram
   D-->>S: launching → running, or crashed
 ```
 
-- **sheppy does the thinking.** The TUI and CLI read the manifest and profile
-  and build the exact command. `sheppyd` never reads YAML.
+- **The TUI and CLI build the command.** They read the manifest and profile
+  and work out exactly what to run. `sheppyd` never reads YAML.
 - **`sheppyd` owns the processes.** It's a small background daemon, one per
   user, started automatically by the first launch. Quit the TUI or
   lose your SSH session and the nodes keep running; open the TUI again and it
@@ -102,12 +100,12 @@ The [sheppyd guide](../guides/sheppyd) covers the daemon in depth.
 
 ## Two ways to drive sheppy
 
-Both are first-class; use whichever fits.
+Use whichever fits the task.
 
 | | Live launching | Converging a profile |
 |---|---|---|
 | How | The TUI: select an alternative, press `space` | `sheppy up <profile>` |
-| Good for | Poking at one node, debugging, trying an alternative | Bringing the whole system up a known way |
+| Good for | Testing one node, debugging, trying an alternative | Bringing the whole system up a known way |
 | Scope | One node at a time | Every node in the manifest |
 
 `sheppy up` is idempotent: nodes already running the right thing are left
