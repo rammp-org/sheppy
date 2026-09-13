@@ -1,12 +1,25 @@
 ---
-title: The TUI
+title: TUI
 ---
 
-# The TUI
+# TUI
 
 ```bash
 sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml
 ```
+
+The TUI reads the manifest once, when it opens. After editing the manifest,
+quit (`Ctrl+Q`) and open it again.
+
+It always opens with **no profile loaded**: the header reads `profile <none>`.
+If `sheppyd` isn't running anything, nothing is selected either — pick
+alternatives yourself, or load a [profile](../profiles) with `l`. If it is
+already running nodes, from an earlier session or `sheppy up`, the TUI selects
+what's running, including each node's parameter overrides, so that system
+doesn't show as drift. Crashed nodes are selected too (they keep their `Δ`,
+and `space` relaunches them); stopped nodes and nodes from other manifests are
+not. The header stays `profile <none>` with no `*`, so press `s` if you want
+to keep that selection as a profile.
 
 ## The screen
 
@@ -77,9 +90,9 @@ A `Δ` means what's running differs from what's selected (see
 | `Enter` | On a node: move into its alternatives. On an alternative: select it |
 | `Esc` | Back to the node list |
 | `1`–`4` | Switch detail tab: DETAIL, TOPICS, PROCESS, YAML |
-| `space` | Apply the selection to the highlighted node: launch the selected alternative (replacing whatever that node is running), or stop the node if nothing is selected |
+| `space` | Apply the selection to the highlighted node: launch the selected alternative, restarting the node if it's already running, or stop the node if nothing is selected |
 | `x` | Stop the highlighted node |
-| `r` | Restart the highlighted node with the command it was launched with. To apply a manifest or param edit, use `space` |
+| `r` | Restart the highlighted node with the command it was launched with. To apply a param edit, use `space` |
 | `L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone |
 | `X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
 | `!` | Snapshot: set the selection to what's running. Press `s` to save it |
@@ -96,25 +109,6 @@ from another manifest, say — they appear under a `─ not in this manifest ─
 divider. You can stop one with `x` and read its logs, but `space`, `r`, and
 `p` don't apply, and `L` leaves them alone. `X` and `sheppy down` stop them
 along with everything else.
-
-## Opening without a profile
-
-The TUI always opens with no profile loaded (`profile <none>` in the header).
-If `sheppyd` is already supervising nodes when the TUI connects and nothing is
-selected yet, the TUI takes what's running as the starting selection,
-including each node's parameter overrides. A system you brought up earlier,
-for example with `sheppy up`, doesn't show as drift.
-
-- Running, launching, and crashed nodes are adopted. A crashed node keeps its
-  `Δ` (selected, not running), and `space` relaunches it.
-- Stopped nodes are not adopted.
-- Nodes that aren't in this manifest stay under the [orphans](#orphans)
-  divider.
-- Selections you made before `sheppyd` was running are kept.
-- Nodes started from elsewhere after the TUI connects show `Δ` as usual.
-
-The header still reads `profile <none>` with no `*`; press `s` to save the
-adopted selection as a profile.
 
 ## Errors never crash the app
 

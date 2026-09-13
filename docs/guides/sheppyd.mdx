@@ -22,7 +22,7 @@ started daemon re-adopts them.
 >
 > This guide covers the daemon itself. For commands see the
 > [CLI reference](../../cli), for what the screen shows see
-> [The TUI](../../tui), and for problems see
+> [TUI](../../tui), and for problems see
 > [Troubleshooting](../../troubleshooting).
 
 ## Mental model: dumb daemon, smart client
@@ -217,7 +217,7 @@ parameter value can't break out of the command.
 
 The daemon runs that command with its own environment and working directory,
 both inherited from the terminal that started it. See
-[Running with ROS 2](../../ros2#where-your-nodes-get-their-environment).
+[ROS integration](../../ros-integration#where-your-nodes-get-their-environment).
 
 Parameters on a `process`-kind alternative are ignored (with a warning) —
 there's no ROS argument convention to map them onto.
@@ -244,7 +244,7 @@ A `spec` without a `descriptor` is rejected. The request above is the
 
 | `op` | Effect |
 |------|--------|
-| `launch` | start `spec.descriptor`; replaces any different process already running for that node (one process per node) |
+| `launch` | start `spec.descriptor`; replaces any process already running for that node (one process per node) |
 | `stop` | begin the stop escalation for a node |
 | `restart` | stop, then relaunch the same spec |
 | `status` | return the full table: per node `{state, pid, exit_code, started_at, usage, spec}` |

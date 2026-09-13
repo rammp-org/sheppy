@@ -50,9 +50,8 @@ inside it, a bug or a heavy dependency in a third-party plugin could take
 down every supervised process on the machine. Because a `LaunchDescriptor` is
 just argv tuples and strings, the daemon can execute it without ever loading
 your plugin's code, its dependencies, or its entry-point machinery. Your
-plugin only needs to be importable on the machine running the TUI/CLI; it
-doesn't need to be installed wherever `sheppyd` runs relative to the nodes it
-starts.
+plugin only needs to be importable by the TUI and CLI; `sheppyd` never
+imports it.
 
 ## The `Launcher` contract
 

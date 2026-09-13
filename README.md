@@ -3,6 +3,15 @@
 Herds the ROS2 nodes of a distributed robotics project — catalog them, switch
 mock vs. real, launch and supervise them from one operator console.
 
+- **Swap alternatives quickly:** mock or real driver, one planner or another,
+  different camera configs.
+- **Profiles instead of launch-file sprawl:** save the configuration you
+  picked and bring it back with `sheppy up <profile>`.
+- **See and tune every node:** state, CPU and memory, latest output, and
+  parameters, from one TUI.
+- **More than `ros2 launch`:** Docker containers and non-ROS commands like
+  simulator GUIs, supervised the same way.
+
 **Docs: https://rammp-org.github.io/sheppy**
 
 ```mermaid

@@ -2,10 +2,12 @@
 title: Manifest reference
 ---
 
+import { Callout } from 'nextra/components'
+
 # Manifest reference
 
 Field-by-field lookup for `sheppy-manifest.yaml`. If you want to learn
-manifest authoring by example, start with [The manifest](../manifest) instead
+manifest authoring by example, start with [Manifest](../manifest) instead
 — this page is the companion you come back to once you know what you're
 looking for.
 
@@ -31,7 +33,13 @@ machines:
 | `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty or missing. |
 | `host` | **yes** | string | Stored on the machine record. The loader errors if empty or missing. |
 | `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing — this one surprises people, see [below](#things-that-surprise-people). |
-| `ros_setup` | no | string | Absolute path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is not expanded. See [Running with ROS 2](../ros2#sourcing-per-alternative-with-ros_setup). |
+| `ros_setup` | no | string | Absolute path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is not expanded. See [ROS integration](../ros-integration#sourcing-per-alternative-with-ros_setup). |
+
+<Callout type="warning">
+**Multi-machine launch isn't ready yet.** Every node runs on the machine where
+you run sheppy, whatever its `machine:` says. Launching on other hosts is
+planned; see the [roadmap](../architecture#roadmap).
+</Callout>
 
 ## Nodes
 
@@ -122,7 +130,7 @@ Runs a container named `sheppy-<node>`, supervised like any other process.
 Provided by the `sheppy.launch.docker` plugin, registered under the `docker`
 kind. The container does not inherit `sheppyd`'s environment, so set
 `ROS_DOMAIN_ID` and anything else it needs under `environment` (see
-[Running with ROS 2](../ros2#containers)). Requires exactly one of:
+[ROS integration](../ros-integration#containers)). Requires exactly one of:
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -201,6 +209,6 @@ is resolved relative to the manifest.
   column and detail panel — but `sheppyd` itself always runs locally, and
   the `docker` launcher doesn't even read `alt.machine`, so container
   alternatives get no `ros_setup` sourcing at all.
-- **Nodes don't get your shell's ROS environment by default.** They inherit
-  `sheppyd`'s, which came from the terminal that first launched something. See
-  [Running with ROS 2](../ros2#where-your-nodes-get-their-environment).
+- **Nodes get `sheppyd`'s environment, not your current shell's.** `sheppyd`
+  took it from the terminal that first launched something. See
+  [ROS integration](../ros-integration#where-your-nodes-get-their-environment).

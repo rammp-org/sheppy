@@ -65,10 +65,10 @@ output" tail printing `clock`'s heartbeat, one new line per second.
 
 ### Crash it on purpose
 
-Move to `worker` (`↓`), select `flaky` (`Enter`, `↓`, `Enter`, `Esc`), then
-`space` to launch it. It runs for about three seconds, then its glyph turns
-`✕` (crashed) with a `Δ`: you selected `flaky`, but nothing is running. The
-PROCESS tab says so:
+Move to `worker` (`↓`) and select `flaky` (`Enter`, `↓`, `Enter`, `Esc`). The
+row shows `Δ` straight away: `flaky` is selected, but nothing is running for
+`worker`. Press `space` to launch it. It runs for about three seconds, then
+its glyph turns `✕` (crashed), and the `Δ` stays. The PROCESS tab says why:
 
 ```
 state       ✕ crashed
@@ -86,8 +86,8 @@ From a second terminal:
 
 ```
 $ sheppy status
-clock                running    ticker         pid=4074426 up 15s
-worker               crashed    flaky          pid=4074572 exit=1
+clock                running    ticker         pid=3948253 up 22s
+worker               crashed    flaky          pid=3948421 exit=1
 ```
 
 `flaky` never prints anything before it dies, so `sheppy logs worker` comes
@@ -133,6 +133,6 @@ architecture, node states, and troubleshooting, see the
 
 ## Now describe your own system
 
-`local-demo.yaml` is a toy. See [The manifest](../manifest) to write one for
+`local-demo.yaml` is a toy. See [Manifest](../manifest) to write one for
 your own nodes, alternatives, and machines, then read
-[Running with ROS 2](../ros2) before launching real ROS nodes.
+[ROS integration](../ros-integration) before launching real ROS nodes.

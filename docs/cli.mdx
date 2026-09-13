@@ -35,7 +35,7 @@ Running it twice in a row prints `already converged` the second time.
 
 `up` is the only verb that starts `sheppyd` when it isn't running, and the
 daemon keeps this terminal's environment — see
-[Running with ROS 2](../ros2#where-your-nodes-get-their-environment).
+[ROS integration](../ros-integration#where-your-nodes-get-their-environment).
 
 **Exit code:** 1 if the manifest or profile can't be loaded, if any node is
 `crashed` once things settle, or if they don't settle within 30 seconds.
@@ -75,6 +75,9 @@ if the node is unknown or the daemon isn't running.
 Stop every node `sheppyd` supervises, from any manifest, printing
 `stopped <node>` for each, then stop the daemon itself. Exits 0 even if the
 daemon wasn't running.
+
+There's no headless verb to stop or start a single node. Use `x` and `space`
+in the TUI, or `sheppy up` a profile that doesn't select that node.
 
 ### `sheppy daemon status` / `sheppy daemon stop`
 

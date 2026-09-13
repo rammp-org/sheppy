@@ -4,13 +4,17 @@ title: Concepts
 
 # Concepts
 
-Four words carry all of sheppy.
+A handful of ideas carry all of sheppy.
 
 ## A node is not a ROS node
 
 A **node** in a sheppy manifest is a *logical unit of your system* — "the
 camera", "perception", "the sim". It is not a ROS node. One sheppy node may be
 a launch file that starts a dozen ROS nodes, or a container, or a bare command.
+
+If you already have a bringup launch file, it can be a single node to start
+with. Split it into several nodes when you want to swap its parts
+independently — the real camera with the mock planner, say.
 
 Where both meanings appear together, these docs say **manifest node** and
 **ROS node**.
@@ -44,7 +48,7 @@ of choosing node by node.
 - **Desired** is what you asked for: the alternatives currently selected, from
   a profile or from clicking around the TUI. Open the TUI with nothing selected
   and whatever `sheppyd` is already supervising becomes the starting selection
-  (see [opening without a profile](../tui#opening-without-a-profile)).
+  (see [TUI](../tui)).
 - **Actual** is what `sheppyd` is really running right now.
 
 They drift apart constantly — a node crashes, someone runs `sheppy up` from
@@ -87,12 +91,12 @@ sequenceDiagram
 - **sheppy does the thinking.** The TUI and CLI read the manifest and profile
   and build the exact command. `sheppyd` never reads YAML.
 - **`sheppyd` owns the processes.** It's a small background daemon, one per
-  user account, started automatically by the first launch. Quit the TUI or
+  user, started automatically by the first launch. Quit the TUI or
   lose your SSH session and the nodes keep running; open the TUI again and it
   reconnects.
 - **Nodes inherit `sheppyd`'s environment**, which came from the terminal that
   started it. For ROS that decides what's sourced and which `ROS_DOMAIN_ID`
-  nodes use — see [Running with ROS 2](../ros2).
+  nodes use — see [ROS integration](../ros-integration).
 
 The [sheppyd guide](../guides/sheppyd) covers the daemon in depth.
 

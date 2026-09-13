@@ -1,17 +1,18 @@
-# sheppy-manifest.yaml — the complete field reference, as a runnable file.
+# sheppy-manifest.yaml — an annotated example using all four launch kinds.
 #
 #   sheppy examples/sheppy-manifest.yaml     # open the TUI on it
 #
 # A "node" here is a LOGICAL UNIT of your system, not a ROS node. One entry
 # below may start a launch file that spawns a dozen ROS nodes.
 
-# Machines sheppy can launch on. Omit this block entirely to run everything
-# locally. 'name', 'host' and 'user' are all required.
+# Machines. Multi-machine launch isn't ready yet: every node runs on the
+# machine running sheppy, and only ros_setup has an effect today. The block is
+# optional; 'name', 'host' and 'user' are all required.
 machines:
   - name: robot
     host: 10.0.0.20
     user: researcher
-    # Sourced before every command that runs on this machine.
+    # Sourced before the command of any alternative that sets machine: robot.
     ros_setup: /opt/ros/humble/setup.bash
   - name: workstation
     host: 10.0.0.5

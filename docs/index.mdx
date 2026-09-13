@@ -66,7 +66,22 @@ import { Cards } from 'nextra/components'
   </div>
 </div>
 
-## Why Sheppy?
+## Why sheppy?
+
+1. **Swap alternatives quickly.** Each part of your system lists the
+   interchangeable ways to run it: a mock or the real driver, one planner or
+   another, different camera configs. Pick one in the TUI and press `space`;
+   sheppy stops what that part was running and starts your choice.
+2. **Profiles instead of launch-file sprawl.** Launch files that switch
+   between configurations grow long and full of conditionals. In sheppy you
+   pick the configuration you want, save it as a profile (a short YAML file),
+   and `sheppy up <profile>` brings exactly that system back.
+3. **See and tune every node.** The TUI shows each node's state, CPU and
+   memory, and latest output, flags where what's running differs from what you
+   selected, and lets you change a node's parameters and relaunch it.
+4. **More than `ros2 launch`.** Alternatives can be ROS executables and launch
+   files, Docker containers, or any command, like a simulator GUI, all
+   supervised the same way. They keep running after you close the TUI.
 
 ```mermaid
 flowchart TB
@@ -104,8 +119,8 @@ Four words carry the rest — see [Concepts](./concepts) for the full picture:
 
 <Cards>
   <Cards.Card title="Getting started" href="./getting-started" arrow />
-  <Cards.Card title="The TUI" href="./tui" arrow />
-  <Cards.Card title="The manifest" href="./manifest" arrow />
+  <Cards.Card title="TUI" href="./tui" arrow />
+  <Cards.Card title="Manifest" href="./manifest" arrow />
   <Cards.Card title="CLI reference" href="./cli" arrow />
   <Cards.Card title="sheppyd — the launch supervisor" href="./guides/sheppyd" arrow />
   <Cards.Card title="Writing a launcher plugin" href="./guides/launcher-plugins" arrow />

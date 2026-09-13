@@ -1,11 +1,11 @@
 ---
-title: Running with ROS 2
+title: ROS integration
 ---
 
-# Running with ROS 2
+# ROS integration
 
-This page covers what sheppy does with your ROS environment and what it
-leaves to you. Read it before pointing sheppy at a real workspace.
+What sheppy does with your ROS environment, and what it leaves to you. Read
+this before pointing sheppy at a real workspace.
 
 ## Where your nodes get their environment
 
@@ -32,8 +32,8 @@ What that means in practice:
   terminal that started `sheppyd`.
 - **Changing your shell later changes nothing.** Re-sourcing, or exporting a
   different `ROS_DOMAIN_ID` in another terminal, doesn't reach a `sheppyd`
-  that is already running. To switch, stop everything and start again from a
-  terminal that has the new environment:
+  that is already running. To switch, stop everything and bring it back up
+  from a terminal that has the new environment:
 
   ```bash
   sheppy down                         # stop every node, then sheppyd
@@ -42,8 +42,9 @@ What that means in practice:
   sheppy up mock                      # sheppyd starts again with this environment
   ```
 
-  `sheppy daemon stop` restarts only the daemon. Nodes that are already
-  running keep their old environment until you relaunch them.
+  `sheppy daemon stop` isn't enough: it stops only the daemon, the nodes keep
+  the environment they started with, and `sheppy up` leaves them running
+  because their command hasn't changed.
 - **The working directory comes along too.** Nodes start in the directory
   `sheppyd` was started from, so a relative path in a command (for example
   `ros2 bag record -o run1`) lands there. Use absolute paths.
@@ -98,6 +99,25 @@ Each alternative can list `params`. How they are passed depends on the kind:
 The params an alternative lists are also the only ones you can override, from
 the TUI (`p`) or in a [profile](../profiles).
 
+## What sheppy watches
+
+Sheppy supervises the process it started — `ros2 launch`, `ros2 run`, the
+container, or your command — not the ROS nodes inside it. If one node in a
+launch file dies and `ros2 launch` keeps running, sheppy still shows
+`● running`. Check the node's output with `sheppy logs <node>`, or have the
+launch file shut down when that node exits, so sheppy sees the launch exit and
+marks the node crashed:
+
+```python
+from launch.actions import Shutdown
+from launch_ros.actions import Node
+
+Node(package='my_planner', executable='planner_node', on_exit=Shutdown())
+```
+
+Stopping goes the other way: sheppy signals the whole process group, so every
+ROS node the launch file started gets `SIGINT`.
+
 ## Containers
 
 A `docker` alternative runs a container named `sheppy-<node>`. The container
@@ -123,7 +143,8 @@ resolved relative to the manifest.
 | You changed | Then | Why |
 |-------------|------|-----|
 | Rebuilt a package (`colcon build`) | `r` in the TUI, or `sheppy woof <node>` | a restart reruns the same command, which picks up the new build |
-| The manifest, or a param | `space` in the TUI, or `sheppy up <profile>` | these rebuild the command; `r` and `woof` rerun the command stored at launch |
+| A param, with `p` in the TUI | `space` | `space` builds the command again with the new value |
+| The manifest | quit and reopen the TUI, then `space`; or `sheppy up <profile>` | the TUI reads the manifest only when it opens, and `r` and `woof` rerun the command stored at launch |
 | Your shell environment | `sheppy down`, then launch from the new shell | see [above](#where-your-nodes-get-their-environment) |
 
 ## Topics
