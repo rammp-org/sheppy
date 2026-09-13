@@ -155,7 +155,10 @@ class SheppyApp(App):
         if self.daemon_connected:
             return True
         if not await self._daemon_connect(spawn=True):
-            self._append_warnings(["could not start sheppyd"])
+            from sheppy.daemon.config import sheppy_home, socket_path_error
+            reason = socket_path_error(sheppy_home())
+            self._append_warnings([f"could not start sheppyd: {reason}"
+                                   if reason else "could not start sheppyd"])
             return False
         return True
 
