@@ -1,12 +1,12 @@
 """Entry point: `sheppy <manifest>` opens the TUI; verbs (up/down/status/
-logs/woof/daemon) are headless and never import textual."""
+logs/restart/daemon) are headless and never import textual."""
 import argparse
 import asyncio
 import os
 import sys
 import time
 
-COMMANDS = {"up", "down", "status", "logs", "woof", "daemon"}
+COMMANDS = {"up", "down", "status", "logs", "restart", "woof", "daemon"}
 VERSION_FLAGS = {"--version", "-V"}
 
 DEFAULT_MANIFEST = "sheppy-manifest.yaml"
@@ -52,14 +52,16 @@ def _build_parser() -> argparse.ArgumentParser:
     lg = sub.add_parser("logs", help="tail a node's output")
     lg.add_argument("node")
     lg.add_argument("-n", type=int, default=50)
-    wf = sub.add_parser("woof", help="restart a node")
-    wf.add_argument("node")
+    rs = sub.add_parser("restart", help="restart a node")
+    rs.add_argument("node")
     dm = sub.add_parser("daemon", help="daemon lifecycle")
     dm.add_argument("action", choices=["status", "stop"])
     return p
 
 
 def _run_verb(argv: list[str]) -> int:
+    if argv[0] == "woof":                # restart's old name (#21)
+        argv = ["restart", *argv[1:]]
     args = _build_parser().parse_args(argv)
     return asyncio.run(_dispatch(args))
 
@@ -92,12 +94,12 @@ async def _dispatch(args) -> int:
             for line in reply["lines"]:
                 print(line)
             return 0
-        if args.cmd == "woof":
+        if args.cmd == "restart":
             reply = await client.request("restart", node=args.node)
             if not reply["ok"]:
                 print(reply["error"], file=sys.stderr)
                 return 1
-            print(f"woof! restarted {args.node} 🐕")
+            print(f"restarted {args.node}")
             return 0
         # daemon status|stop
         if args.action == "status":

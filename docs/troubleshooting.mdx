@@ -27,7 +27,7 @@ under `environment:`, and they need `network_mode: host`. See
 [ROS integration](../ros-integration).
 
 **I edited the manifest, restarted the node, and it still runs the old
-command.** `r` and `sheppy woof` rerun the command stored when the node was
+command.** `r` and `sheppy restart` rerun the command stored when the node was
 launched, and an open TUI doesn't reread the manifest. Quit and reopen the
 TUI, then press `space`, or run `sheppy up <profile>`.
 
@@ -64,7 +64,7 @@ the daemon.
 
 **`sheppyd: not running` from a command.** The daemon isn't up, and only
 `sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
-treat this as normal and exit 0; `logs` and `woof` exit 1.
+treat this as normal and exit 0; `logs` and `restart` exit 1.
 
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the

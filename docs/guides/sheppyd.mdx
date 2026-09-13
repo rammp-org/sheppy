@@ -130,7 +130,7 @@ signalled — not just the direct child.
 If a node exits on its own, `sheppyd` marks it **crashed**, records the exit
 code (or the terminating signal), and leaves it stopped. It does **not**
 restart it. Restarting is an operator decision (`r` in the TUI, or
-`sheppy woof <node>`). Automatic restart-on-crash is intentionally not
+`sheppy restart <node>`). Automatic restart-on-crash is intentionally not
 implemented.
 
 ## Logs

@@ -106,14 +106,16 @@ def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
     assert "camera: running" in captured.out
 
 
-def test_status_and_woof_and_logs(site, capsys):
+def test_status_and_restart_and_logs(site, capsys):
     cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
     capsys.readouterr()
     assert cli.main(["status"]) == 0
     first = capsys.readouterr().out
     assert "camera" in first and "running" in first
-    assert cli.main(["woof", "camera"]) == 0
-    capsys.readouterr()
+    assert cli.main(["restart", "camera"]) == 0
+    assert "restarted camera" in capsys.readouterr().out
+    assert cli.main(["woof", "camera"]) == 0     # old name still works (#21)
+    assert "restarted camera" in capsys.readouterr().out
     assert cli.main(["logs", "camera", "-n", "5"]) == 0
 
 
@@ -129,7 +131,7 @@ def test_down_stops_everything_and_daemon(site, capsys):
 def test_verbs_without_daemon_are_graceful(site, capsys):
     assert cli.main(["status"]) == 0
     assert "not running" in capsys.readouterr().out
-    assert cli.main(["woof", "camera"]) == 1
+    assert cli.main(["restart", "camera"]) == 1
 
 
 def test_unknown_profile_errors(site, capsys):

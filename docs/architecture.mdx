@@ -7,7 +7,7 @@ title: Architecture & roadmap
 ```mermaid
 flowchart LR
   TUI["sheppy — TUI"] -->|NDJSON over a unix socket| D
-  CLI["sheppy up / status / logs / woof"] -->|NDJSON over a unix socket| D
+  CLI["sheppy up / status / logs / restart"] -->|NDJSON over a unix socket| D
   D["sheppyd<br/>stdlib only · owns the children"]
   D --> C1["node process"]
   D --> C2["node process"]

@@ -10,7 +10,7 @@ SSH on a machine with no display.
 
 ```bash
 sheppy [MANIFEST]          # open the TUI (MANIFEST defaults to ./sheppy-manifest.yaml)
-sheppy <verb> [...]        # headless: up, status, logs, woof, down, daemon
+sheppy <verb> [...]        # headless: up, status, logs, restart, down, daemon
 sheppy --version           # or -V
 ```
 
@@ -64,11 +64,12 @@ last 300 lines in memory; the full per-run log files are under
 `~/.sheppy/logs/<node>/`. Exits 1 if the node is unknown or the daemon isn't
 running.
 
-### `sheppy woof <node>` 🐕
+### `sheppy restart <node>`
 
 Restart a node, including a crashed one, with the command it was launched
-with. `woof` doesn't pick up manifest edits; use `sheppy up` for that. Exits 1
-if the node is unknown or the daemon isn't running.
+with. `restart` doesn't pick up manifest edits; use `sheppy up` for that.
+Exits 1 if the node is unknown or the daemon isn't running. `sheppy woof`,
+its old name, still works.
 
 ### `sheppy down`
 
@@ -100,7 +101,7 @@ Find out why a node crashed, then try again:
 ```bash
 sheppy status                  # which node, and its exit code
 sheppy logs camera -n 200      # its last output
-sheppy woof camera
+sheppy restart camera
 ```
 
 Apply a manifest edit to a running system:
@@ -123,8 +124,8 @@ sheppy up mock
 |-----------|------|
 | Success | 0 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
-| Daemon not running — `logs`, `woof` | 1 |
-| Unknown node (`logs`, `woof`) | 1 |
+| Daemon not running — `logs`, `restart` | 1 |
+| Unknown node (`logs`, `restart`) | 1 |
 | `up`: manifest/profile failed to load, a node crashed, or settle timeout | 1 |
 
 ## `sheppyd`
