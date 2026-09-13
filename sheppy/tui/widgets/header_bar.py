@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from textual.containers import Horizontal
+from textual.css.query import NoMatches
 from textual.markup import escape
 from textual.widgets import Static
 
@@ -19,6 +20,13 @@ class HeaderBar(Horizontal):
     HeaderBar .hb-sep { color: $chip-border; margin: 0 1; }
     """
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # The latest state pushed by the app and not yet drawn. The app can
+        # push before this bar's children are mounted (#12); _tick draws it
+        # once they exist.
+        self._pending: "tuple | None" = None
+
     def compose(self):
         yield Static(c("green", "🐑 sheppy"), id="hb-brand")
         yield Static("│", classes="hb-sep")
@@ -35,21 +43,39 @@ class HeaderBar(Horizontal):
         self.set_interval(1.0, self._tick)
 
     def _tick(self) -> None:
-        self.query_one("#hb-clock", Static).update(
-            c("muted", f"◷ {datetime.now().strftime('%H:%M:%S')}"))
+        try:
+            clock = self.query_one("#hb-clock", Static)
+        except NoMatches:
+            return
+        clock.update(c("muted", f"◷ {datetime.now().strftime('%H:%M:%S')}"))
+        self._draw()
 
     def update_state(self, profile_name, dirty, path, node_count,
                      error_count, running: "int | None" = None) -> None:
+        self._pending = (profile_name, dirty, path, node_count, error_count,
+                         running)
+        self._draw()
+
+    def _draw(self) -> None:
+        if self._pending is None:
+            return
+        try:
+            profilebar = self.query_one("#profilebar", Static)
+            source_w = self.query_one("#hb-source", Static)
+            errors_w = self.query_one("#hb-errors", Static)
+        except NoMatches:
+            return
+        profile_name, dirty, path, node_count, error_count, running = self._pending
+        self._pending = None
         name = profile_name or "<none>"
         dirty_mark = c("yellow", "*") if dirty else ""
-        self.query_one("#profilebar", Static).update(
-            f"{c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
+        profilebar.update(f"{c('purple', '◆ profile')} {escape(name)}{dirty_mark}")
         source = c("muted", f"{path or '<no file>'} · {node_count} nodes")
         if running is not None:
             source += f" {c('muted', '·')} {c('green', f'● {running} running')}"
-        self.query_one("#hb-source", Static).update(source)
+        source_w.update(source)
         if error_count:
             errtext = c("red", f"✕ {error_count} error(s)")
         else:
             errtext = c("muted", "✓ no errors")
-        self.query_one("#hb-errors", Static).update(errtext)
+        errors_w.update(errtext)
