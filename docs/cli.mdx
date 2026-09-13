@@ -4,62 +4,118 @@ title: CLI reference
 
 # CLI reference
 
-The `sheppy` command has two faces. Given a manifest path (or nothing), it
-opens [the TUI](../tui); given a **verb**, it runs headless — the verbs never
-import Textual, so they work on a machine with no display.
+`sheppy` with a manifest path (or nothing) opens [the TUI](../tui). With a
+**verb**, it runs headless — the verbs never import Textual, so they work over
+SSH on a machine with no display.
 
 ```bash
-sheppy [MANIFEST]          # open the TUI (MANIFEST defaults to ./system.yaml)
-sheppy <verb> [...]        # headless: up, down, status, logs, woof, daemon
+sheppy [MANIFEST]          # open the TUI (MANIFEST defaults to ./sheppy-manifest.yaml)
+sheppy <verb> [...]        # headless: up, status, logs, woof, down, daemon
+sheppy --version           # or -V
 ```
-
-Everything below is verified against `sheppy/cli.py`.
 
 ## Verbs
 
 ### `sheppy up <profile> [--manifest PATH]`
 
-Resolve the profile against the manifest (`--manifest` defaults to
-`system.yaml`), print the plan (`start` / `stop` / `restart` per node),
-converge the running system to it, wait until every node settles (30 s
-timeout), and print the final state per node.
+Bring the system to a [profile](../profiles). `<profile>` is a name:
+`sheppy up mock` reads `profiles/mock.yaml` next to the manifest.
+`--manifest` defaults to `./sheppy-manifest.yaml`.
 
-- **Idempotent:** nodes already running the right command are left untouched;
-  missing ones are started; ones running a different command are replaced.
-  Running it twice in a row prints `already converged` the second time.
-- **Orphans are untouched:** processes the daemon supervises that aren't in
-  the manifest are ignored by the diff.
-- **Auto-spawns the daemon** if it isn't running — the only verb that does.
-- **Exit code:** non-zero if the manifest or profile fails to load, if any
-  node ends up `crashed`, or on settle timeout. Manifest/profile issues that
-  are recoverable print as `warning:` on stderr and don't block the launch.
+It prints a plan (`start`, `restart`, or `stop` per node), then:
+
+- starts selected nodes that aren't running, and restarts ones running a
+  different alternative, command, or params;
+- stops nodes in the manifest that the profile doesn't select;
+- leaves nodes from other manifests alone.
+
+All the starts go out at once, with no ordering between nodes. It then waits
+up to 30 seconds for every node to settle and prints each node's final state.
+Running it twice in a row prints `already converged` the second time.
+
+`up` is the only verb that starts `sheppyd` when it isn't running, and the
+daemon keeps this terminal's environment — see
+[ROS integration](../ros-integration#where-your-nodes-get-their-environment).
+
+**Exit code:** 1 if the manifest or profile can't be loaded, if any node is
+`crashed` once things settle, or if they don't settle within 30 seconds.
+Recoverable problems, such as a profile selection the manifest no longer has,
+print as `warning:` on stderr and don't stop the launch.
 
 ### `sheppy status`
 
-One line per supervised node: state, alternative id, pid, and uptime (or exit
-code for a crashed node). Prints `(nothing supervised)` when the table is empty and
-`sheppyd: not running` when there's no daemon — both exit 0.
+One line per node `sheppyd` supervises: name, state, alternative, pid, and
+uptime or exit code.
+
+```
+$ sheppy status
+clock                running    ticker         pid=3948253 up 22s
+worker               crashed    flaky          pid=3948421 exit=1
+```
+
+It exits 0 even when a node has crashed, so read the output rather than the
+exit code. It prints `(nothing supervised)` for an empty table and
+`sheppyd: not running` when there's no daemon.
 
 ### `sheppy logs <node> [-n N]`
 
-Print the last `N` (default 50) log lines for a node. Exits 1 with an error
-on stderr if the node is unknown (or the daemon isn't running).
+Print the last `N` (default 50) lines of a node's output. `sheppyd` keeps the
+last 300 lines in memory; the full per-run log files are under
+`~/.sheppy/logs/<node>/`. Exits 1 if the node is unknown or the daemon isn't
+running.
 
 ### `sheppy woof <node>` 🐕
 
-Restart a node. Exits 1 if the node is unknown or the daemon isn't running.
+Restart a node, including a crashed one, with the command it was launched
+with. `woof` doesn't pick up manifest edits; use `sheppy up` for that. Exits 1
+if the node is unknown or the daemon isn't running.
 
 ### `sheppy down`
 
-Stop every supervised node (printing `stopped <node>` for each), then stop
-the daemon itself. Exits 0 even if the daemon wasn't running.
+Stop every node `sheppyd` supervises, from any manifest, printing
+`stopped <node>` for each, then stop the daemon itself. Exits 0 even if the
+daemon wasn't running.
+
+There's no headless verb to stop or start a single node. Use `x` and `space`
+in the TUI, or `sheppy up` a profile that doesn't select that node.
 
 ### `sheppy daemon status` / `sheppy daemon stop`
 
-Report whether `sheppyd` is running and how many nodes it supervises, or stop
-the daemon **while leaving the children running** — a restarted daemon
-[re-adopts them](../guides/sheppyd#survivability-and-re-adoption). This is the
+`status` reports whether `sheppyd` is running and how many nodes it
+supervises. `stop` stops the daemon **and leaves the nodes running**; the next
+launch starts a new daemon, which
+[re-adopts them](../guides/sheppyd#survivability-and-re-adoption). That is the
 difference from `sheppy down`, which stops the nodes too.
+
+## Recipes
+
+Bring up a profile and look at it:
+
+```bash
+sheppy up mock; sheppy status
+```
+
+Find out why a node crashed, then try again:
+
+```bash
+sheppy status                  # which node, and its exit code
+sheppy logs camera -n 200      # its last output
+sheppy woof camera
+```
+
+Apply a manifest edit to a running system:
+
+```bash
+sheppy up mock                 # restarts only the nodes whose command changed
+```
+
+Start over with a different shell environment:
+
+```bash
+sheppy down
+source /home/me/ws/install/setup.bash
+sheppy up mock
+```
 
 ## Exit codes at a glance
 

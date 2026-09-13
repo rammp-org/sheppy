@@ -2,12 +2,13 @@
 title: Manifest reference
 ---
 
+import { Callout } from 'nextra/components'
+
 # Manifest reference
 
-Field-by-field lookup for `sheppy-manifest.yaml`. If you want to learn
-manifest authoring by example, start with [The manifest](../manifest) instead
-— this page is the companion you come back to once you know what you're
-looking for.
+Field-by-field lookup for `sheppy-manifest.yaml`. To learn the manifest by
+example, start with [Manifest](../manifest); come back here to look up a
+field.
 
 ## Top level
 
@@ -30,8 +31,14 @@ machines:
 |---|---|---|---|
 | `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty or missing. |
 | `host` | **yes** | string | Stored on the machine record. The loader errors if empty or missing. |
-| `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing — this one surprises people, see [below](#things-that-surprise-people). |
-| `ros_setup` | no | string | A path `source`d before the command of any alternative whose `machine:` names this machine. |
+| `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing; see [below](#things-that-surprise-people). |
+| `ros_setup` | no | string | Absolute path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is not expanded. See [ROS integration](../ros-integration#sourcing-per-alternative-with-ros_setup). |
+
+<Callout type="warning">
+**Multi-machine launch isn't ready yet.** Every node runs on the machine where
+you run sheppy, whatever its `machine:` says. Launching on other hosts is
+planned; see the [roadmap](../architecture#roadmap).
+</Callout>
 
 ## Nodes
 
@@ -72,7 +79,8 @@ per kind below.
 Every kind, builtin or plugin, registers through the same `sheppy.launchers`
 entry-point group in `pyproject.toml`. `executable`, `launch_file`, and
 `process` ship in sheppy's core; **`docker` ships as a separate plugin
-module** (`sheppy.launch.docker`) using that same mechanism. A third party
+module** (`sheppy.launch.docker`) using that same mechanism; it is installed
+with sheppy. A third party
 adds a new kind exactly the same way — see
 [Writing a launcher plugin](../guides/launcher-plugins).
 
@@ -101,12 +109,14 @@ Runs `ros2 launch <package> <launch_file>`.
 |---|---|---|
 | `package` | **yes** | ROS package name. |
 | `launch_file` | **yes** | Launch file name within the package. |
-| `params` | no | Appended as `key:=value` for each entry, ROS launch-argument style. |
+| `params` | no | Appended as `key:=value` for each entry. These are launch arguments, so the launch file must declare them. |
 
 ### `process` (core)
 
-Runs `command` as-is, with no ROS wrapping — for anything that isn't a ROS
-process, like a simulator GUI.
+Runs `command` as-is under `bash -c`, after sourcing the machine's
+`ros_setup` if the alternative sets `machine:`. Use it for anything that isn't
+a ROS package executable or launch file, like a simulator GUI or
+`ros2 bag record`.
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -115,9 +125,11 @@ process, like a simulator GUI.
 
 ### `docker` (plugin)
 
-Runs a container, supervised like any other process. Provided by the
-`sheppy.launch.docker` plugin, registered under the `docker` kind. Requires
-exactly one of:
+Runs a container named `sheppy-<node>`, supervised like any other process.
+Provided by the `sheppy.launch.docker` plugin, registered under the `docker`
+kind. The container does not inherit `sheppyd`'s environment, so set
+`ROS_DOMAIN_ID` and anything else it needs under `environment` (see
+[ROS integration](../ros-integration#containers)). Requires exactly one of:
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -164,6 +176,11 @@ and `nofile: {soft: 1024, hard: 4096}` becomes `--ulimit nofile=1024:4096`.
 `container` the error fails manifest validation; for a `compose` reference it
 surfaces as a warning when the node launches.
 
+**Relative host paths** in `volumes` and `env_file` are passed to `docker run`
+unchanged, so they resolve against `sheppyd`'s working directory, not the
+manifest's. Use absolute paths. The `compose` `file` path is the exception: it
+is resolved relative to the manifest.
+
 
 ## Things that surprise people
 
@@ -177,9 +194,8 @@ surfaces as a warning when the node launches.
   successful `ulimits` declaration does not mean you have real-time.
 - **`machines[].user` is required, not optional.** The loader errors if it's
   missing or empty, same as `name` and `host`.
-- **`select:` accepts exactly one value: `single`.** It reads like a choice
-  of selection strategies; it isn't one. Anything else is a validation
-  error.
+- **`select:` accepts exactly one value: `single`.** Anything else is a
+  validation error.
 - **`params` on a `process` alternative are ignored**, with a warning at
   load time — `process` runs `command` verbatim and has nowhere to splice
   parameters in.
@@ -189,5 +205,8 @@ surfaces as a warning when the node launches.
 - **`machine:` does not launch remotely.** It selects that machine's
   `ros_setup` to source before the command and is shown in the TUI's host
   column and detail panel — but `sheppyd` itself always runs locally, and
-  the `docker` launcher doesn't even read `alt.machine`, so container
+  the `docker` launcher doesn't read `alt.machine`, so container
   alternatives get no `ros_setup` sourcing at all.
+- **Nodes get `sheppyd`'s environment, not your current shell's.** `sheppyd`
+  took it from the terminal that first launched something. See
+  [ROS integration](../ros-integration#where-your-nodes-get-their-environment).

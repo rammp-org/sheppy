@@ -1,18 +1,20 @@
 ---
-title: The manifest
+title: Manifest
 ---
 
-# The manifest
+import { Callout } from 'nextra/components'
 
-The **manifest is the source of truth**: a curated, version-controlled
-`sheppy-manifest.yaml` describing your machines, nodes, and their
-alternatives. Both the TUI and the CLI read it; [`sheppyd`](../guides/sheppyd)
+# Manifest
+
+The manifest, `sheppy-manifest.yaml`, describes your machines, nodes, and
+their alternatives. Keep it in version control. Both the TUI and the CLI read it; [`sheppyd`](../guides/sheppyd)
 never does.
 
 This page teaches manifest authoring by walking
 [`examples/sheppy-manifest.yaml`](https://github.com/rammp-org/sheppy/tree/main/examples/sheppy-manifest.yaml)
-top to bottom — a complete, runnable file covering every field and all four
-launcher kinds. Open it yourself:
+top to bottom. It uses all four launch kinds and opens in the TUI on any
+machine, but its nodes only launch where the ROS packages, container image,
+and simulator it names are installed. Open it yourself:
 
 ```
 sheppy examples/sheppy-manifest.yaml
@@ -36,32 +38,34 @@ flowchart TB
 
 ## Machines
 
-Optional — omit the block entirely to run everything locally.
-
 ```yaml
 machines:
   - name: robot
     host: 10.0.0.20
     user: researcher
-    # Sourced before every command that runs on this machine.
+    # Sourced before the command of any alternative that sets machine: robot.
     ros_setup: /opt/ros/humble/setup.bash
   - name: workstation
     host: 10.0.0.5
     user: researcher
 ```
 
-`name`, `host`, and `user` are all required. A machine only does one thing
-today: an alternative that sets `machine: <name>` has that machine's
-`ros_setup` sourced before its command runs. It is *not* remote launching —
-`sheppyd` runs locally, and launching on another host is not yet
-implemented. The TUI does show `machine:` on each alternative, but only as
-a label.
+<Callout type="warning">
+**Multi-machine launch isn't ready yet.** Every node runs on the machine where
+you run sheppy, whatever its `machine:` says. Launching on other hosts is
+planned; see the [roadmap](../architecture#roadmap).
+</Callout>
+
+The block is optional. `name`, `host`, and `user` are all required, but today
+only `ros_setup` has an effect: an alternative that sets `machine: <name>` gets
+that machine's `ros_setup` sourced before its command runs. The TUI also shows
+`machine:` on each alternative as a label.
 
 ## Nodes and alternatives
 
 A node is one job in your system; its `alternatives` are interchangeable
 ways to do that job. Here the `camera` node has two — a real RealSense
-driver and a mock — showing two of the four launcher kinds:
+driver and a mock:
 
 ```yaml
 nodes:
@@ -91,23 +95,37 @@ nodes:
         publishes: [/camera/color/image_raw]
 ```
 
-`kind: launch_file` runs `ros2 launch <package> <launch_file>`;
-`kind: executable` runs `ros2 run <package> <executable>`. Both take
-`params`, passed differently per kind as the comments above show, plus
-`publishes`/`subscribes` — see below for what those actually do.
+Each alternative's `kind` says how sheppy launches it. Both of these also
+declare `publishes` — see [below](#publishessubscribes-are-documentation-not-verification)
+for what that does.
 
-## publishes/subscribes are documentation, not verification
+## Launch kinds
 
-The manifest's declared `publishes`/`subscribes` describe the *expected*
-contract; sheppy does not yet compare it against the live ROS graph to
-flag starved subscriptions. That comparison is on the
-[roadmap](../architecture#project-phases).
+Sheppy ships four kinds, and a [launcher plugin](../guides/launcher-plugins)
+can add more. The [manifest reference](../manifest-reference#kinds) lists
+every field each one takes.
 
-## The other two kinds
+### `launch_file`
 
-`kind: docker` is provided by the docker launcher plugin, not the core —
-give it exactly one of an inline `container:` or a `compose:` reference to
-an existing compose file:
+Runs `ros2 launch <package> <launch_file>`, like `realsense` above. Its
+`params` become launch arguments (`name:=value`), so the launch file must
+declare them.
+
+### `executable`
+
+Runs `ros2 run <package> <executable>`, like `mock_camera` above. Its
+`params` become node parameters (`--ros-args -p name:=value`).
+
+Before pointing either of these at a real workspace, read
+[ROS integration](../ros-integration): nodes get their ROS environment from
+the terminal that starts `sheppyd`, not from the manifest.
+
+### `docker`
+
+Runs a container named `sheppy-<node>`. It comes from the docker launcher
+plugin, which is installed with sheppy. Give it exactly one of an inline
+`container:` or a `compose:` reference to a service in an existing compose
+file:
 
 ```yaml
   - name: perception
@@ -128,9 +146,15 @@ an existing compose file:
           command: ["--model", "yolo"]
 ```
 
-`kind: process` runs the given command as-is — useful for anything that
-isn't a ROS process, like a simulator GUI. `params` are ignored for this
-kind, and sheppy warns if you set them:
+The container doesn't inherit `sheppyd`'s environment, so set `ROS_DOMAIN_ID`
+and anything else it needs under `environment:` (see
+[ROS integration](../ros-integration#containers)).
+
+### `process`
+
+Runs `command` as-is under `bash -c` — for anything that isn't a ROS package
+executable or launch file, like a simulator GUI or `ros2 bag record`.
+`params` are ignored for this kind, and sheppy warns if you set them:
 
 ```yaml
   - name: sim_gui
@@ -144,8 +168,12 @@ kind, and sheppy warns if you set them:
         machine: workstation
 ```
 
-A launcher plugin can add further kinds; see
-[Launcher plugins](../guides/launcher-plugins).
+## publishes/subscribes are documentation, not verification
+
+The manifest's declared `publishes`/`subscribes` describe the *expected*
+contract; sheppy does not yet compare it against the live ROS graph to
+flag starved subscriptions. That comparison is on the
+[roadmap](../architecture#roadmap).
 
 ## Full field reference
 

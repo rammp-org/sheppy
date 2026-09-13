@@ -14,22 +14,6 @@ import { Cards } from 'nextra/components'
     padding: '3.5rem 1rem 2.5rem'
   }}
 >
-  <div style={{ color: '#3b82f6' }}>
-    <svg
-      width={64}
-      height={64}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.4"
-      strokeLinecap="round"
-      aria-hidden="true"
-    >
-      <path d="M15.5 21.5V8.5C15.5 5.5 13.8 3.5 11.5 3.5C9.2 3.5 7.5 5.5 7.5 8.5V10" />
-      <circle cx="7" cy="17" r="1.5" fill="currentColor" stroke="none" />
-      <circle cx="11" cy="20" r="1.5" fill="currentColor" stroke="none" />
-    </svg>
-  </div>
   <h1 style={{ fontSize: '3rem', fontWeight: 800, letterSpacing: '-.03em', margin: 0 }}>
     Sheppy
   </h1>
@@ -66,12 +50,39 @@ import { Cards } from 'nextra/components'
   </div>
 </div>
 
-## Why Sheppy?
+![The sheppy TUI with two demo nodes running and the PROCESS tab showing one node's live output](./images/tui-running.png)
+
+## Why sheppy?
+
+1. **Swap alternatives quickly.** Each part of your system lists the
+   interchangeable ways to run it: a mock or the real driver, one planner or
+   another, different camera configs. Pick one in the TUI and press `space`;
+   sheppy stops what that part was running and starts your choice.
+2. **Profiles instead of long launch files.** Launch files that switch
+   between configurations grow long and full of conditionals. In sheppy you
+   pick the configuration you want, save it as a profile (a short YAML file),
+   and `sheppy up <profile>` starts that configuration again.
+3. **A terminal UI with a persistent daemon.** Bring nodes up and down from a
+   TUI that runs in any terminal, including over SSH. A background daemon keeps
+   the nodes running after you close it, so you don't need a tmux session full
+   of long `ros2 launch` commands.
+4. **Node status and parameters in one place.** The TUI shows each node's
+   state, CPU and memory, and latest output, flags where what's running
+   differs from what you selected, and lets you change a node's parameters and
+   relaunch it. A crashed node is marked with its exit code and left stopped,
+   and each run's output is kept in its own log file.
+5. **Containers and non-ROS programs too.** Alternatives can be ROS
+   executables and launch files, Docker containers (defined inline or taken
+   from a compose file you already have), or any command, like a simulator
+   GUI, all supervised the same way.
+6. **A CLI for scripts and SSH.** `sheppy up`, `status`, `logs`, `woof`, and
+   `down` work without the TUI. `sheppy up` restarts only the nodes whose
+   command or parameters changed.
 
 ```mermaid
 flowchart TB
-  M["sheppy-manifest.yaml<br/>what CAN run"] --> S
-  P["profiles/*.yaml<br/>what SHOULD run"] --> S
+  M["sheppy-manifest.yaml<br/>what can run"] --> S
+  P["profiles/*.yaml<br/>what should run"] --> S
   S["sheppy<br/>select · launch · supervise · observe"]
   S --> L1["ros2 launch"]
   S --> L2["ros2 run"]
@@ -83,29 +94,29 @@ flowchart TB
   L4 --> N
 ```
 
-Sheppy does not replace `ros2 launch` — it calls it. An alternative of kind
+Sheppy calls `ros2 launch` rather than replacing it. An alternative of kind
 `launch_file` shells out to `ros2 launch`; `executable` shells out to
 `ros2 run`. Sheppy is the layer above: it catalogs which launch files are
 interchangeable, remembers which set you picked, and supervises the
-processes so they outlive your terminal.
+processes so they keep running after you close the terminal.
 
 ```bash
 curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
 
-Four words carry the rest — see [Concepts](./concepts) for the full picture:
+Four terms come up throughout these docs; [Concepts](./concepts) explains them:
 
 - **[Node](./concepts#a-node-is-not-a-ros-node)** — a logical unit of your system, not a ROS node.
 - **[Alternative](./concepts#alternatives)** — one of the interchangeable ways to run a node (mock vs. real).
 - **[Profile](./concepts#profiles)** — a saved selection of alternatives for the whole system.
-- **[Daemon](./concepts#desired-vs-actual)** — `sheppyd`, which actually launches and supervises processes.
+- **[Daemon](./concepts#what-happens-when-you-press-space)** — `sheppyd`, which launches and supervises processes.
 
 ## Where to go next
 
 <Cards>
   <Cards.Card title="Getting started" href="./getting-started" arrow />
-  <Cards.Card title="The TUI" href="./tui" arrow />
-  <Cards.Card title="The manifest" href="./manifest" arrow />
+  <Cards.Card title="TUI" href="./tui" arrow />
+  <Cards.Card title="Manifest" href="./manifest" arrow />
   <Cards.Card title="CLI reference" href="./cli" arrow />
   <Cards.Card title="sheppyd — the launch supervisor" href="./guides/sheppyd" arrow />
   <Cards.Card title="Writing a launcher plugin" href="./guides/launcher-plugins" arrow />
@@ -113,10 +124,13 @@ Four words carry the rest — see [Concepts](./concepts) for the full picture:
 
 ## What works today
 
-Load a manifest, browse nodes and their alternatives, and select one
-alternative (mock vs. real) per node (Phase 1). Save and load those choices —
-plus per-alternative parameter overrides — as named **profiles** (Phase 2a).
-Phase 2b adds `sheppyd`: select, press `space`, and the process is really
-running — locally, surviving TUI detach. Multi-machine launch (Phase 3) and
-live graph introspection (Phase 4) are planned; see the
-[roadmap](./architecture#project-phases).
+Load a manifest, pick one alternative (mock vs. real) per node, save those
+picks with their parameter overrides as **profiles**, and launch and supervise
+the nodes with `sheppyd`. They keep running after the TUI closes.
+
+Not yet: launching on a second machine, restarting crashed nodes
+automatically, starting nodes in dependency order, or checking declared topics
+against the live ROS graph. See the [roadmap](./architecture#roadmap).
+
+Sheppy is built around ROS 2, but `process` and `docker` alternatives don't
+need ROS.

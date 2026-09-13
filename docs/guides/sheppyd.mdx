@@ -9,20 +9,25 @@ processes: it spawns them, watches them, stops and restarts them, and reports
 their live state back to the TUI and the CLI. Everything in Sheppy that
 *runs* something runs it through `sheppyd`.
 
-The daemon exists so that **the system outlives the operator's terminal**. You
-can launch your nodes, quit the TUI (or lose your SSH connection), come back
-later, and everything is still running — and still controllable. Even if
-`sheppyd` itself is killed, the child processes keep running and a freshly
-started daemon re-adopts them.
+The daemon lets your nodes keep running after the TUI exits. You can launch
+them, quit the TUI (or lose your SSH connection), and come back later to find
+them still running and still under sheppy's control. If `sheppyd` itself is
+killed, the nodes keep running, and the next daemon to start re-adopts them.
 
-> **Scope.** As of Phase 2b, `sheppyd` is *local only* — it supervises
-> processes on the machine it runs on and ignores the `machine:` field on
-> alternatives. Multi-machine supervision over SSH is a later phase.
+> **Scope.** `sheppyd` runs every node on the machine it runs on. An
+> alternative's `machine:` only chooses which `ros_setup` gets sourced; nothing
+> starts on another host. Multi-machine supervision is on the
+> [roadmap](../../architecture#roadmap).
+>
+> This guide covers the daemon itself. For commands see the
+> [CLI reference](../../cli), for what the screen shows see
+> [TUI](../../tui), and for problems see
+> [Troubleshooting](../../troubleshooting).
 
-## Mental model: dumb daemon, smart client
+## Design: the clients do the work
 
-The single most important design decision is that **`sheppyd` never sees a
-manifest, a profile, or any YAML.** All of that lives client-side.
+**`sheppyd` never reads a manifest, a profile, or any YAML.** The TUI and CLI
+handle all of that.
 
 ```
  sheppy TUI ──┐                             ┌─────────────────────────────┐
@@ -34,18 +39,19 @@ manifest, a profile, or any YAML.** All of that lives client-side.
 ```
 
 - **Clients** (the TUI and the `sheppy` CLI) read the manifest and the active
-  profile, and *resolve* each selected node into a final `LaunchSpec`: the
-  exact `argv` to run, plus the node name and its parameters (for display).
+  profile, and *resolve* each selected node into a final `LaunchSpec`: a
+  *descriptor* — plain data giving the exact argv to start and how to supervise
+  it — plus the node name and its parameters (for display).
 - **`sheppyd`** is a durable process table. It receives a `LaunchSpec`, runs
-  exactly that `argv`, watches the child, and reports state. It has no opinion
-  about what the process *is*.
+  exactly what the descriptor says, watches the result, and reports state. It
+  has no opinion about what the process *is*.
 
 Consequences worth knowing:
 
 - The daemon imports **only the Python standard library** — not even a YAML
   parser. It is small enough to read end to end.
 - Manifest schema changes never touch the daemon.
-- How a node's `kind` (`executable` / `launch_file` / `process`) becomes a
+- How a node's `kind` (`executable` / `launch_file` / `process` / `docker`) becomes a
   command is entirely a client-side concern (see [Launch
   resolution](#launch-resolution)).
 
@@ -76,8 +82,8 @@ detected and replaced.
 
 Stopping the daemon (`sheppy daemon stop`, or `SIGTERM`/`SIGINT` to the
 process) does **not** stop the nodes. The daemon exits; the children keep
-running. This is deliberate — a supervisor restart must never take the robot
-down. To actually stop everything, use `sheppy down`, which stops every node
+running. This is deliberate: restarting the supervisor must never take the
+robot down. To stop everything, use `sheppy down`, which stops every node
 first and *then* stops the daemon.
 
 ### Survivability and re-adoption
@@ -99,21 +105,13 @@ therefore report `exit_code: null` when they terminate.
 timers at all** — it wakes only for socket traffic and child-exit events. The
 per-node CPU/RSS sampler runs only while at least one client is subscribed,
 and stops the moment the last subscriber disconnects. This matters on
-resource-starved machines: an idle daemon costs approximately nothing.
+resource-starved machines: an idle daemon uses almost no CPU.
 
 ## Node states
 
-Every supervised node is in exactly one state. The TUI renders each with a
-glyph:
-
-| State | Glyph | Meaning |
-|-------|:-----:|---------|
-| stopped | `○` | not running (never started, or cleanly stopped) |
-| launching | `◐` | spawned, inside the launch-grace window |
-| running | `●` | alive past the launch grace |
-| stopping | `◑` | stop requested, signal escalation in progress |
-| crashed | `✕` | exited without a stop request (exit code shown) |
-| — | `?` | daemon offline: state is unknown, not "stopped" |
+Every supervised node is in exactly one state: stopped, launching, running,
+stopping, or crashed. The TUI's [glyph legend](../../tui#node-states) shows
+how each one looks.
 
 A node is **launching** until it survives `launch_grace` seconds; a process
 that exits inside that window (for example, a bad package name) is reported as
@@ -132,8 +130,8 @@ signalled — not just the direct child.
 If a node exits on its own, `sheppyd` marks it **crashed**, records the exit
 code (or the terminating signal), and leaves it stopped. It does **not**
 restart it. Restarting is an operator decision (`r` in the TUI, or
-`sheppy woof <node>`). Automatic restart-on-crash is intentionally out of
-scope for this phase.
+`sheppy woof <node>`). Automatic restart-on-crash is intentionally not
+implemented.
 
 ## Logs
 
@@ -150,7 +148,7 @@ Each launch gets its own file; the last `keep_runs` (default 5) files per node
 are kept and older ones are pruned. The daemon also keeps an in-memory
 **ring buffer** of the last `ring_lines` (default 300) lines per node as a
 tail view over the current file — this is what `sheppy logs` and the TUI's
-PROCESS tab display, including a crashed node's dying words.
+PROCESS tab display, including a crashed node's last output.
 
 The daemon's own log lives at `~/.sheppy/logs/sheppyd.log`.
 
@@ -194,88 +192,34 @@ when that is available and `SHEPPY_HOME` is unset; otherwise it sits directly
 under the home directory. The socket is created mode `0600` and its directory
 `0700`.
 
-## CLI reference
-
-The `sheppy` command opens the TUI when given a manifest path; the verbs below
-are headless and never load the TUI (so they work on a machine with no display
-or Textual installed). The standalone [CLI reference](../../cli) covers exit codes
-and flags in more detail.
-
-| Command | What it does |
-|---------|--------------|
-| `sheppy up <profile> [--manifest PATH]` | resolve the profile, print the plan, converge the running system to it, wait until it settles, print final states. Exits non-zero if any node crashed. `--manifest` defaults to `sheppy-manifest.yaml`. |
-| `sheppy status` | one line per supervised node (state, alternative, pid, uptime/exit code) |
-| `sheppy logs <node> [-n N]` | print the last `N` (default 50) log lines for a node |
-| `sheppy woof <node>` | restart a node 🐕 |
-| `sheppy down` | stop every node, then stop the daemon |
-| `sheppy daemon status` | report whether the daemon is running and how many nodes it supervises |
-| `sheppy daemon stop` | stop the daemon (children keep running) |
-| `sheppy --version` (`-V`) | print the installed version and exit |
-
-`sheppy up` converges idempotently: nodes already running with the right
-command are left untouched, missing ones are started, and ones running a
-different command are replaced. Running it twice in a row is a no-op the second
-time (`already converged`).
-
-## TUI controls
-
-In the cockpit, node rows show live state (the glyphs above), a `Δ` drift
-marker when what's running differs from what's selected, and per-node CPU/RSS.
-
-| Key | Action |
-|-----|--------|
-| `space` | converge the highlighted node to its selected alternative (start, or restart if it drifted; stop it if nothing is selected) |
-| `x` | stop the highlighted node |
-| `r` | restart the highlighted node |
-| `L` | converge the whole profile — shows a plan (start/stop/restart) and asks to confirm |
-| `X` | stop everything running (with confirmation) |
-| `!` | snapshot: copy what's actually running into the current selection, then save it as a profile |
-
-The **PROCESS** detail tab shows the highlighted node's live state, pid,
-uptime, exit code, resource usage, and log tail.
-
-### Desired vs actual
-
-Sheppy separates two things:
-
-- **Desired** — the alternative you've selected for each node, and any
-  parameter overrides. This is what a profile stores. Editing it never touches
-  a running process.
-- **Actual** — what `sheppyd` reports is really running.
-
-`space`/`L` push desired onto actual (converge); `!` pulls actual back into
-desired (snapshot). The `Δ` marker is simply "these two disagree for this
-node."
-
-### Orphans
-
-If you open a manifest while `sheppyd` is running processes whose node names
-aren't in that manifest, those show up under a `─ not in this manifest ─`
-divider. They're real running processes the daemon owns, so you can stop them
-(`x`) and read their logs — but `space`/`r`/edit-params don't apply, and
-whole-profile converge (`L`) leaves them alone. Only `X` / `sheppy down` stop
-them.
-
 ## Launch resolution
 
 Clients turn a manifest alternative into a `LaunchSpec` before handing it to
-the daemon. The resolved command depends on the alternative's `kind`:
+the daemon. Each `kind` is a launcher discovered through the
+`sheppy.launchers` entry-point group, not a hardcoded list, so plugins can add
+more (see [Writing a launcher plugin](../launcher-plugins)). The kinds sheppy
+ships with:
 
-| `kind` | Resolved command |
-|--------|------------------|
-| `executable` | `ros2 run <package> <executable> --ros-args -p k:=v …` |
-| `launch_file` | `ros2 launch <package> <launch_file> k:=v …` |
-| `process` | the `command` string, run verbatim |
+| `kind` | Source | Resolved command |
+|--------|--------|------------------|
+| `executable` | core | `ros2 run <package> <executable> --ros-args -p k:=v …` |
+| `launch_file` | core | `ros2 launch <package> <launch_file> k:=v …` |
+| `process` | core | the `command` string, run verbatim |
+| `docker` | plugin | `docker run -d …` from an inline `container:` or a translated `compose:` service, then supervised through `docker wait` / `docker stop` / `docker logs` |
 
-If the alternative's machine declares a `ros_setup`, the command is prefixed
-with `source <ros_setup> &&`. The whole thing is run as
-`bash -c "<command>"`. Every value drawn from the manifest — package names,
-parameter values, everything — is shell-quoted when the command is composed,
-so a stray quote or shell metacharacter in a parameter value can't break out
-of the command.
+For the three core kinds, if the alternative's machine declares a
+`ros_setup`, the command is prefixed with `source <ros_setup> &&`, and the
+whole thing is run as `bash -c "<command>"`. Every value drawn from the
+manifest — package names, parameter values, everything — is shell-quoted when
+the command is composed, so a stray quote or shell metacharacter in a
+parameter value can't break out of the command.
 
-Parameters on a `process`-kind alternative are ignored (with a warning) in
-this phase — there's no ROS argument convention to map them onto.
+The daemon runs that command with its own environment and working directory,
+both inherited from the terminal that started it. See
+[ROS integration](../../ros-integration#where-your-nodes-get-their-environment).
+
+Parameters on a `process`-kind alternative are ignored (with a warning) —
+there's no ROS argument convention to map them onto.
 
 ## Protocol
 
@@ -290,14 +234,16 @@ Clients talk to `sheppyd` over the unix socket using newline-delimited JSON
 Requests carry an `id`; the matching reply echoes it and carries `ok`:
 
 ```json
-→ {"id": 3, "op": "launch", "spec": {"node": "camera", "alt_id": "realsense",
-                                     "argv": ["bash", "-c", "…"], "params": {}}}
+→ {"id": 3, "op": "launch", "spec": {"node": "sim_gui", "alt_id": "unreal", "params": {}, "descriptor": {"supervise": "inherit", "start": ["bash", "-c", "/opt/sim/UnrealEditor MyProject -game"]}}}
 ← {"id": 3, "ok": true}
 ```
 
+A `spec` without a `descriptor` is rejected. The request above is the
+`sim_gui` node from `examples/sheppy-manifest.yaml`, resolved by the client.
+
 | `op` | Effect |
 |------|--------|
-| `launch` | spawn `spec.argv`; replaces any different process already running for that node (one process per node) |
+| `launch` | start `spec.descriptor`; replaces any process already running for that node (one process per node) |
 | `stop` | begin the stop escalation for a node |
 | `restart` | stop, then relaunch the same spec |
 | `status` | return the full table: per node `{state, pid, exit_code, started_at, usage, spec}` |
@@ -308,33 +254,10 @@ Requests carry an `id`; the matching reply echoes it and carries `ok`:
 A malformed line, an unknown op, an unknown node, or a handler error produces
 an error reply — it never takes the daemon down.
 
-## Troubleshooting
+## Limitations
 
-**"sheppyd: not running" from a verb.** The daemon isn't up and that verb
-doesn't auto-spawn it. `status`, `down`, and `daemon` treat this as normal
-(exit 0); `logs` and `woof` treat it as an error (exit 1). Run `sheppy up` or
-launch something in the TUI to start it.
-
-**A node goes straight to `✕ crashed` on launch.** It exited inside the launch
-grace — usually a bad package/executable name or a missing dependency.
-`sheppy logs <node>` shows the dying output.
-
-**A node won't stop.** It's ignoring `SIGINT`/`SIGTERM`. `sheppyd` escalates to
-`SIGKILL` after `stop_grace + kill_grace` seconds; increase or decrease those
-in the config if the default timing doesn't suit your nodes.
-
-**The daemon died but my nodes are still running.** That's by design — start
-the daemon again (any launch action does) and it will re-adopt them. Their
-in-memory log tails restart empty, but the on-disk log files are intact.
-
-**Everything is `?` in the TUI.** The daemon is offline. This is visually
-distinct from `○` (stopped) on purpose: `?` means "state unknown," not
-"nothing running."
-
-## Limitations (this phase)
-
-- **Local only.** The `machine:` field on alternatives is ignored; every
-  launch runs on the local machine.
+- **Local only.** Every launch runs on this machine. `machine:` only chooses
+  which `ros_setup` gets sourced.
 - **No auto-restart.** Crashed nodes stay crashed until you restart them.
 - **No adoption of foreign processes.** `sheppyd` only supervises what it (or
   a previous `sheppyd`) started. A node started by hand in another terminal is

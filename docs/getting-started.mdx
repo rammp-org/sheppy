@@ -24,22 +24,11 @@ Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy`
 does the same thing.
 </Callout>
 
-## From source (development)
-
-Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/):
-
-```bash
-git clone git@github.com:rammp-org/sheppy.git
-cd sheppy
-uv sync                               # creates .venv and installs everything from uv.lock
-uv run sheppy examples/sheppy-manifest.yaml    # run from the checkout
-```
-
 ## Run the demo — no ROS required
 
 The repo ships `examples/local-demo.yaml`, a manifest that launches plain
-Python processes instead of ROS nodes. It's the fastest way to see sheppy
-actually run something, on any machine, with nothing else installed:
+Python processes instead of ROS nodes, so you can watch sheppy run something
+on any machine without ROS installed:
 
 ```bash
 git clone https://github.com/rammp-org/sheppy.git
@@ -57,9 +46,11 @@ walk through everything below.
 <Steps>
 ### Select `clock` → `ticker`
 
-`Enter` opens `clock`'s alternatives, `Enter` again selects `ticker` (its
-only one), `Esc` returns focus to the node list. The row's ALTERNATIVE
-column now reads `ticker`.
+Both rows start with a `?`: `sheppyd` isn't running yet, so their state is
+unknown. `Enter` opens `clock`'s alternatives, `Enter` again selects `ticker`
+(its only one), `Esc` returns focus to the node list. The row's ALTERNATIVE
+column now reads `ticker`, and the header shows `profile <none>*` — an
+unsaved selection.
 
 ### Launch it — `space`
 
@@ -74,10 +65,20 @@ output" tail printing `clock`'s heartbeat, one new line per second.
 
 ### Crash it on purpose
 
-Move to `worker` (`↓`), select `flaky` (`Enter`, `↓`, `Enter`, `Esc`), then
-`space` to launch it. It runs for about three seconds, then its glyph turns
-`✕` (crashed) with a `Δ` — desired (`flaky`) no longer matches actual
-(nothing running); see [desired vs actual](../concepts#desired-vs-actual).
+Move to `worker` (`↓`) and select `flaky` (`Enter`, `↓`, `Enter`, `Esc`). The
+row shows `Δ` straight away: `flaky` is selected, but nothing is running for
+`worker`. Press `space` to launch it. It runs for about three seconds, then
+its glyph turns `✕` (crashed), and the `Δ` stays. The PROCESS tab says why:
+
+```
+state       ✕ crashed
+drift       Δ flaky selected, not running
+pid         3948421
+exit code   1
+```
+
+See [desired vs actual](../concepts#desired-vs-actual), and
+[the TUI](../tui#the-screen) for what the whole screen looks like now.
 
 ### Read its logs
 
@@ -85,12 +86,12 @@ From a second terminal:
 
 ```
 $ sheppy status
-clock                running    ticker         pid=4074426 up 15s
-worker               crashed    flaky          pid=4074572 exit=1
+clock                running    ticker         pid=3948253 up 22s
+worker               crashed    flaky          pid=3948421 exit=1
 ```
 
-`flaky` never prints anything before it dies, so `sheppy logs worker` comes
-back empty — the exit code, not a log line, is the signal:
+`flaky` exits without printing anything, so `sheppy logs worker` comes back
+empty; the exit code in `sheppy status` is what tells you it failed:
 
 ```
 $ sheppy logs worker
@@ -108,8 +109,8 @@ selections:
   worker: flaky
 ```
 
-Running the demo from a clone drops that `profiles/` directory into the
-checked-out `examples/` folder — expected, not a bug.
+Because the demo manifest is in `examples/`, that `profiles/` directory is
+created inside your clone.
 
 ### Tear down
 
@@ -124,13 +125,15 @@ sheppyd stopped
 </Steps>
 
 <Callout type="info">
-`sheppyd` is the tiny supervisor daemon that actually owns these processes —
-quit the TUI and they keep running; reconnect and they're still there. For
+`sheppyd` is the background daemon that runs these processes. They keep
+running when you quit the TUI, and the TUI shows them again when you reopen
+it. For
 architecture, node states, and troubleshooting, see the
 [sheppyd guide](../guides/sheppyd).
 </Callout>
 
 ## Now describe your own system
 
-`local-demo.yaml` is a toy. See [The manifest](../manifest) to write one for
-your own nodes, alternatives, and machines.
+`local-demo.yaml` is only a demo. See [Manifest](../manifest) to write one for
+your own nodes, alternatives, and machines, then read
+[ROS integration](../ros-integration) before launching real ROS nodes.

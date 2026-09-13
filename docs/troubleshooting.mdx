@@ -1,0 +1,69 @@
+---
+title: Troubleshooting
+---
+
+# Troubleshooting
+
+## Launching
+
+**A node goes straight to `✕ crashed`.** It exited during the launch grace
+period (2 seconds by default). `sheppy logs <node>` shows its last output. The
+usual causes:
+
+- `ros2: command not found`, or a package that can't be found: `sheppyd`
+  doesn't have ROS or your workspace sourced. It uses the environment of the
+  terminal that first started it — see
+  [where your nodes get their environment](../ros-integration#where-your-nodes-get-their-environment).
+- A `No such file or directory` error for your setup file: `ros_setup` starts
+  with `~`, which isn't expanded. Use an absolute path.
+
+**`sheppy logs` is empty for a crashed node.** The process died before
+printing anything. The exit code in `sheppy status` is the clue.
+
+**Nodes can't see each other.** Nodes started by sheppy may be on a different
+`ROS_DOMAIN_ID` or RMW than your terminal, because `sheppyd` kept the values
+from the terminal that started it. Containers get neither unless you set them
+under `environment:`, and they need `network_mode: host`. See
+[ROS integration](../ros-integration).
+
+**I edited the manifest, restarted the node, and it still runs the old
+command.** `r` and `sheppy woof` rerun the command stored when the node was
+launched, and an open TUI doesn't reread the manifest. Quit and reopen the
+TUI, then press `space`, or run `sheppy up <profile>`.
+
+**A ROS node inside a launch file died, but sheppy still shows `●`.** Sheppy
+watches `ros2 launch` itself, not the nodes it starts. See
+[what sheppy watches](../ros-integration#what-sheppy-watches).
+
+**A relative path in a container's `volumes` points somewhere unexpected.**
+It resolves against `sheppyd`'s working directory, not the manifest. Use
+absolute paths.
+
+**A node won't stop.** It's ignoring `SIGINT` and `SIGTERM`. `sheppyd`
+escalates to `SIGKILL` after `stop_grace + kill_grace` seconds (10 by
+default); change those in the [daemon config](../guides/sheppyd#configuration)
+if your nodes need longer to shut down.
+
+## The TUI
+
+**The TUI opens with no nodes.** The manifest didn't load. Press `e` for the
+error overlay. With no argument, `sheppy` looks for `./sheppy-manifest.yaml`
+in the current directory.
+
+**Every row shows `?`.** `sheppyd` isn't running, so sheppy doesn't know what
+state anything is in. `?` means unknown, not stopped. The first launch starts
+the daemon.
+
+**Colors look washed out over SSH.** See
+[the TUI](../tui#colors-washed-out-over-ssh).
+
+## The daemon
+
+**`sheppyd: not running` from a command.** The daemon isn't up, and only
+`sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
+treat this as normal and exit 0; `logs` and `woof` exit 1.
+
+**The daemon died but my nodes are still running.** That's by design. Start
+the daemon again and it re-adopts them: run `sheppyd` (it stays in the
+foreground), or launch something with `space` or `sheppy up`. Their in-memory
+log tails restart empty, but the log files under `~/.sheppy/logs/` are intact.

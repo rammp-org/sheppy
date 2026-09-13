@@ -9,9 +9,9 @@ Sheppy resolves each alternative's `kind` (`process`, `executable`,
 manifest entry into a `LaunchDescriptor`, a plain data recipe for starting,
 watching, stopping, and reading logs for one unit. This guide is for anyone
 who wants to add a new `kind`: a custom process wrapper, a systemd unit, a
-Kubernetes pod, whatever your fleet needs.
+Kubernetes pod.
 
-Everything here is verified against the real source: `sheppy/launch/base.py`,
+This guide describes the code in `sheppy/launch/base.py`,
 `sheppy/launch/descriptor.py`, `sheppy/launch/registry.py`,
 `sheppy/launch/builtins.py`, `sheppy/launch/docker/__init__.py`, and
 `sheppy/manifest/loader.py`.
@@ -44,15 +44,14 @@ manifest alternative (kind: "...")
    gave it.
 
 **Why plugins are declarative and never run in the daemon:** `sheppyd` is a
-tiny, stdlib-only supervisor that must stay simple and trustworthy — it's the
-thing that outlives the TUI and keeps your nodes alive. If launcher code ran
+small, stdlib-only supervisor that must stay simple, because it keeps your
+nodes running after the TUI exits. If launcher code ran
 inside it, a bug or a heavy dependency in a third-party plugin could take
 down every supervised process on the machine. Because a `LaunchDescriptor` is
 just argv tuples and strings, the daemon can execute it without ever loading
 your plugin's code, its dependencies, or its entry-point machinery. Your
-plugin only needs to be importable on the machine running the TUI/CLI; it
-doesn't need to be installed wherever `sheppyd` runs relative to the nodes it
-starts.
+plugin only needs to be importable by the TUI and CLI; `sheppyd` never
+imports it.
 
 ## The `Launcher` contract
 
@@ -205,13 +204,20 @@ Add an entry in your package's `pyproject.toml`:
 echo = "echo_launcher:EchoLauncher"
 ```
 
-The key (`echo`) is cosmetic (the entry point *name*); what actually selects
+The key (`echo`) is cosmetic (the entry point *name*); what selects
 your launcher is the `kind` class attribute on the object your entry point
 loads. After adding or changing entry points, reinstall so Python's package
-metadata picks them up:
+metadata picks them up. From a source checkout:
 
 ```bash
 uv sync
+```
+
+If sheppy was installed with the one-line installer, add your plugin to that
+tool environment instead:
+
+```bash
+uv tool install --force --with <your-plugin> git+https://github.com/rammp-org/sheppy
 ```
 
 A broken plugin (import error, exception on instantiation) is skipped with a
@@ -247,6 +253,11 @@ alternatives:
     kind: echo
     message: "hello from sheppy"
 ```
+
+> **Not runnable as shipped.** Nothing registers `echo_launcher.py` under
+> `sheppy.launchers`, so a manifest using `kind: echo` fails validation with
+> an unknown-kind error until you package the file and register it as shown
+> above. It is a reference to read and test, not a plugin you can use as-is.
 
 - `validate({"kind": "echo", "message": "hello ..."})` checks the one field
   this `kind` requires and returns `[]` (valid) or an error string.
