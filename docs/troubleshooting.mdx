@@ -66,6 +66,10 @@ the daemon.
 `sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
 treat this as normal and exit 0; `logs` and `restart` exit 1.
 
+**`could not start sheppyd: socket path is … bytes`.** A unix socket path
+has to fit in 107 bytes, and `SHEPPY_HOME` put it past that. Use a shorter
+`SHEPPY_HOME`, or unset it so the socket goes in `$XDG_RUNTIME_DIR`.
+
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the
 foreground), or launch something with `space` or `sheppy up`. Their in-memory

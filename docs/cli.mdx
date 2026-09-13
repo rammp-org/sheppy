@@ -4,8 +4,9 @@ title: CLI reference
 
 # CLI reference
 
-`sheppy` with a manifest path (or nothing) opens [the TUI](../tui). With a
-**verb**, it runs headless — the verbs never import Textual, so they work over
+`sheppy` with a manifest path (or nothing) opens [the TUI](../tui). If the
+manifest is missing or isn't valid YAML, it prints the error and exits 1
+instead. With a **verb**, it runs headless — the verbs never import Textual, so they work over
 SSH on a machine with no display.
 
 ```bash
@@ -37,8 +38,9 @@ Running it twice in a row prints `already converged` the second time.
 daemon keeps this terminal's environment — see
 [ROS integration](../ros-integration#where-your-nodes-get-their-environment).
 
-**Exit code:** 1 if the manifest or profile can't be loaded, if any node is
-`crashed` once things settle, or if they don't settle within 30 seconds.
+**Exit code:** 1 if the manifest or profile can't be loaded, if `sheppyd`
+can't start, if any node is `crashed` once things settle, or if they don't
+settle within 30 seconds.
 Recoverable problems, such as a profile selection the manifest no longer has,
 print as `warning:` on stderr and don't stop the launch.
 
@@ -123,10 +125,11 @@ sheppy up mock
 | Situation | Code |
 |-----------|------|
 | Success | 0 |
+| TUI: manifest missing or not valid YAML | 1 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
 | Daemon not running — `logs`, `restart` | 1 |
 | Unknown node (`logs`, `restart`) | 1 |
-| `up`: manifest/profile failed to load, a node crashed, or settle timeout | 1 |
+| `up`: manifest/profile failed to load, `sheppyd` couldn't start, a node crashed, or settle timeout | 1 |
 
 ## `sheppyd`
 
@@ -141,5 +144,5 @@ protocol.
 
 | Variable | Effect |
 |----------|--------|
-| `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy` (the socket otherwise prefers `$XDG_RUNTIME_DIR`). Useful for test isolation. |
+| `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy` (the socket otherwise prefers `$XDG_RUNTIME_DIR`). Useful for test isolation. Keep it short: the socket path must fit in 107 bytes, or `sheppyd` won't start. |
 | `COLORTERM=truecolor` | Required for the TUI's full palette over SSH — see [colors washed out over SSH?](../tui#colors-washed-out-over-ssh) |
