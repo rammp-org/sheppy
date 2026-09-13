@@ -168,6 +168,11 @@ async def _up(args) -> int:
             continue
         desired[node.name] = spec
 
+    from sheppy.daemon.config import sheppy_home, socket_path_error
+    reason = socket_path_error(sheppy_home())
+    if reason:                          # the daemon couldn't bind it (#35)
+        print(f"could not start sheppyd: {reason}", file=sys.stderr)
+        return 1
     client = DaemonClient()
     if not await client.connect(spawn=True):
         print("could not start sheppyd", file=sys.stderr)
