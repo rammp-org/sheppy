@@ -26,6 +26,8 @@ from sheppy.tui.widgets import status as st
 
 __all__ = ["SheppyApp", "format_detail"]
 
+MAX_RUNTIME_WARNINGS = 20
+
 
 class SheppyApp(App):
     CSS = """
@@ -564,6 +566,11 @@ class SheppyApp(App):
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:
+        if self.show_errors:
+            # Dismissing clears runtime warnings; manifest errors stay until
+            # the manifest changes.
+            self._runtime_warnings.clear()
+            self._update_errors()
         self.show_errors = not self.show_errors
 
     def action_focus_nodes(self) -> None:
@@ -654,12 +661,21 @@ class SheppyApp(App):
 
     # ---- errors / rebuild ------------------------------------------------
     def _append_warnings(self, warnings: list) -> None:
-        self._runtime_warnings.extend(warnings)
+        # A repeated warning moves to the end rather than stacking up, and
+        # only the most recent few are kept (#30).
+        for w in warnings:
+            if w in self._runtime_warnings:
+                self._runtime_warnings.remove(w)
+            self._runtime_warnings.append(w)
+        del self._runtime_warnings[:-MAX_RUNTIME_WARNINGS]
+        self._update_errors()
+        self.show_errors = True
+
+    def _update_errors(self) -> None:
         try:
             self.query_one("#errors", Static).update(self._errors_text())
         except NoMatches:
             pass
-        self.show_errors = True
 
     def _rebuild_after_apply(self) -> None:
         self.query_one(NodeList).set_selection(self._current_selection())

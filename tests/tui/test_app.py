@@ -163,6 +163,36 @@ async def test_error_overlay_toggles():
         assert "boom" in str(errors.content)
 
 
+async def test_runtime_warnings_dedupe_and_cap():
+    """Regression for #30: the overlay grew without bound."""
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        app._append_warnings(["nothing running"])
+        app._append_warnings(["nothing running"])
+        assert app._runtime_warnings == ["nothing running"]
+        app._append_warnings([f"w{i}" for i in range(30)])
+        assert len(app._runtime_warnings) == 20
+        assert app._runtime_warnings[-1] == "w29"
+
+
+async def test_dismissing_overlay_clears_runtime_warnings_only():
+    result = LoadResult(_result().manifest,
+                        [ValidationError("nodes[0]", "boom")])
+    app = SheppyApp(result, path="system.yaml")
+    async with app.run_test() as pilot:
+        app._append_warnings(["nothing running"])
+        await pilot.pause()
+        errors = app.query_one("#errors")
+        assert errors.display is True
+        await pilot.press("e")                  # dismiss
+        await pilot.pause()
+        assert app._runtime_warnings == []
+        await pilot.press("e")                  # reopen
+        await pilot.pause()
+        text = str(errors.content)
+        assert "boom" in text and "nothing running" not in text
+
+
 async def test_stale_alternatives_pane_acts_only_on_what_a_row_shows():
     """Regression for #17. The pane's rows and the node cursor can fall out of
     step. #20 and #29 closed the reshow race that produced this, so build the
