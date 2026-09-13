@@ -14,8 +14,8 @@ usual causes:
   doesn't have ROS or your workspace sourced. It uses the environment of the
   terminal that first started it — see
   [where your nodes get their environment](../ros-integration#where-your-nodes-get-their-environment).
-- A `No such file or directory` error for your setup file: `ros_setup` starts
-  with `~`, which isn't expanded. Use an absolute path.
+- A `No such file or directory` error for your setup file: the `ros_setup`
+  path on that machine is wrong.
 
 **`sheppy logs` is empty for a crashed node.** The process died before
 printing anything. The exit code in `sheppy status` is the clue.

@@ -32,7 +32,7 @@ machines:
 | `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty or missing. |
 | `host` | **yes** | string | Stored on the machine record. The loader errors if empty or missing. |
 | `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing; see [below](#things-that-surprise-people). |
-| `ros_setup` | no | string | Absolute path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is not expanded. See [ROS integration](../ros-integration#sourcing-per-alternative-with-ros_setup). |
+| `ros_setup` | no | string | Path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is expanded. See [ROS integration](../ros-integration#sourcing-per-alternative-with-ros_setup). |
 
 <Callout type="warning">
 **Multi-machine launch isn't ready yet.** Every node runs on the machine where

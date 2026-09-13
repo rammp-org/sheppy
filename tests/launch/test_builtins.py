@@ -51,3 +51,14 @@ def test_injection_still_escaped(tmp_path):
     import shlex
     tokens = shlex.split(cmd(desc))
     assert "touch" not in tokens                # trapped inside one quoted token
+
+
+def test_ros_setup_expands_home(tmp_path, monkeypatch):
+    # A quoted '~' is never expanded by bash, so sheppy must do it (#32).
+    monkeypatch.setenv("HOME", "/home/me")
+    ws = Machine(name="ws", host="h", user="u", ros_setup="~/ws/install/setup.bash")
+    alt = Alternative(id="a", kind="executable", machine="ws",
+                      package="p", executable="e")
+    c = ctx(tmp_path, Manifest(machines=[ws], nodes=[]))
+    text = cmd(ExecutableLauncher().launch(alt, {}, c))
+    assert text.startswith("source /home/me/ws/install/setup.bash && ")

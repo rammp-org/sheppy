@@ -76,8 +76,8 @@ nodes:
 
 - It applies only to alternatives that set `machine:`. There is no default
   machine.
-- Use an absolute path. `~` is not expanded, so `~/ws/install/setup.bash`
-  fails.
+- `~` is expanded to your home directory, so `~/ws/install/setup.bash`
+  works.
 - Point it at your overlay's `install/setup.bash`; colcon's setup script also
   sources the underlay the workspace was built against.
 - It applies to `executable`, `launch_file`, and `process` alternatives, and
