@@ -145,4 +145,5 @@ protocol.
 | Variable | Effect |
 |----------|--------|
 | `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy` (the socket otherwise prefers `$XDG_RUNTIME_DIR`). Useful for test isolation. Keep it short: the socket path must fit in 107 bytes, or `sheppyd` won't start. |
+| `NO_COLOR` | Set to any non-empty value to turn off the colors in the headless verbs' output. They're already off when output goes to a pipe or file. |
 | `COLORTERM=truecolor` | Required for the TUI's full palette over SSH — see [colors washed out over SSH?](../tui#colors-washed-out-over-ssh) |
