@@ -15,7 +15,7 @@ KEYMAP = [
     ("1-4", "tabs"),
     ("␣", "apply"),
     ("x", "stop"),
-    ("r", "woof"),
+    ("r", "restart"),
     ("L", "converge"),
     ("!", "snap"),
 ]

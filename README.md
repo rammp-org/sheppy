@@ -16,7 +16,7 @@ mock vs. real, launch and supervise them from one operator console.
 - **Containers and non-ROS programs too:** Docker containers (inline or from
   an existing compose file) and non-ROS commands like simulator GUIs,
   supervised the same way.
-- **A CLI for scripts and SSH:** `sheppy up`, `status`, `logs`, `woof`, and
+- **A CLI for scripts and SSH:** `sheppy up`, `status`, `logs`, `restart`, and
   `down` work without the TUI.
 
 **Docs: https://rammp-org.github.io/sheppy**
@@ -58,7 +58,7 @@ Then open the TUI with `sheppy` next to your `sheppy-manifest.yaml`, or follow
 sheppy up <profile>          # converge the running system to a profile
 sheppy status                # what's running
 sheppy logs <node> -n 50     # tail a node's output
-sheppy woof <node>           # restart it 🐕
+sheppy restart <node>        # restart it
 sheppy down                  # stop everything, then the daemon
 ```
 
@@ -73,5 +73,9 @@ uv sync
 uv run pytest
 ```
 
-User docs live in [`docs/`](docs/); design records in
-[`docs/superpowers/`](docs/superpowers/).
+See [CONTRIBUTING.md](CONTRIBUTING.md). User docs live in [`docs/`](docs/);
+design records in [`docs/superpowers/`](docs/superpowers/).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

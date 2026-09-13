@@ -69,6 +69,21 @@ def socket_path(home: str) -> str:
     return os.path.join(home, "sheppyd.sock")
 
 
+# sun_path holds 108 bytes on Linux, including the terminating NUL.
+MAX_SOCKET_PATH = 107
+
+
+def socket_path_error(home: str) -> "str | None":
+    """Why the daemon socket can't be bound here, or None. Binding an
+    over-long path fails before sheppyd can log anything (#35)."""
+    path = socket_path(home)
+    size = len(os.fsencode(path))
+    if size <= MAX_SOCKET_PATH:
+        return None
+    return (f"socket path is {size} bytes, over the {MAX_SOCKET_PATH}-byte "
+            f"limit for unix sockets: {path} (use a shorter SHEPPY_HOME)")
+
+
 def state_path(home: str) -> str:
     return os.path.join(home, "sheppyd.state.json")
 

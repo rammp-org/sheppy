@@ -7,3 +7,6 @@ dist/
 build/
 .superpowers/
 node_modules/
+
+# Profiles saved while running the example manifests from a clone
+examples/profiles/

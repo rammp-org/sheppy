@@ -7,7 +7,7 @@ import sys
 import time
 
 from sheppy.daemon.config import (
-    daemon_log_path, load_config, lock_path, sheppy_home,
+    daemon_log_path, load_config, lock_path, sheppy_home, socket_path_error,
 )
 from sheppy.daemon.server import Server
 
@@ -37,6 +37,11 @@ def main(argv: "list[str] | None" = None) -> int:
     home = sheppy_home()
     os.makedirs(home, mode=0o700, exist_ok=True)
     cfg, warnings = load_config(home)
+    err = socket_path_error(home)
+    if err:
+        print(f"sheppyd: {err}", file=sys.stderr)
+        _log(cfg, err)
+        return 1
     lock = open(lock_path(home), "w")
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

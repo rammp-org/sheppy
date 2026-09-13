@@ -14,8 +14,8 @@ usual causes:
   doesn't have ROS or your workspace sourced. It uses the environment of the
   terminal that first started it — see
   [where your nodes get their environment](../ros-integration#where-your-nodes-get-their-environment).
-- A `No such file or directory` error for your setup file: `ros_setup` starts
-  with `~`, which isn't expanded. Use an absolute path.
+- A `No such file or directory` error for your setup file: the `ros_setup`
+  path on that machine is wrong.
 
 **`sheppy logs` is empty for a crashed node.** The process died before
 printing anything. The exit code in `sheppy status` is the clue.
@@ -27,7 +27,7 @@ under `environment:`, and they need `network_mode: host`. See
 [ROS integration](../ros-integration).
 
 **I edited the manifest, restarted the node, and it still runs the old
-command.** `r` and `sheppy woof` rerun the command stored when the node was
+command.** `r` and `sheppy restart` rerun the command stored when the node was
 launched, and an open TUI doesn't reread the manifest. Quit and reopen the
 TUI, then press `space`, or run `sheppy up <profile>`.
 
@@ -46,9 +46,12 @@ if your nodes need longer to shut down.
 
 ## The TUI
 
-**The TUI opens with no nodes.** The manifest didn't load. Press `e` for the
-error overlay. With no argument, `sheppy` looks for `./sheppy-manifest.yaml`
-in the current directory.
+**`sheppy` prints a manifest error and exits.** The file is missing or isn't
+valid YAML. With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
+the current directory.
+
+**Nodes or alternatives are missing in the TUI.** Their manifest entries have
+errors. Press `e` for the error overlay.
 
 **Every row shows `?`.** `sheppyd` isn't running, so sheppy doesn't know what
 state anything is in. `?` means unknown, not stopped. The first launch starts
@@ -61,7 +64,11 @@ the daemon.
 
 **`sheppyd: not running` from a command.** The daemon isn't up, and only
 `sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
-treat this as normal and exit 0; `logs` and `woof` exit 1.
+treat this as normal and exit 0; `logs` and `restart` exit 1.
+
+**`could not start sheppyd: socket path is … bytes`.** A unix socket path
+has to fit in 107 bytes, and `SHEPPY_HOME` put it past that. Use a shorter
+`SHEPPY_HOME`, or unset it so the socket goes in `$XDG_RUNTIME_DIR`.
 
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the

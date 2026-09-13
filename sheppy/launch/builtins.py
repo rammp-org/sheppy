@@ -1,6 +1,7 @@
 """The three original kinds, now launchers emitting inherit descriptors.
 Command strings are byte-identical to the pre-plugin resolver."""
 import json
+import os
 import shlex
 
 from sheppy.launch.descriptor import LaunchDescriptor
@@ -27,7 +28,7 @@ def _ros_setup(manifest, machine_name):
 def _wrap(manifest, alt, cmd):
     setup = _ros_setup(manifest, alt.machine)
     if setup:
-        cmd = f"source {shlex.quote(setup)} && {cmd}"
+        cmd = f"source {shlex.quote(os.path.expanduser(setup))} && {cmd}"
     return LaunchDescriptor.inherit(("bash", "-c", cmd))
 
 

@@ -76,8 +76,8 @@ nodes:
 
 - It applies only to alternatives that set `machine:`. There is no default
   machine.
-- Use an absolute path. `~` is not expanded, so `~/ws/install/setup.bash`
-  fails.
+- `~` is expanded to your home directory, so `~/ws/install/setup.bash`
+  works.
 - Point it at your overlay's `install/setup.bash`; colcon's setup script also
   sources the underlay the workspace was built against.
 - It applies to `executable`, `launch_file`, and `process` alternatives, and
@@ -142,9 +142,9 @@ resolved relative to the manifest.
 
 | You changed | Then | Why |
 |-------------|------|-----|
-| Rebuilt a package (`colcon build`) | `r` in the TUI, or `sheppy woof <node>` | a restart reruns the same command, which picks up the new build |
+| Rebuilt a package (`colcon build`) | `r` in the TUI, or `sheppy restart <node>` | a restart reruns the same command, which picks up the new build |
 | A param, with `p` in the TUI | `space` | `space` builds the command again with the new value |
-| The manifest | quit and reopen the TUI, then `space`; or `sheppy up <profile>` | the TUI reads the manifest only when it opens, and `r` and `woof` rerun the command stored at launch |
+| The manifest | quit and reopen the TUI, then `space`; or `sheppy up <profile>` | the TUI reads the manifest only when it opens, and `r` and `restart` rerun the command stored at launch |
 | Your shell environment | `sheppy down`, then launch from the new shell | see [above](#where-your-nodes-get-their-environment) |
 
 ## Topics
