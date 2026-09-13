@@ -161,3 +161,38 @@ async def test_error_overlay_toggles():
         assert errors.display is True
         # Textual 8.2.7: Static exposes text via .content (not .renderable)
         assert "boom" in str(errors.content)
+
+
+async def test_stale_alternatives_pane_acts_only_on_what_a_row_shows():
+    """Regression for #17. The pane's rows and the node cursor can fall out of
+    step. #20 and #29 closed the reshow race that produced this, so build the
+    state directly: planner is highlighted while the pane also holds camera's
+    rows. A row's position says nothing about which alternative it shows, so
+    highlighting one must not index planner's shorter list, and selecting a
+    camera row must not record anything as planner's selection."""
+    from sheppy.tui.widgets.alternatives_panel import AlternativeRow
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        app.query_one("#nodes").index = 1
+        await pilot.pause()
+        planner = app._current_node()
+        assert planner.name == "planner"
+        camera = app.manifest.node("camera")
+        panel = app.query_one("#alternatives")
+        for alt in camera.alternatives:
+            await panel.append(AlternativeRow(camera, alt, panel._widget(alt, False)))
+        await pilot.pause()
+        stale = [i for i, row in enumerate(panel.children) if row.node is camera]
+        assert len(panel.children) > len(planner.alternatives) and stale
+
+        panel.focus()
+        for i in range(len(panel.children)):    # some are out of range for planner
+            panel.index = i
+            await pilot.pause()
+        for i in stale:
+            panel.index = i
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.state.selected("planner") is None, panel.children[i].alt.id
+            assert app.state.selected("camera") is None, panel.children[i].alt.id

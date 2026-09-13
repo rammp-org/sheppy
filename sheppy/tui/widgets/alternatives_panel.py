@@ -6,8 +6,20 @@ from textual.widgets import Label, ListItem, ListView
 
 from textual.markup import escape
 
-from sheppy.manifest import Node
+from sheppy.manifest import Alternative, Node
 from sheppy.tui.widgets.theme import c
+
+
+class AlternativeRow(ListItem):
+    """A row that remembers the node and alternative it renders. Handlers act
+    on what the row shows, not on its position: the pane repopulates
+    asynchronously, so its rows can be out of step with the app's node
+    cursor."""
+
+    def __init__(self, node: Node, alt: Alternative, *children, **kwargs):
+        super().__init__(*children, **kwargs)
+        self.node = node
+        self.alt = alt
 
 
 class AlternativesPanel(ListView):
@@ -31,14 +43,18 @@ class AlternativesPanel(ListView):
     AlternativesPanel .alt-sub { color: $text-muted; }
     """
 
+    # Carry what the row rendered, not its index: the app's node cursor may
+    # already be on another node by the time the message is handled.
     class AlternativeHighlighted(Message):
-        def __init__(self, index: int) -> None:
-            self.index = index
+        def __init__(self, node: Node, alt: Alternative) -> None:
+            self.node = node
+            self.alt = alt
             super().__init__()
 
     class AlternativeSelected(Message):
-        def __init__(self, index: int) -> None:
-            self.index = index
+        def __init__(self, node: Node, alt: Alternative) -> None:
+            self.node = node
+            self.alt = alt
             super().__init__()
 
     def __init__(self, **kwargs):
@@ -47,12 +63,19 @@ class AlternativesPanel(ListView):
         # interleave clear/append and mount duplicate alt-N ids.
         self._rebuild = asyncio.Lock()
 
+    def highlighted_row(self) -> "AlternativeRow | None":
+        """The alternative row under the cursor, or None (nothing highlighted,
+        or the pane holds a note)."""
+        row = self.highlighted_child
+        return row if isinstance(row, AlternativeRow) else None
+
     async def show(self, node: Node, selected_id: "str | None") -> None:
         async with self._rebuild:
             await self.clear()
             for j, alt in enumerate(node.alternatives):
-                await self.append(ListItem(
-                    self._widget(alt, alt.id == selected_id), id=f"alt-{j}"))
+                await self.append(AlternativeRow(
+                    node, alt, self._widget(alt, alt.id == selected_id),
+                    id=f"alt-{j}"))
 
     async def show_note(self, text: str) -> None:
         async with self._rebuild:
@@ -72,10 +95,12 @@ class AlternativesPanel(ListView):
 
     def on_list_view_highlighted(self, event) -> None:
         event.stop()
-        if self.index is not None:
-            self.post_message(self.AlternativeHighlighted(self.index))
+        row = self.highlighted_row()
+        if row is not None:
+            self.post_message(self.AlternativeHighlighted(row.node, row.alt))
 
     def on_list_view_selected(self, event) -> None:
         event.stop()
-        if self.index is not None:
-            self.post_message(self.AlternativeSelected(self.index))
+        row = self.highlighted_row()
+        if row is not None:
+            self.post_message(self.AlternativeSelected(row.node, row.alt))
