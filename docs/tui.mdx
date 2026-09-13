@@ -83,9 +83,9 @@ A `Δ` means what's running differs from what's selected (see
 | `space` | Apply the selection to the highlighted node: launch the selected alternative, restarting the node if it's already running, or stop the node if nothing is selected |
 | `x` | Stop the highlighted node |
 | `r` | Restart the highlighted node with the command it was launched with. To apply a param edit, use `space` |
-| `L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone |
-| `X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
-| `!` | Snapshot: set the selection to what's running. Press `s` to save it |
+| `Shift+L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone |
+| `Shift+X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
+| `!` | Copy running: set the selection to what's running. Press `s` to save it |
 | `s` | Save the selection and param overrides as a [profile](../profiles) |
 | `l` | Load a profile (`Enter` loads, `d` deletes) |
 | `p` | Edit the highlighted node's params — the ones its selected alternative lists in the manifest |
@@ -97,8 +97,8 @@ A `Δ` means what's running differs from what's selected (see
 If `sheppyd` is running nodes that aren't in the manifest you opened — started
 from another manifest, say — they appear under a `─ not in this manifest ─`
 divider. You can stop one with `x` and read its logs, but `space`, `r`, and
-`p` don't apply, and `L` leaves them alone. `X` and `sheppy down` stop them
-along with everything else.
+`p` don't apply, and `Shift+L` leaves them alone. `Shift+X` and `sheppy down`
+stop them along with everything else.
 
 ## Errors
 

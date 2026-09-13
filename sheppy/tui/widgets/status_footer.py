@@ -6,18 +6,17 @@ from sheppy.tui.widgets.theme import c
 # Single source of truth for the footer key hints (display only; the actual
 # bindings live on the app).
 KEYMAP = [
-    ("↑↓", "move"),
-    ("⏎", "select"),
     ("s", "save"),
     ("l", "load"),
     ("p", "params"),
     ("e", "errors"),
     ("1-4", "tabs"),
-    ("␣", "apply"),
+    ("␣", "apply node"),
     ("x", "stop"),
     ("r", "restart"),
-    ("L", "converge"),
-    ("!", "snap"),
+    ("shift+L", "apply all"),
+    ("shift+X", "stop all"),
+    ("!", "copy running"),
 ]
 
 
@@ -26,7 +25,7 @@ class StatusFooter(Horizontal):
 
     DEFAULT_CSS = """
     StatusFooter { height: 1; background: $panel; padding: 0 1; }
-    StatusFooter > Static { width: auto; height: 1; margin: 0 2 0 0; }
+    StatusFooter > Static { width: auto; height: 1; margin: 0 1 0 0; }
     StatusFooter #sf-spring { width: 1fr; margin: 0; }
     """
 

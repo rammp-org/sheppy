@@ -18,7 +18,7 @@ class ConvergeModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="dialog"):
-            yield Static(c("fg", f"converge — {len(self._actions)} action(s)"))
+            yield Static(c("fg", f"apply all — {len(self._actions)} action(s)"))
             for verb, node in self._actions:
                 # Whole line in one color span: c() escapes the joined text,
                 # so a color-tag boundary can never split "verb node" and

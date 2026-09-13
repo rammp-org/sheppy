@@ -17,7 +17,8 @@ async def test_footer_shows_keymap_and_daemon_placeholder():
 
 def test_keymap_covers_core_actions():
     labels = {label for _, label in KEYMAP}
-    assert {"save", "load", "params", "errors", "apply", "stop"} <= labels
+    assert {"save", "load", "params", "errors", "apply node", "stop",
+            "apply all", "stop all", "copy running"} <= labels
 
 
 async def test_set_daemon_connected_shows_running_count():
