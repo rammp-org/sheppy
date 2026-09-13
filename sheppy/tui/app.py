@@ -51,12 +51,12 @@ class SheppyApp(App):
         ("2", "show_tab('tab-topics')", "Topics"),
         ("3", "show_tab('tab-process')", "Process"),
         ("4", "show_tab('tab-yaml')", "YAML"),
-        ("space", "converge_node", "Apply"),
+        ("space", "converge_node", "Apply node"),
         ("x", "stop_node", "Stop"),
         ("r", "restart_node", "Restart"),
-        ("L", "converge_all", "Converge"),
+        ("L", "converge_all", "Apply all"),
         ("X", "stop_all", "Stop all"),
-        ("exclamation_mark", "snapshot", "Snapshot"),
+        ("exclamation_mark", "snapshot", "Copy running"),
     ]
     show_errors = reactive(False)
 
@@ -358,7 +358,7 @@ class SheppyApp(App):
         if not self.state or not self.manifest:
             return
         if not self.daemon_connected:
-            self._append_warnings(["sheppyd offline — nothing to snapshot"])
+            self._append_warnings(["sheppyd offline — nothing running to copy"])
             return
         selections, overrides, skipped = self._selections_from_actual(
             ("launching", "running"))
@@ -367,7 +367,7 @@ class SheppyApp(App):
         self.state.is_dirty = True
         if skipped:
             self._append_warnings(
-                [f"snapshot skipped (not in manifest): {', '.join(skipped)}"])
+                [f"copy running skipped (not in manifest): {', '.join(skipped)}"])
         self._rebuild_after_apply()
         self._refresh_runtime()
 
