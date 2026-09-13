@@ -73,5 +73,9 @@ uv sync
 uv run pytest
 ```
 
-User docs live in [`docs/`](docs/); design records in
-[`docs/superpowers/`](docs/superpowers/).
+See [CONTRIBUTING.md](CONTRIBUTING.md). User docs live in [`docs/`](docs/);
+design records in [`docs/superpowers/`](docs/superpowers/).
+
+## License
+
+MIT — see [LICENSE](LICENSE).
