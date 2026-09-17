@@ -213,3 +213,14 @@ async def test_save_does_not_crash_on_invalid_active_profile_stem(tmp_path):
         await pilot.pause()
         # App is still alive and responsive.
         assert app.query_one("#profilebar") is not None
+
+
+async def test_typing_q_in_a_name_does_not_quit(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("s")
+        await pilot.pause()
+        await pilot.press("q")
+        await pilot.pause()
+        assert app.is_running
+        assert app.screen.query_one("#name").value == "q"
