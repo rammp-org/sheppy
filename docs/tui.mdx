@@ -9,7 +9,7 @@ sheppy path/to/sheppy-manifest.yaml      # defaults to ./sheppy-manifest.yaml
 ```
 
 The TUI reads the manifest once, when it opens. After editing the manifest,
-quit (`Ctrl+Q`) and open it again.
+quit (`q`) and open it again.
 
 It always opens with **no profile loaded**: the header reads `profile <none>`.
 If `sheppyd` isn't running anything, nothing is selected either — pick
@@ -90,7 +90,7 @@ A `Δ` means what's running differs from what's selected (see
 | `l` | Load a profile (`Enter` loads, `d` deletes) |
 | `p` | Edit the highlighted node's params — the ones its selected alternative lists in the manifest |
 | `e` | Show or hide the error overlay: manifest errors and launch warnings |
-| `Ctrl+Q` | Quit. Running nodes keep running |
+| `q` or `Ctrl+Q` | Quit. Running nodes keep running |
 
 ## Orphans
 

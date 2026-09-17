@@ -17,6 +17,7 @@ KEYMAP = [
     ("shift+L", "apply all"),
     ("shift+X", "stop all"),
     ("!", "copy running"),
+    ("q", "quit"),
 ]
 
 

@@ -57,6 +57,7 @@ class SheppyApp(App):
         ("L", "converge_all", "Apply all"),
         ("X", "stop_all", "Stop all"),
         ("exclamation_mark", "snapshot", "Copy running"),
+        ("q", "quit", "Quit"),
     ]
     show_errors = reactive(False)
 

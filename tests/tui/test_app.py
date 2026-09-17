@@ -226,3 +226,12 @@ async def test_stale_alternatives_pane_acts_only_on_what_a_row_shows():
             await pilot.pause()
             assert app.state.selected("planner") is None, panel.children[i].alt.id
             assert app.state.selected("camera") is None, panel.children[i].alt.id
+
+
+async def test_q_quits():
+    """`q` quits too: some terminals (VSCode) swallow Ctrl+Q."""
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        await pilot.press("q")
+        await pilot.pause()
+        assert not app.is_running
