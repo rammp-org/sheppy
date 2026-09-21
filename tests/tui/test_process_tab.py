@@ -144,3 +144,22 @@ async def test_status_events_keep_the_orphan_rows_mounted():
         assert app.query_one(".orphan-divider") is divider
         assert app.query_one(".orphan-row") is row
         assert str(row.query_one(".col-status").content) != before
+
+
+async def test_orphan_rebuild_cancelled_part_way_is_redone():
+    # A rebuild cancelled while its last row is mounting leaves that row
+    # without its labels; the next call must rebuild, not update in place.
+    from sheppy.tui.widgets.node_list import NodeList
+    app = make_app(FakeDaemonClient())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        nodes = app.query_one(NodeList)
+        orphans = [payload("old_recorder", "running", alt="bag_v1")]
+        rebuild = asyncio.create_task(nodes.set_orphans(orphans))
+        while not nodes.query(".orphan-row"):
+            await asyncio.sleep(0)
+        rebuild.cancel()
+        await nodes.set_orphans(orphans)
+        await pilot.pause()
+        assert len(app.query(".orphan-divider")) == 1
+        assert len(app.query(".orphan-row .col-status")) == 1

@@ -103,6 +103,7 @@ class NodeList(ListView):
         self._manifest_nodes = list(nodes)
         self._selection = dict(selection)
         self._orphan_names: list = []
+        self._orphans_built = False
 
     def compose(self):
         for i, node in enumerate(self._manifest_nodes):
@@ -145,18 +146,19 @@ class NodeList(ListView):
             row.query_one(".col-usage", Label).update(cell.usage)
 
     async def set_orphans(self, orphans: list) -> None:
-        rows = list(self.query(".orphan-row"))
         # Same orphans as last time (the usual status event): update the
-        # rows in place. Rebuilding them made the divider flash (#46). The
-        # row count guards against a rebuild that was cancelled part-way.
-        if [p["node"] for p in orphans] == self._orphan_names \
-                and len(rows) == len(orphans):
-            for row, p in zip(rows, orphans):
+        # rows in place. Rebuilding them made the divider flash (#46). Only
+        # after a rebuild that ran to the end -- one cancelled part-way
+        # leaves rows missing, or mounted without their labels.
+        if self._orphans_built \
+                and [p["node"] for p in orphans] == self._orphan_names:
+            for row, p in zip(self.query(".orphan-row"), orphans):
                 cell = RuntimeCell(st.runtime(p["state"]))
                 row.query_one(".col-status", Label).update(
                     _status_markup(cell))
                 row.query_one(".col-alt", Label).update(p["spec"]["alt_id"])
             return
+        self._orphans_built = False
         for item in list(self.query(".orphan-divider, .orphan-row")):
             # Shielded: this runs in an exclusive worker that the next status
             # event cancels. Unshielded, the cancel reaches the row's own
@@ -182,6 +184,7 @@ class NodeList(ListView):
                     Label("", classes="col-usage"),
                 ),
                 id=f"orphan-{i}", classes="orphan-row"))
+        self._orphans_built = True
 
     def on_list_view_highlighted(self, event) -> None:
         event.stop()
