@@ -125,3 +125,22 @@ async def test_status_burst_with_orphans_keeps_the_app_running():
 
     # a dead app loop leaves the pilot waiting forever, so bound it
     await asyncio.wait_for(scenario(), 10)
+
+
+async def test_status_events_keep_the_orphan_rows_mounted():
+    # #46: each status event used to remove and re-append the divider and
+    # the orphan rows, so they flashed on every usage update.
+    fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
+                                                     "launching",
+                                                     alt="bag_v1")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        divider = app.query_one(".orphan-divider")
+        row = app.query_one(".orphan-row")
+        before = str(row.query_one(".col-status").content)
+        fake.push(payload("old_recorder", "running", alt="bag_v1"))
+        await pilot.pause(0.1)
+        assert app.query_one(".orphan-divider") is divider
+        assert app.query_one(".orphan-row") is row
+        assert str(row.query_one(".col-status").content) != before

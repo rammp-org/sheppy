@@ -145,6 +145,18 @@ class NodeList(ListView):
             row.query_one(".col-usage", Label).update(cell.usage)
 
     async def set_orphans(self, orphans: list) -> None:
+        rows = list(self.query(".orphan-row"))
+        # Same orphans as last time (the usual status event): update the
+        # rows in place. Rebuilding them made the divider flash (#46). The
+        # row count guards against a rebuild that was cancelled part-way.
+        if [p["node"] for p in orphans] == self._orphan_names \
+                and len(rows) == len(orphans):
+            for row, p in zip(rows, orphans):
+                cell = RuntimeCell(st.runtime(p["state"]))
+                row.query_one(".col-status", Label).update(
+                    _status_markup(cell))
+                row.query_one(".col-alt", Label).update(p["spec"]["alt_id"])
+            return
         for item in list(self.query(".orphan-divider, .orphan-row")):
             # Shielded: this runs in an exclusive worker that the next status
             # event cancels. Unshielded, the cancel reaches the row's own
