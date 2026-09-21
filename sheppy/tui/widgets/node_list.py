@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 
 from textual.containers import Horizontal
@@ -145,7 +146,11 @@ class NodeList(ListView):
 
     async def set_orphans(self, orphans: list) -> None:
         for item in list(self.query(".orphan-divider, .orphan-row")):
-            await item.remove()
+            # Shielded: this runs in an exclusive worker that the next status
+            # event cancels. Unshielded, the cancel reaches the row's own
+            # task, which the app loop also awaits -- and Textual takes a
+            # CancelledError there as a request to exit (#44).
+            await asyncio.shield(item.remove()())
         self._orphan_names = [p["node"] for p in orphans]
         if not orphans:
             return

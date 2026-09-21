@@ -1,3 +1,5 @@
+import asyncio
+
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from tests.tui._fake_daemon import FakeDaemonClient, payload
@@ -101,3 +103,25 @@ async def test_edit_params_on_orphan_row_does_not_crash():
         await pilot.pause()
         assert app._current_node() is None    # range-safe on orphan rows
         assert any("stop/logs only" in w for w in app._runtime_warnings)
+
+
+async def test_status_burst_with_orphans_keeps_the_app_running():
+    # #44: each status event restarts the orphan-rows rebuild. A rebuild
+    # cancelled mid-`await item.remove()` cancelled the rows' own tasks, and
+    # Textual's app loop, awaiting those same tasks, ended with exit code 0.
+    names = [f"orphan_{i}" for i in range(7)]
+    fake = FakeDaemonClient({n: payload(n, "running", alt="x") for n in names})
+    app = make_app(fake)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            for _ in range(10):
+                fake.push(payload(names[0], "running", alt="x"))
+                await asyncio.sleep(0)
+            await pilot.pause(0.2)
+            assert app.is_running
+            assert len(app.query(".orphan-row")) == len(names)
+
+    # a dead app loop leaves the pilot waiting forever, so bound it
+    await asyncio.wait_for(scenario(), 10)
