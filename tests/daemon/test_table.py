@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import subprocess
 import sys
 
@@ -161,6 +162,70 @@ async def test_adoption_skips_dead_and_recycled_pids(tmp_path):
     table_b, _ = make_table(tmp_path)
     assert table_b.adopt_from_state() == []
     assert table_b.status() == {}
+
+
+async def test_state_file_declares_format_1(tmp_path):
+    table, cfg = make_table(tmp_path)
+    await table.launch(spec("camera"))
+    await wait_state(table, "camera", pr.RUNNING)
+    data = json.loads(open(state_path(cfg.home)).read())
+    assert data["format"] == 1
+    assert "argv" not in data["nodes"]["camera"]["spec"]   # descriptor.start
+    await table.stop_all()
+
+
+async def test_adoption_reads_a_state_file_without_format(tmp_path):
+    table_a, cfg = make_table(tmp_path)
+    await table_a.launch(spec("camera"))
+    await wait_state(table_a, "camera", pr.RUNNING)
+    data = json.loads(open(state_path(cfg.home)).read())
+    del data["format"]                     # written by a pre-1.0 daemon
+    with open(state_path(cfg.home), "w") as f:
+        json.dump(data, f)
+    table_b, _ = make_table(tmp_path)
+    assert table_b.adopt_from_state() == ["camera"]
+    await table_b.stop_all()
+
+
+async def test_adoption_skips_a_malformed_record_and_logs_it(tmp_path):
+    # A record from a later (or corrupted) format must not KeyError the
+    # whole daemon start (#77): skip it, say so in sheppyd.log, go on.
+    _, cfg = make_table(tmp_path)
+    os.makedirs(cfg.home, exist_ok=True)
+    with open(state_path(cfg.home), "w") as f:
+        json.dump({"format": 1, "nodes": {"broken": {"pid": 1}}}, f)
+    table, _ = make_table(tmp_path)
+    assert table.adopt_from_state() == []
+    assert table.status() == {}
+    assert "broken" in (tmp_path / "logs" / "sheppyd.log").read_text()
+
+
+async def test_adoption_skips_a_null_record_and_a_non_object_file(tmp_path):
+    # rec.get() on None raises AttributeError, not KeyError; and a file whose
+    # top level or "nodes" is not an object must not kill the daemon either.
+    _, cfg = make_table(tmp_path)
+    os.makedirs(cfg.home, exist_ok=True)
+    for data in ({"nodes": {"x": None}}, {"nodes": []}, []):
+        with open(state_path(cfg.home), "w") as f:
+            json.dump(data, f)
+        table, _ = make_table(tmp_path)
+        assert table.adopt_from_state() == [] and table.status() == {}
+    log = (tmp_path / "logs" / "sheppyd.log").read_text()
+    assert "skipping 'x'" in log and log.count("adopting nothing") == 2
+
+
+async def test_adoption_ignores_an_unknown_format(tmp_path):
+    table_a, cfg = make_table(tmp_path)
+    await table_a.launch(spec("camera"))
+    await wait_state(table_a, "camera", pr.RUNNING)
+    data = json.loads(open(state_path(cfg.home)).read())
+    data["format"] = 2
+    with open(state_path(cfg.home), "w") as f:
+        json.dump(data, f)
+    table_b, _ = make_table(tmp_path)
+    assert table_b.adopt_from_state() == []
+    assert "format" in (tmp_path / "logs" / "sheppyd.log").read_text()
+    await table_a.stop_all()
 
 
 async def test_concurrent_launches_of_one_node_leave_one_process(tmp_path):
