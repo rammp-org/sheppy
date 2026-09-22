@@ -183,5 +183,6 @@ async def test_stale_daemon_version_is_reported(tmp_path, monkeypatch):
             "run 'sheppy daemon stop' to restart it")
     finally:
         await c.close()
+        # No wait_closed(): on CPython 3.12 it never returns once the last
+        # connection has already gone (gh-109538 lineage), and 3.13 fixed it.
         server.close()
-        await server.wait_closed()
