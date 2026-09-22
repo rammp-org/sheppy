@@ -1,3 +1,5 @@
+import pytest
+
 from sheppy.launch.docker import DockerLauncher
 from sheppy.launch.base import LaunchContext
 from sheppy.manifest import Alternative, Manifest
@@ -23,6 +25,14 @@ def test_inline_container_descriptor(tmp_path):
     assert d.stop[:3] == ("docker", "stop", "--time")
     assert d.reset == ("docker", "rm", "-f", "sheppy-perception")
     assert d.validate() == []
+
+
+def test_launch_refuses_a_service_with_translation_errors(tmp_path):
+    # A service the translator rejects (here: no image) must not become a
+    # `docker run ... ''`; launch() raises so resolve() yields no spec (#67)
+    a = alt(container={"command": "x"})
+    with pytest.raises(ValueError, match="image"):
+        DockerLauncher().launch(a, {}, ctx(tmp_path))
 
 
 def test_validate_requires_exactly_one_source(tmp_path):

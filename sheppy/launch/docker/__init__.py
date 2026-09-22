@@ -59,8 +59,10 @@ class DockerLauncher:
         flags, image, command, errs, warns = service_to_docker_args(service)
         for w in warns:
             ctx.warn(w)
-        for e in errs:
-            ctx.warn(e)                       # validate() already flags these
+        if errs:    # validate() catches these for an inline container; a
+                    # compose reference is only read here, so refuse to
+                    # build a `docker run ... ''` that crashes with no log
+            raise ValueError("; ".join(errs))
         if params:
             host = ctx.write_params_file(params, alt.config.get("ros_node_name"))
             flags += ["-v", f"{host}:/sheppy/params.yaml:ro"]
