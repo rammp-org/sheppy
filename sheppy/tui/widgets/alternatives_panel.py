@@ -76,6 +76,13 @@ class AlternativesPanel(ListView):
                 await self.append(AlternativeRow(
                     node, alt, self._widget(alt, alt.id == selected_id),
                     id=f"alt-{j}"))
+            # append() leaves the index at None (#112), so no row would be
+            # highlighted and the detail tabs would stay blank until Enter.
+            # Land on the selected alternative, else the first.
+            if node.alternatives:
+                self.index = next(
+                    (j for j, a in enumerate(node.alternatives)
+                     if a.id == selected_id), 0)
 
     async def show_note(self, text: str) -> None:
         async with self._rebuild:
