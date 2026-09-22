@@ -126,3 +126,7 @@ class DaemonClient:
                     future.set_exception(
                         DaemonError("sheppyd connection lost"))
             self._pending.clear()
+            # Subscribers learn of the loss here too; a request only
+            # notices on its next call (#108).
+            for cb in self._callbacks:
+                cb({"event": "disconnected"})

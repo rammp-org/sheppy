@@ -167,6 +167,13 @@ class SheppyApp(App):
         return True
 
     def _on_daemon_event(self, event: dict) -> None:
+        if event.get("event") == "disconnected":
+            self.daemon_connected = False
+            self._append_warnings(["sheppyd connection lost — space/L "
+                                   "reconnects (and restarts sheppyd if it "
+                                   "died)"])
+            self._refresh_runtime()
+            return
         if event.get("event") != "status":
             return
         self.actual[event["node"]] = event
