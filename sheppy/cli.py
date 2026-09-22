@@ -220,11 +220,17 @@ async def _up(args) -> int:
         # start and restart both go through launch: the daemon replaces a
         # live process of the same node with the NEW spec. All actions run
         # at once (#48); diff() never yields two for the same node.
-        await asyncio.gather(*(
+        replies = await asyncio.gather(*(
             client.request("stop", node=node) if verb == "stop"
             else client.request("launch", spec=desired[node].to_wire())
             for verb, node in actions))
-        return await _wait_stable(client, desired)
+        rejected = False                    # e.g. the command couldn't exec (#97)
+        for (_, node), reply in zip(actions, replies):
+            if not reply["ok"]:
+                _error(f"{node}: {reply['error']}")
+                rejected = True
+        rc = await _wait_stable(client, desired)
+        return 1 if rejected else rc
     finally:
         await client.close()
 
@@ -238,7 +244,15 @@ async def _wait_stable(client, desired: dict, timeout: float = 30.0) -> int:
             for n in sorted(states):
                 style = _STATE_STYLE.get(states[n])
                 print(f"{n}: {_style(str(states[n]), style)}")
-            return 1 if "crashed" in states.values() else 0
+                if states[n] == "crashed":  # its dying words, if any
+                    reply = await client.request("logs", node=n, n=1)
+                    for line in reply.get("lines") or []:
+                        if line.strip():
+                            print(f"  {_style(line, 'dim')}")
+            # Every desired node was started, restarted, or already running,
+            # so anything but `running` (crashed, stopped, absent) is a
+            # failure (#97).
+            return 0 if all(s == "running" for s in states.values()) else 1
         await asyncio.sleep(0.2)
     _error("timed out waiting for nodes to settle")
     return 1

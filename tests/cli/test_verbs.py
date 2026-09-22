@@ -32,7 +32,7 @@ def site(tmp_path, monkeypatch):
             alternatives:
               - id: dies
                 kind: process
-                command: "{PY} -c 'raise SystemExit(4)'"
+                command: "{PY} -c 'import sys; print(\\"no such device\\", file=sys.stderr); raise SystemExit(4)'"
         """))
     store = ProfileStore(str(tmp_path / "profiles"))
     store.save(Profile(name="cam-only", selections={"camera": "fake"}))
@@ -60,7 +60,29 @@ def test_up_is_idempotent(site, capsys):
 def test_up_exits_nonzero_on_crash(site, capsys):
     rc = cli.main(["up", "broken", "--manifest", str(site / "system.yaml")])
     assert rc == 1
-    assert "flaky: crashed" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "flaky: crashed" in out
+    # The node's last log line is printed under its status line, so the
+    # reason is visible without a `sheppy logs` round trip (#97).
+    after = out.split("flaky: crashed", 1)[1].splitlines()
+    assert after[1].startswith("  ") and "no such device" in after[1]
+
+
+def _register_launcher(monkeypatch, launcher) -> None:
+    """Make the loader and resolve() see `launcher` alongside the built-in
+    kinds."""
+    import importlib
+    # sheppy.launch's __init__ re-binds the name "resolve" to the resolve()
+    # function, shadowing the submodule at that attribute — so `import
+    # sheppy.launch.resolve as x` would resolve to the function, not the
+    # module. Go through sys.modules via import_module to get the module.
+    resolve_mod = importlib.import_module("sheppy.launch.resolve")
+    from sheppy.launch.registry import LauncherRegistry, default_registry
+    launchers = list(default_registry()._by_kind.values()) + [launcher]
+    monkeypatch.setattr(resolve_mod, "default_registry",
+                        lambda: LauncherRegistry(launchers))
+    monkeypatch.setattr("sheppy.launch.registry.default_registry",
+                        lambda: LauncherRegistry(launchers))
 
 
 def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
@@ -88,21 +110,51 @@ def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
         def summary(self, alt):
             return []
 
-    import importlib
-    # sheppy.launch's __init__ re-binds the name "resolve" to the resolve()
-    # function, shadowing the submodule at that attribute — so `import
-    # sheppy.launch.resolve as x` would resolve to the function, not the
-    # module. Go through sys.modules via import_module to get the module.
-    resolve_mod = importlib.import_module("sheppy.launch.resolve")
-    from sheppy.launch.registry import LauncherRegistry, default_registry
-    launchers = list(default_registry()._by_kind.values()) + [BoomLauncher()]
-    monkeypatch.setattr(resolve_mod, "default_registry",
-                        lambda: LauncherRegistry(launchers))
+    _register_launcher(monkeypatch, BoomLauncher())
 
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     captured = capsys.readouterr()
     assert rc == 0
     assert "kaboom" in captured.err
+    assert "camera: running" in captured.out
+
+
+def test_up_fails_when_the_daemon_rejects_a_launch(site, capsys, monkeypatch):
+    # A launcher whose command can't be exec'd: sheppyd replies not-ok and
+    # the node stays `stopped`. `up` must print the error and exit 1 (#97).
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: bad\n"
+        "    alternatives:\n"
+        "      - id: missing\n"
+        "        kind: missing_binary\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "bad": "missing"}))
+
+    class MissingBinaryLauncher:
+        kind = "missing_binary"
+
+        def validate(self, raw_alt):
+            return []
+
+        def launch(self, alt, params, ctx):
+            from sheppy.launch.descriptor import LaunchDescriptor
+            return LaunchDescriptor.inherit(("/nonexistent/binary",))
+
+        def summary(self, alt):
+            return []
+
+    _register_launcher(monkeypatch, MissingBinaryLauncher())
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    # sheppyd either rejects the launch (the node stays `stopped`) or, once
+    # it maps spawn failures to `crashed` (#93), accepts it and logs why.
+    assert "bad: stopped" in captured.out or "bad: crashed" in captured.out
+    if "bad: " in captured.err:
+        assert "/nonexistent/binary" in captured.err
     assert "camera: running" in captured.out
 
 
