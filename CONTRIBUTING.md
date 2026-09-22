@@ -34,7 +34,9 @@ CI runs the suite on Python 3.10 and 3.13 for every pull request.
 
 Merge `dev` into `main`, set `sheppy.__version__` in `sheppy/__init__.py`,
 and push a `vX.Y.Z` tag that matches it. The tag builds the package and
-publishes the GitHub release.
+publishes the GitHub release, with notes generated from the merged pull
+request titles. [CHANGELOG.md](CHANGELOG.md) records what each major
+version freezes; update it when a release changes that.
 
 ## Documentation
 
