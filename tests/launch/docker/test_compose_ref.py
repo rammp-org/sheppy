@@ -1,3 +1,4 @@
+import os
 import textwrap
 from sheppy.launch.docker.compose import load_service
 from sheppy.launch.docker import DockerLauncher
@@ -21,9 +22,51 @@ def test_load_service_with_interpolation(tmp_path, monkeypatch):
             network_mode: ${NET:-host}
             command: ros2 launch perc up.py
     """)
-    svc = load_service(path, "perception", __import__("os").environ)
+    svc, warnings = load_service(path, "perception", os.environ)
     assert svc["image"] == "org/perc:1.2"
     assert svc["network_mode"] == "host"          # default applied
+    assert warnings == []
+
+
+def test_load_service_warns_on_unsupported_interpolation(tmp_path, monkeypatch):
+    # only ${VAR} and ${VAR:-default} are expanded; the other compose forms
+    # pass through literally, which must not happen silently (#72)
+    monkeypatch.setenv("TAG", "1.2")
+    path = write(tmp_path, """
+        services:
+          perception:
+            image: org/perc:$TAG
+            environment:
+              A: ${NET-host}
+              B: ${TAG:?need it}
+              C: costs $$5
+              D: ${TAG}-ok
+    """)
+    svc, warnings = load_service(path, "perception", os.environ)
+    assert svc["image"] == "org/perc:$TAG"
+    assert svc["environment"]["A"] == "${NET-host}"
+    assert svc["environment"]["D"] == "1.2-ok"
+    for form in ("$TAG", "${NET-host}", "${TAG:?need it}", "$$"):
+        assert any(repr(form) in w for w in warnings), form
+    assert len(warnings) == 4
+    assert all("${VAR}" in w and "${VAR:-default}" in w for w in warnings)
+
+
+def test_repeated_unsupported_form_in_one_value_warns_once(tmp_path):
+    write(tmp_path, "services: {perception: {image: i, command: '$A and $A'}}")
+    _, warnings = load_service(tmp_path / "demo.compose.yml", "perception", {})
+    assert len(warnings) == 1
+
+
+def test_launcher_surfaces_interpolation_warnings(tmp_path):
+    write(tmp_path, "services: {perception: {image: org/perc:$TAG}}")
+    a = Alternative(id="real", kind="docker",
+                    config={"compose": {"file": "demo.compose.yml",
+                                        "service": "perception"}})
+    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                        home=str(tmp_path), manifest_dir=str(tmp_path))
+    DockerLauncher().launch(a, {}, ctx)
+    assert any("'perception'" in w and "'$TAG'" in w for w in ctx.warnings)
 
 
 def test_launcher_reads_compose_reference(tmp_path):

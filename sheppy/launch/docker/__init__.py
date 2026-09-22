@@ -27,11 +27,14 @@ class DockerLauncher:
         if not os.path.isabs(path):
             path = os.path.join(ctx.manifest_dir, path)
         try:
-            return load_service(path, ref.get("service"), os.environ)
+            service, warns = load_service(path, ref.get("service"), os.environ)
         except (OSError, KeyError) as e:
             ctx.warn(f"'{ctx.node_name}': compose service "
                      f"{ref.get('service')!r} in {ref.get('file')!r}: {e}")
             return {}
+        for w in warns:
+            ctx.warn(f"'{ctx.node_name}': {w}")
+        return service
 
     def validate(self, raw_alt) -> list:
         has_compose = bool(raw_alt.get("compose"))

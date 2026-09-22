@@ -183,6 +183,18 @@ unchanged, so they resolve against `sheppyd`'s working directory, not the
 manifest's. Use absolute paths. The `compose` `file` path is the exception: it
 is resolved relative to the manifest.
 
+#### Variable interpolation in compose files
+
+A value in a `compose` file can reference an environment variable as `${VAR}`
+or `${VAR:-default}`. `${VAR}` expands to the variable's value, or to an empty
+string if it is unset; `${VAR:-default}` expands to `default` if it is unset.
+Values come from the environment of the `sheppy` command that launches the
+node (your shell), not from `sheppyd`'s. Those two forms are the only ones
+sheppy expands. The rest of compose's grammar (`$VAR`, `${VAR-default}`,
+`${VAR:?error}`, `${VAR:+alt}`, and the `$$` escape) is passed to docker
+literally, with a warning naming the value when the node is launched. Values
+in an inline `container` are not interpolated at all.
+
 
 ## Things that surprise people
 
