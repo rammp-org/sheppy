@@ -114,7 +114,7 @@ def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
 
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     captured = capsys.readouterr()
-    assert rc == 0
+    assert rc == 1                          # the profile wasn't reached (#98)
     assert "kaboom" in captured.err
     assert "camera: running" in captured.out
 
