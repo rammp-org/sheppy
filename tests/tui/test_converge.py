@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from sheppy.manifest import load_manifest
@@ -171,3 +172,40 @@ async def test_snapshot_copies_running_set_and_skips_orphans():
         assert app.state.is_dirty is True
         assert "mock_camera" in str(app.query_one("#node-0 .col-alt").content)
         assert any("old_recorder" in w for w in app._runtime_warnings)
+
+
+async def test_converge_all_runs_actions_in_parallel():
+    # lidar is in the manifest but unselected -> "stop"; camera -> "start"
+    fake = FakeDaemonClient({"lidar": payload("lidar", "running")})
+    fake.delay = 0.05
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter", "escape")   # select camera alt
+        await pilot.press("L")
+        await pilot.pause()
+        assert isinstance(app.screen, ConvergeModal)
+        await pilot.press("enter")
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        ops = [op for op, _ in fake.requests if op in ("launch", "stop")]
+        assert len(ops) >= 2
+        assert fake.max_inflight == len(ops)
+
+
+async def test_stop_all_stops_nodes_in_parallel():
+    fake = FakeDaemonClient({
+        "camera": payload("camera", "running", alt="realsense"),
+        "old_recorder": payload("old_recorder", "running"),
+    })
+    fake.delay = 0.05
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("X")
+        await pilot.pause()
+        await pilot.press("y")
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        assert sum(op == "stop" for op, _ in fake.requests) == 2
+        assert fake.max_inflight == 2

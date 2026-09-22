@@ -1,4 +1,5 @@
 # sheppy/tui/app.py
+import asyncio
 import os
 from functools import partial
 
@@ -329,12 +330,12 @@ class SheppyApp(App):
             if ok else None)
 
     async def _execute(self, actions, desired) -> None:
-        for verb, node in actions:
-            if verb == "stop":
-                await self._request_safely("stop", node=node)
-            else:
-                await self._request_safely(
-                    "launch", spec=desired[node].to_wire())
+        # One request per node, all in flight at once (#48); diff() never
+        # yields two actions for the same node, so they are independent.
+        await asyncio.gather(*(
+            self._request_safely("stop", node=node) if verb == "stop"
+            else self._request_safely("launch", spec=desired[node].to_wire())
+            for verb, node in actions))
 
     async def action_stop_all(self) -> None:
         if not self.daemon_connected:
@@ -352,8 +353,8 @@ class SheppyApp(App):
             if ok else None)
 
     async def _stop_nodes(self, nodes: list) -> None:
-        for node in nodes:
-            await self._request_safely("stop", node=node)
+        await asyncio.gather(*(self._request_safely("stop", node=node)
+                               for node in nodes))
 
     def action_snapshot(self) -> None:
         if not self.state or not self.manifest:

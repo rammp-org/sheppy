@@ -24,9 +24,19 @@ class ProcessTable:
         self._cfg = cfg
         self._on_event = on_event
         self._entries: dict = {}
+        # Requests run concurrently (#48); ops on one node take its lock so
+        # two launches can't interleave and leave an untracked child.
+        self._locks: dict = {}
+
+    def _lock(self, node: str) -> asyncio.Lock:
+        return self._locks.setdefault(node, asyncio.Lock())
 
     # ---- operations -------------------------------------------------------
     async def launch(self, spec: dict) -> None:
+        async with self._lock(spec["node"]):
+            await self._launch(spec)
+
+    async def _launch(self, spec: dict) -> None:
         node = spec["node"]
         old = self._entries.get(node)
         if old is not None and not old._exited.is_set() \
@@ -47,12 +57,14 @@ class ProcessTable:
         await proc.start()
 
     async def stop(self, node: str) -> None:
-        await self._entries[node].stop()
+        async with self._lock(node):
+            await self._entries[node].stop()
 
     async def restart(self, node: str) -> None:
-        entry = self._entries[node]
-        await entry.stop()
-        await self.launch(entry.spec)
+        async with self._lock(node):
+            entry = self._entries[node]
+            await entry.stop()
+            await self._launch(entry.spec)
 
     async def stop_all(self) -> None:
         for node in list(self._entries):

@@ -188,3 +188,35 @@ async def test_socket_has_owner_only_perms(tmp_path, monkeypatch):
     mode = os.stat(socket_path(str(tmp_path))).st_mode & 0o777
     assert mode == 0o600
     await server.close()
+
+
+def ignore_int(ready_path):
+    """Ignores SIGINT and touches `ready_path` once the handler is in."""
+    return [sys.executable, "-c",
+            "import signal, sys, time; signal.signal(signal.SIGINT, "
+            "signal.SIG_IGN); open(sys.argv[1], 'w').close(); "
+            "time.sleep(30)", str(ready_path)]
+
+
+async def test_requests_on_one_connection_run_concurrently(tmp_path,
+                                                            monkeypatch):
+    # A stop that has to escalate past SIGINT takes stop_grace; a status
+    # request sent right behind it must not queue up behind that wait
+    # (#48: stop all / apply all were effectively serial in the daemon).
+    server = await make_server(tmp_path, monkeypatch)
+    wire = await Wire.connect(str(tmp_path))
+    ready = tmp_path / "ready"
+    assert (await wire.request(
+        "launch", spec=spec("stubborn", ignore_int(ready))))["ok"]
+    while not ready.exists():
+        await asyncio.sleep(0.01)
+    wire.writer.write(encode({"id": 100, "op": "stop", "node": "stubborn"}))
+    wire.writer.write(encode({"id": 101, "op": "status"}))
+    await wire.writer.drain()
+    while not {100, 101} & wire.replies.keys():
+        wire._sort([await wire._read_one()])
+    assert 101 in wire.replies, "status reply waited behind the stop"
+    assert 100 not in wire.replies
+    assert (await wire.request("status"))["nodes"]["stubborn"]["state"] \
+        in (pr.STOPPING, pr.STOPPED)
+    await server.close()

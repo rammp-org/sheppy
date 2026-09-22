@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from sheppy.launch.descriptor import LaunchDescriptor
@@ -46,6 +47,9 @@ class FakeDaemonClient:
         self.raise_on_request = False
         self.status_not_ok = False
         self.log_lines: list = []
+        self.delay = 0.0            # per-request latency, to observe overlap
+        self.inflight = 0
+        self.max_inflight = 0
 
     async def connect(self, spawn: bool = True) -> bool:
         self.spawn_attempts.append(spawn)
@@ -60,6 +64,16 @@ class FakeDaemonClient:
 
     async def request(self, op: str, **kw) -> dict:
         self.requests.append((op, kw))
+        self.inflight += 1
+        self.max_inflight = max(self.max_inflight, self.inflight)
+        try:
+            if self.delay:
+                await asyncio.sleep(self.delay)
+            return self._reply(op)
+        finally:
+            self.inflight -= 1
+
+    def _reply(self, op: str) -> dict:
         if self.raise_on_request:
             from sheppy.daemon.client import DaemonError
             raise DaemonError("lost")
