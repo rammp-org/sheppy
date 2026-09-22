@@ -39,8 +39,10 @@ daemon keeps this terminal's environment — see
 [ROS integration](../ros-integration#where-your-nodes-get-their-environment).
 
 **Exit code:** 1 if the manifest or profile can't be loaded, if `sheppyd`
-can't start, if any node is `crashed` once things settle, or if they don't
-settle within 30 seconds.
+can't start, if `sheppyd` rejects a launch (it prints the daemon's error, for
+example a command that doesn't exist), if any selected node isn't `running`
+once things settle (`crashed`, or `stopped` because it never started), or if
+they don't settle within 30 seconds.
 Recoverable problems, such as a profile selection the manifest no longer has,
 print as `warning:` on stderr and don't stop the launch.
 
@@ -129,7 +131,7 @@ sheppy up mock
 | Daemon not running — `down`, `status`, `daemon` | 0 |
 | Daemon not running — `logs`, `restart` | 1 |
 | Unknown node (`logs`, `restart`) | 1 |
-| `up`: manifest/profile failed to load, `sheppyd` couldn't start, a node crashed, or settle timeout | 1 |
+| `up`: manifest/profile failed to load, `sheppyd` couldn't start, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 
 ## `sheppyd`
 
