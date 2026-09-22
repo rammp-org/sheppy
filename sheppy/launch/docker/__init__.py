@@ -11,18 +11,21 @@ class DockerLauncher:
     kind = "docker"
 
     def _service(self, alt, ctx):
+        """The service definition and the directory its relative host
+        paths are anchored to: the manifest's for an inline container, the
+        compose file's for a compose service."""
         inline = alt.config.get("container")
         if inline:
             if not isinstance(inline, dict):
                 ctx.warn(f"'{ctx.node_name}': 'container' must be a mapping, "
                          f"got {type(inline).__name__}")
-                return {}
-            return dict(inline)
+                return {}, ctx.manifest_dir
+            return dict(inline), ctx.manifest_dir
         ref = alt.config.get("compose") or {}
         if not isinstance(ref, dict):
             ctx.warn(f"'{ctx.node_name}': 'compose' must be a mapping, "
                      f"got {type(ref).__name__}")
-            return {}
+            return {}, ctx.manifest_dir
         path = ref.get("file", "")
         if not os.path.isabs(path):
             path = os.path.join(ctx.manifest_dir, path)
@@ -31,10 +34,10 @@ class DockerLauncher:
         except (OSError, KeyError) as e:
             ctx.warn(f"'{ctx.node_name}': compose service "
                      f"{ref.get('service')!r} in {ref.get('file')!r}: {e}")
-            return {}
+            return {}, ctx.manifest_dir
         for w in warns:
             ctx.warn(f"'{ctx.node_name}': {w}")
-        return service
+        return service, os.path.dirname(path)
 
     def validate(self, raw_alt) -> list:
         has_compose = bool(raw_alt.get("compose"))
@@ -58,8 +61,9 @@ class DockerLauncher:
 
     def launch(self, alt, params, ctx) -> LaunchDescriptor:
         name = f"sheppy-{ctx.node_name}"
-        service = self._service(alt, ctx)
-        flags, image, command, errs, warns = service_to_docker_args(service)
+        service, base_dir = self._service(alt, ctx)
+        flags, image, command, errs, warns = service_to_docker_args(
+            service, base_dir)
         for w in warns:
             ctx.warn(w)
         if errs:    # validate() catches these for an inline container; a

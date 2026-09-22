@@ -115,3 +115,23 @@ def test_malformed_compose_ref_resolves_to_no_spec(tmp_path):
     spec, warnings = _resolve(tmp_path, {"compose": "juststring"})
     assert spec is None
     assert any("compose" in w for w in warnings)
+
+
+def test_compose_service_paths_resolve_against_compose_file_dir(tmp_path):
+    # As compose does: relative to the compose file, not the manifest (#33).
+    (tmp_path / "deploy").mkdir()
+    (tmp_path / "deploy" / "svc.yml").write_text(textwrap.dedent("""
+        services:
+          perception:
+            image: org/perc:1
+            volumes: ["./maps:/maps"]
+            env_file: ./ros.env
+    """))
+    a = Alternative(id="real", kind="docker",
+                    config={"compose": {"file": "deploy/svc.yml",
+                                        "service": "perception"}})
+    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                        home=str(tmp_path), manifest_dir=str(tmp_path))
+    d = DockerLauncher().launch(a, {}, ctx)
+    assert f"{tmp_path}/deploy/maps:/maps" in d.start
+    assert f"{tmp_path}/deploy/ros.env" in d.start

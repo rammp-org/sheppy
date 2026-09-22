@@ -2,6 +2,7 @@
 We reuse compose's config vocabulary but not its orchestrator."""
 import difflib
 import json
+import os
 import re
 import shlex
 
@@ -266,6 +267,32 @@ def _deploy_flags(deploy, errors, warnings):
                         f"deploy.replicas and deploy.resources.reservations.devices)")
     return flags
 
+def _host_path(path, base_dir):
+    """Anchor a compose-style relative host path (., .., ./x, ../x, ~/x) to
+    base_dir, as compose does. sheppyd's cwd is arbitrary, so docker must
+    never see a relative path. Anything else (absolute, named volume) is
+    returned unchanged."""
+    if path.startswith("~"):
+        return os.path.expanduser(path)
+    if path in (".", "..") or path.startswith(("./", "../")):
+        return os.path.abspath(os.path.join(base_dir, path))
+    return path
+
+
+def _rebase(key, value, base_dir):
+    if key == "volumes":
+        out = []
+        for vol in value:
+            src, sep, rest = vol.partition(":")
+            out.append(_host_path(src, base_dir) + sep + rest if sep else vol)
+        return out
+    if key == "env_file":
+        if isinstance(value, str):
+            return _host_path(value, base_dir)
+        return [_host_path(v, base_dir) if isinstance(v, str) else v
+                for v in _as_list(value)]
+    return value
+
 
 def _unknown_key_error(key):
     near = difflib.get_close_matches(key, _KNOWN, n=1)
@@ -273,7 +300,10 @@ def _unknown_key_error(key):
     return f"sheppy does not translate compose key '{key}'{hint}"
 
 
-def service_to_docker_args(service: dict):
+def service_to_docker_args(service: dict, base_dir: str = "."):
+    """base_dir anchors relative host paths in volumes and env_file: the
+    manifest's directory for an inline container, the compose file's
+    directory for a compose service."""
     errors, warnings = [], []
     if not isinstance(service, dict):
         return [], "", [], [f"docker service definition must be a mapping, "
@@ -301,7 +331,7 @@ def service_to_docker_args(service: dict):
             value = _CHECK[key](value, errors)
         if value is None:
             continue
-        flags += _emit(key, value)
+        flags += _emit(key, _rebase(key, value, base_dir))
 
     entry_flags, lead = _entrypoint(service.get("entrypoint"))
     command = lead + _command_list(service.get("command"))
