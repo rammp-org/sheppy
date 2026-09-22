@@ -161,6 +161,27 @@ async def test_detail_updates_on_highlight():
         assert "realsense" in detail or "process" in detail
 
 
+async def test_arrow_navigation_fills_the_detail_tab():
+    # #112: ListView.append() no longer sets an index, so after show() the
+    # pane had no highlighted row and the detail tabs stayed blank until
+    # Enter. The cursor lands on the selected alternative, else the first.
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        alts = app.query_one("#alternatives")
+        assert alts.index == 0
+        assert "realsense" in str(app.query_one("#detail").content)
+        await pilot.press("down")               # planner
+        await pilot.pause()
+        assert alts.index == 0
+        assert "astar" in str(app.query_one("#detail").content)
+        app.state.select("camera", "mock")
+        await pilot.press("up")                 # back to camera
+        await pilot.pause()
+        assert alts.index == 1                  # the selected one
+        assert "mock" in str(app.query_one("#detail").content)
+
+
 async def test_status_bar_shows_error_count():
     result = LoadResult(_result().manifest,
                         [ValidationError("nodes[0]", "boom")])
