@@ -138,3 +138,17 @@ async def test_spawn_daemon_creates_home_owner_only(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "executable", str(fake))
     spawn_daemon()
     assert os.stat(home).st_mode & 0o777 == 0o700
+
+
+async def test_daemon_exit_reaches_callback_as_disconnected(client):
+    # #108: the pump learns of the socket closing first; without telling
+    # its callbacks, the TUI kept showing the last-known state.
+    events: list = []
+    client.on_event(events.append)
+    await client.request("shutdown")
+
+    async def gone():
+        while {"event": "disconnected"} not in events:
+            await asyncio.sleep(0.02)
+    await asyncio.wait_for(gone(), 5)
+    assert client.connected is False

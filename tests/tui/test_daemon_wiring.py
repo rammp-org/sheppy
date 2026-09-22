@@ -182,3 +182,25 @@ async def test_no_drift_marker_when_selection_matches_running():
         await pilot.pause()
         assert app.state.selected("camera") is None
         assert "Δ" in str(app.query_one("#node-0 .col-status").content)
+
+
+async def test_daemon_death_renders_offline_and_warns():
+    # #108: sheppyd exiting (crash, `sheppy daemon stop`) used to leave the
+    # last-known running state on screen until the next request.
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "●" in str(app.query_one("#sf-daemon").content)
+        fake.connected = False
+        fake.push({"event": "disconnected"})
+        await pilot.pause()
+        assert app.daemon_connected is False
+        assert "?" in str(app.query_one("#node-0 .col-status").content)
+        assert "offline" in str(app.query_one("#sf-daemon").content)
+        assert any("connection lost" in w for w in app._runtime_warnings)
+        await pilot.press("space")          # reconnects, restarting sheppyd
+        await pilot.pause()
+        assert fake.spawn_attempts[-1] is True
+        assert app.daemon_connected is True

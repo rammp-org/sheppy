@@ -28,6 +28,7 @@ from sheppy.tui.widgets import status as st
 __all__ = ["SheppyApp", "format_detail"]
 
 MAX_RUNTIME_WARNINGS = 20
+_RECONNECT_HINT = "space/L reconnects (and restarts sheppyd if it died)"
 
 
 class SheppyApp(App):
@@ -167,6 +168,13 @@ class SheppyApp(App):
         return True
 
     def _on_daemon_event(self, event: dict) -> None:
+        if event.get("event") == "disconnected":
+            self.daemon_connected = False
+            # Same text as a request failing at the same moment produces,
+            # so the overlay dedupes them.
+            self._append_warnings([f"sheppyd connection lost — {_RECONNECT_HINT}"])
+            self._refresh_runtime()
+            return
         if event.get("event") != "status":
             return
         self.actual[event["node"]] = event
@@ -402,8 +410,7 @@ class SheppyApp(App):
             reply = await self._client.request(op, **kw)
         except DaemonError as e:
             self.daemon_connected = False
-            self._append_warnings([f"{e} — space/L reconnects (and restarts "
-                                   f"sheppyd if it died)"])
+            self._append_warnings([f"{e} — {_RECONNECT_HINT}"])
             self._refresh_runtime()
             return None
         if not reply.get("ok"):
