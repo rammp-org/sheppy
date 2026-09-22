@@ -192,45 +192,50 @@ class DetachedSupervisor(Supervised):
         self._logs_proc = None
         self.adopted = False
 
-    async def _run_once(self, argv, capture=False):
+    async def _run_once(self, argv, capture=False,
+                        stderr=asyncio.subprocess.DEVNULL):
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv,
                 stdout=(asyncio.subprocess.PIPE if capture
                         else asyncio.subprocess.DEVNULL),
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=stderr,
                 stdin=asyncio.subprocess.DEVNULL)
         except (OSError, ValueError):
             return 127, b""
         out, _ = await proc.communicate()
         return proc.returncode, (out or b"")
 
-    async def _open_logs(self):
+    async def _open_logs(self, fd) -> None:
         if not self._logs_cmd:
             return
-        fd = self.log.open_run()
         try:
             self._logs_proc = await asyncio.create_subprocess_exec(
                 *self._logs_cmd, stdout=fd, stderr=fd,
                 stdin=asyncio.subprocess.DEVNULL)
         except (OSError, ValueError):
             self._logs_proc = None
-        finally:
-            os.close(fd)
 
     async def start(self) -> None:
         self._stop_requested = False
         self._exited = asyncio.Event()
         self.exit_code = None
         self.started_at = time.time()
-        if self._reset_cmd:
-            await self._run_once(self._reset_cmd)          # best-effort cleanup
-        rc, _ = await self._run_once(self._start_cmd)
-        if rc != 0:
-            self._set(CRASHED)                             # launch failed
-            self._exited.set()
-            return
-        await self._open_logs()
+        # The run log opens before `start` so a failed launch (image
+        # missing, port in use) leaves the runtime's error in `sheppy logs`.
+        fd = self.log.open_run()
+        try:
+            if self._reset_cmd:                            # best-effort cleanup
+                await self._run_once(self._reset_cmd, stderr=fd)
+            rc, _ = await self._run_once(self._start_cmd, stderr=fd)
+            if rc != 0:
+                self.log.read_new()
+                self._set(CRASHED)                         # launch failed
+                self._exited.set()
+                return
+            await self._open_logs(fd)
+        finally:
+            os.close(fd)
         self._set(LAUNCHING)
         self._watch_task = asyncio.ensure_future(
             self._watch() if self._watch_cmd else self._poll())
@@ -295,12 +300,14 @@ class DetachedSupervisor(Supervised):
         self._stop_requested = True
         self._set(STOPPING)
         if self._stop_cmd:
-            await self._run_once(self._stop_cmd)
-            await self._exited.wait()
-            return
-        # No stop command: we have no way to tell the unit to exit, so
-        # don't block forever on a watch/poll loop that may never observe
-        # that. Force the transition and reap the watcher ourselves.
+            rc, _ = await self._run_once(self._stop_cmd)
+            if rc == 0 and await self._exited_within(
+                    self._cfg.stop_grace + self._cfg.kill_grace):
+                return
+        # No stop command, or it failed / the unit outlived the grace: we
+        # have no way to tell the unit to exit, so don't block forever on a
+        # watch/poll loop that may never observe that. Force the transition
+        # and reap the watcher ourselves.
         if self._watch_task is not None:
             self._watch_task.cancel()
         # Cancelling the task only stops us awaiting it; a long-running
@@ -322,6 +329,11 @@ class DetachedSupervisor(Supervised):
         self.state = RUNNING
 
     async def reattach(self) -> None:
-        await self._open_logs()
+        if self._logs_cmd:
+            fd = self.log.open_run()
+            try:
+                await self._open_logs(fd)
+            finally:
+                os.close(fd)
         self._watch_task = asyncio.ensure_future(
             self._watch() if self._watch_cmd else self._poll())

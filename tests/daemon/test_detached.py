@@ -142,3 +142,49 @@ async def test_logs_follower_is_reaped_on_stop(tmp_path):
     # the follower must be terminated, not left running
     await asyncio.wait_for(sup._logs_proc.wait(), 2)
     assert sup._logs_proc.returncode is not None
+
+
+async def test_stop_completes_when_stop_cmd_fails(tmp_path):
+    # The stop command can fail (runtime hiccup, unit already gone). The
+    # unit's watch never observes an exit then; stop() must still return
+    # rather than sit in STOPPING holding the node's lock forever (#90).
+    state = str(tmp_path / "S")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"echo up > {state}"),
+            "watch": sh(f"while [ -f {state} ]; do sleep 0.02; done; echo 0"),
+            "stop":  ["false"]}
+    sup, _, _ = make(tmp_path, desc, stop_grace=0.1, kill_grace=0.1)
+    await sup.start()
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    await asyncio.wait_for(sup.stop(), 3)
+    assert sup.state == pr.STOPPED
+
+
+async def test_stop_is_bounded_when_unit_never_exits(tmp_path):
+    # The stop command succeeds but the unit doesn't go away: bound the wait
+    # by stop_grace + kill_grace, then force the transition (#90).
+    state = str(tmp_path / "S")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"echo up > {state}"),
+            "watch": sh(f"while [ -f {state} ]; do sleep 0.02; done; echo 0"),
+            "stop":  ["true"]}
+    sup, _, _ = make(tmp_path, desc, stop_grace=0.1, kill_grace=0.1)
+    await sup.start()
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    await asyncio.wait_for(sup.stop(), 3)
+    assert sup.state == pr.STOPPED
+    await asyncio.wait_for(sup._watch_proc.wait(), 2)   # watcher was killed
+
+
+async def test_failed_start_stderr_reaches_the_log(tmp_path):
+    # A failed start used to leave CRASHED with no run log and an empty
+    # ring; the user never saw the runtime's error (#90).
+    desc = {"supervise": "detached", "name": "n",
+            "reset": sh("echo stale >&2"),
+            "start": sh("echo boom >&2; exit 1"), "watch": sh("echo 0")}
+    sup, _, log = make(tmp_path, desc)
+    await sup.start()
+    await sup.wait()
+    assert sup.state == pr.CRASHED
+    log.read_new()
+    assert log.tail() == ["stale", "boom"]
