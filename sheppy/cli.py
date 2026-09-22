@@ -183,7 +183,7 @@ async def _up(args) -> int:
     state = ProfileState(result.manifest)
     state.apply(rec.selections, rec.overrides, args.profile)
 
-    desired = {}
+    desired, unresolved = {}, set()
     for node in result.manifest.nodes:
         alt = state.selected_alt(node.name)
         if alt is None:
@@ -195,6 +195,10 @@ async def _up(args) -> int:
         for w in warns:
             _warn(w)
         if spec is None:
+            # Absent from `desired` would read as "stop it" (#98): keep
+            # the node out of the diff entirely so it is left as it is.
+            _error(f"{node.name}: left as is, launcher failed to resolve")
+            unresolved.add(node.name)
             continue
         desired[node.name] = spec
 
@@ -210,11 +214,12 @@ async def _up(args) -> int:
     try:
         nodes = (await client.request("status"))["nodes"]
         actual = {n: p for n, p in nodes.items()
-                  if result.manifest.node(n) is not None}   # orphans untouched
+                  if result.manifest.node(n) is not None    # orphans untouched
+                  and n not in unresolved}
         actions = diff(desired, actual)
         if not actions:
             print(_style("already converged", "green"))
-            return 0
+            return 1 if unresolved else 0
         for verb, node in actions:
             print(f"{_style(verb, _ACTION_STYLE.get(verb))} {node}")
         # start and restart both go through launch: the daemon replaces a
@@ -230,7 +235,7 @@ async def _up(args) -> int:
                 _error(f"{node}: {reply['error']}")
                 rejected = True
         rc = await _wait_stable(client, desired)
-        return 1 if rejected else rc
+        return 1 if (rejected or unresolved) else rc
     finally:
         await client.close()
 

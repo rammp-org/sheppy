@@ -28,7 +28,10 @@ It prints a plan (`start`, `restart`, or `stop` per node), then:
 - starts selected nodes that aren't running, and restarts ones running a
   different alternative, command, or params;
 - stops nodes in the manifest that the profile doesn't select;
-- leaves nodes from other manifests alone.
+- leaves nodes from other manifests alone;
+- leaves a selected node as it is, running or not, when its launcher fails
+  to resolve (a missing compose file, say): it prints the failure and exits
+  1 after converging the rest.
 
 All the starts go out at once, with no ordering between nodes. It then waits
 up to 30 seconds for every node to settle and prints each node's final state,
@@ -40,10 +43,11 @@ daemon keeps this terminal's environment — see
 [ROS integration](../ros-integration#where-your-nodes-get-their-environment).
 
 **Exit code:** 1 if the manifest or profile can't be loaded, if `sheppyd`
-can't start, if `sheppyd` rejects a launch (it prints the daemon's error, for
-example a command that doesn't exist), if any selected node isn't `running`
-once things settle (`crashed`, or `stopped` because it never started), or if
-they don't settle within 30 seconds.
+can't start, if a selected node's launcher fails to resolve, if `sheppyd`
+rejects a launch (it prints the daemon's error, for example a command that
+doesn't exist), if any selected node isn't `running` once things settle
+(`crashed`, or `stopped` because it never started), or if they don't settle
+within 30 seconds.
 Recoverable problems, such as a profile selection the manifest no longer has,
 print as `warning:` on stderr and don't stop the launch.
 
@@ -132,7 +136,7 @@ sheppy up mock
 | Daemon not running — `down`, `status`, `daemon` | 0 |
 | Daemon not running — `logs`, `restart` | 1 |
 | Unknown node (`logs`, `restart`) | 1 |
-| `up`: manifest/profile failed to load, `sheppyd` couldn't start, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
+| `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 
 ## `sheppyd`
 

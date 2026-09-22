@@ -86,7 +86,7 @@ A `Δ` means what's running differs from what's selected (see
 | `space` | Apply the selection to the highlighted node: launch the selected alternative, restarting the node if it's already running, or stop the node if nothing is selected |
 | `x` | Stop the highlighted node |
 | `r` | Restart the highlighted node with the command it was launched with. To apply a param edit, use `space` |
-| `Shift+L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone |
+| `Shift+L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone, and so is a selected node whose launcher fails to resolve (the failure shows under `e`) |
 | `Shift+X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
 | `!` | Copy running: set the selection to what's running. Press `s` to save it |
 | `s` | Save the selection and param overrides as a [profile](../profiles) |

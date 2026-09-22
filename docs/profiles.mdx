@@ -66,13 +66,16 @@ sheppy up mock --manifest /home/me/robot/sheppy-manifest.yaml
 - starts selected nodes that aren't running;
 - restarts nodes that are running a different alternative, command, or params;
 - **stops nodes in the manifest that the profile doesn't select**;
-- leaves nodes from other manifests alone.
+- leaves nodes from other manifests alone;
+- leaves a selected node as it is when its launcher fails to resolve, and
+  reports the failure.
 
 It prints that plan first, sends every start at once (there's no ordering
 between nodes), waits up to 30 seconds for them to settle, and prints each
 node's final state. It exits 1 if a selected node isn't running at the end
-(it crashed, or `sheppyd` couldn't start it), the manifest or profile
-didn't load, or the nodes didn't settle in time. Running it again prints
+(it crashed, or `sheppyd` couldn't start it), a launcher failed to resolve,
+the manifest or profile didn't load, or the nodes didn't settle in time.
+Running it again prints
 `already converged`. See the [CLI reference](../cli#sheppy-up-profile---manifest-path)
 for the details.
 
