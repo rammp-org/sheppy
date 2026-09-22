@@ -39,6 +39,7 @@ class Server:
         self._server = None
         self._shutdown = asyncio.Event()
         self._connections: set = set()
+        self._write_locks: dict = {}
         self._inflight = 0
 
     # ---- lifecycle ---------------------------------------------------------
@@ -96,6 +97,7 @@ class Server:
             pass
         finally:
             self._connections.discard(writer)
+            self._write_locks.pop(writer, None)
             self._subscribers.discard(writer)
             self._maybe_stop_usage()
             writer.close()
@@ -121,9 +123,14 @@ class Server:
     async def _reply(self, writer, msg: dict) -> None:
         if writer.is_closing():
             return                        # client left before we finished
+        # Per-request tasks (#48) can reply to one client at the same time;
+        # drain() asserted a single waiter per transport on 3.10 before
+        # 3.10.8 (#95); serializing is cheap and keeps the invariant.
+        lock = self._write_locks.setdefault(writer, asyncio.Lock())
         try:
-            writer.write(encode(msg))
-            await writer.drain()
+            async with lock:
+                writer.write(encode(msg))
+                await writer.drain()
         except (ConnectionResetError, BrokenPipeError):
             pass
 
