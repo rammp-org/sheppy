@@ -78,14 +78,20 @@ class Server:
         writer.write(encode(
             {"event": "hello", "sheppyd": VERSION, "protocol": 2}))
         decoder = Decoder()
+        # Each request runs as its own task so a slow op (a stop escalating
+        # through its grace periods) never holds up the ones behind it
+        # (#48). Handlers outlive a disconnect: an interrupted stop would
+        # strand its process in STOPPING.
+        handlers: set = set()
         try:
             while True:
                 data = await reader.read(65536)
                 if not data:
                     break
                 for msg in decoder.feed(data):
-                    await self._handle(msg, writer)
-                await writer.drain()
+                    task = asyncio.ensure_future(self._handle(msg, writer))
+                    handlers.add(task)
+                    task.add_done_callback(handlers.discard)
         except (ConnectionResetError, BrokenPipeError):
             pass
         finally:
@@ -96,8 +102,8 @@ class Server:
 
     async def _handle(self, msg, writer) -> None:
         if not isinstance(msg, dict) or "malformed" in msg:
-            writer.write(encode({"id": None, "ok": False,
-                                 "error": "malformed JSON line"}))
+            await self._reply(writer, {"id": None, "ok": False,
+                                       "error": "malformed JSON line"})
             return
         rid = msg.get("id")
         self._inflight += 1
@@ -108,9 +114,18 @@ class Server:
                 reply = {"ok": False, "error": f"unknown node {e.args[0]!r}"}
             except Exception as e:        # never die on a request
                 reply = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-            writer.write(encode({"id": rid, **reply}))
+            await self._reply(writer, {"id": rid, **reply})
         finally:
             self._inflight -= 1
+
+    async def _reply(self, writer, msg: dict) -> None:
+        if writer.is_closing():
+            return                        # client left before we finished
+        try:
+            writer.write(encode(msg))
+            await writer.drain()
+        except (ConnectionResetError, BrokenPipeError):
+            pass
 
     async def _dispatch(self, msg: dict, writer) -> dict:
         op = msg.get("op")

@@ -101,9 +101,10 @@ async def _dispatch(args) -> int:
     try:
         if args.cmd == "down":
             nodes = (await client.request("status"))["nodes"]
-            for node in sorted(nodes):
+            async def stop(node):
                 await client.request("stop", node=node)
                 print(f"{_style('stopped', 'dim')} {node}")
+            await asyncio.gather(*(stop(n) for n in sorted(nodes)))
             await client.request("shutdown")
             print("sheppyd stopped")
             return 0
@@ -216,12 +217,13 @@ async def _up(args) -> int:
             return 0
         for verb, node in actions:
             print(f"{_style(verb, _ACTION_STYLE.get(verb))} {node}")
-        for verb, node in actions:
-            if verb == "stop":
-                await client.request("stop", node=node)
-            else:   # start and restart both go through launch: the daemon
-                # replaces a live process of the same node with the NEW spec
-                await client.request("launch", spec=desired[node].to_wire())
+        # start and restart both go through launch: the daemon replaces a
+        # live process of the same node with the NEW spec. All actions run
+        # at once (#48); diff() never yields two for the same node.
+        await asyncio.gather(*(
+            client.request("stop", node=node) if verb == "stop"
+            else client.request("launch", spec=desired[node].to_wire())
+            for verb, node in actions))
         return await _wait_stable(client, desired)
     finally:
         await client.close()
