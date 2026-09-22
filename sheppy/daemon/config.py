@@ -6,6 +6,7 @@ because the daemon has no YAML parser by design."""
 import dataclasses
 import json
 import os
+import time
 from dataclasses import dataclass
 
 
@@ -94,3 +95,16 @@ def lock_path(home: str) -> str:
 
 def daemon_log_path(cfg: Config) -> str:
     return os.path.join(cfg.log_dir, "sheppyd.log")
+
+
+def daemon_log(cfg: Config, text: str) -> None:
+    """Append one timestamped line to sheppyd.log. A logging failure (disk
+    full, unwritable log dir) must never take supervision down with it."""
+    try:
+        os.makedirs(cfg.log_dir, exist_ok=True)
+        # backslashreplace: a lone surrogate (a non-UTF-8 byte in a path,
+        # carried in an OSError's filename) must not make the log line raise.
+        with open(daemon_log_path(cfg), "a", errors="backslashreplace") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
+    except OSError:
+        pass
