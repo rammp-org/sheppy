@@ -142,7 +142,8 @@ runtime-specific behavior.
   `docker stop --time 10 <name>`). If omitted, the daemon has no direct
   intervention. If it exits non-zero, or the unit is still up
   `stop_grace + kill_grace` seconds later, the daemon stops waiting, reaps
-  its `watch`/`logs` companions and marks the node stopped.
+  its `watch`/`logs` companions and marks the node stopped even though the
+  unit may still be running; the next launch's `reset` is what cleans it up.
 - **`logs`** (optional) — argv that *follows* logs to stdout/stderr (e.g.
   `docker logs -f --tail 300 <name>`); the daemon runs it as a companion
   process feeding the node's log file.
