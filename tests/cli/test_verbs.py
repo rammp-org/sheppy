@@ -64,7 +64,8 @@ def test_up_exits_nonzero_on_crash(site, capsys):
 
 
 def _register_launcher(monkeypatch, launcher) -> None:
-    """Make resolve() see `launcher` alongside the built-in kinds."""
+    """Make the loader and resolve() see `launcher` alongside the built-in
+    kinds."""
     import importlib
     # sheppy.launch's __init__ re-binds the name "resolve" to the resolve()
     # function, shadowing the submodule at that attribute — so `import
@@ -74,6 +75,8 @@ def _register_launcher(monkeypatch, launcher) -> None:
     from sheppy.launch.registry import LauncherRegistry, default_registry
     launchers = list(default_registry()._by_kind.values()) + [launcher]
     monkeypatch.setattr(resolve_mod, "default_registry",
+                        lambda: LauncherRegistry(launchers))
+    monkeypatch.setattr("sheppy.launch.registry.default_registry",
                         lambda: LauncherRegistry(launchers))
 
 
