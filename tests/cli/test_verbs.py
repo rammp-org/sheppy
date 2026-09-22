@@ -288,9 +288,11 @@ def test_daemon_dying_mid_command_is_reported_not_raised(tmp_path, monkeypatch,
                                                          capsys):
     # A fake sheppyd that hangs up after the first request (#99): the CLI
     # must print one line and exit 1, not traceback.
+    import json
     import socket
     import threading
 
+    from sheppy import __version__
     from sheppy.daemon.config import socket_path
 
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
@@ -300,6 +302,9 @@ def test_daemon_dying_mid_command_is_reported_not_raised(tmp_path, monkeypatch,
 
     def drop_first_request():
         conn, _ = srv.accept()
+        # connect() waits for the hello (#58) before any request goes out
+        conn.sendall(json.dumps({"event": "hello", "sheppyd": __version__,
+                                 "protocol": 2}).encode() + b"\n")
         conn.recv(65536)
         conn.close()
         srv.close()
