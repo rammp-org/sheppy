@@ -1,16 +1,34 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sheppy"
 dynamic = ["version"]
 description = "Herds the ROS2 nodes of a distributed robotics project."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "textual>=8,<9",
     "pyyaml>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://rammp-org.github.io/sheppy"
+Documentation = "https://rammp-org.github.io/sheppy"
+Repository = "https://github.com/rammp-org/sheppy"
+Issues = "https://github.com/rammp-org/sheppy/issues"
 
 [project.scripts]
 sheppy = "sheppy.cli:main"
