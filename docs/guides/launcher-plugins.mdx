@@ -128,8 +128,10 @@ runtime-specific behavior.
 - **`start`** (required) — argv that starts the unit and exits (e.g.
   `docker run -d ...`). The node shows as *launching* from the moment
   `start` begins (a `docker run` may pull for minutes) and is recorded in
-  the daemon's state file, so a daemon restart mid-start still re-adopts
-  the unit. A non-zero exit marks the launch as crashed. Its stderr (and
+  the daemon's state file, so a daemon restart mid-start re-adopts the unit
+  if it has come up; if it has not, the node shows crashed and the next
+  launch's `reset` cleans up whatever the orphaned start produced (see
+  #165). A non-zero exit marks the launch as crashed. Its stderr (and
   `reset`'s) is written to the node's run log, so a failed start's error
   shows up in `sheppy logs`.
 - **exactly one of `watch` or `poll`** (required) — how the daemon learns
