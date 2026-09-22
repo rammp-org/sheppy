@@ -82,6 +82,7 @@ class SheppyApp(App):
         self._client = client
         self.actual: dict = {}
         self.daemon_connected = False
+        self._connect_lock = asyncio.Lock()
         self._current_orphan: "str | None" = None
         # Register/select the theme in __init__ so its custom CSS variables
         # ($sel-bg, $chip-border, $divider, …) are defined before the widget
@@ -169,12 +170,17 @@ class SheppyApp(App):
     async def _ensure_daemon(self) -> bool:
         if self.daemon_connected:
             return True
-        if not await self._daemon_connect(spawn=True):
-            from sheppy.daemon.config import sheppy_home, socket_path_error
-            reason = socket_path_error(sheppy_home())
-            self._append_warnings([f"could not start sheppyd: {reason}"
-                                   if reason else "could not start sheppyd"])
-            return False
+        # Node actions run in parallel workers (#111); without the lock two
+        # of them would each spawn a sheppyd and open a pump of their own.
+        async with self._connect_lock:
+            if self.daemon_connected:       # the worker ahead connected
+                return True
+            if not await self._daemon_connect(spawn=True):
+                from sheppy.daemon.config import sheppy_home, socket_path_error
+                reason = socket_path_error(sheppy_home())
+                self._append_warnings([f"could not start sheppyd: {reason}"
+                                       if reason else "could not start sheppyd"])
+                return False
         return True
 
     def _on_daemon_event(self, event: dict) -> None:
@@ -263,7 +269,17 @@ class SheppyApp(App):
         return None
 
     # ---- daemon actions -------------------------------------------------------
-    async def action_converge_node(self) -> None:
+    def _node_worker(self, name: str, work) -> None:
+        # Off the message pump: a stop waits out stop_grace + kill_grace,
+        # and awaiting it in the action handler froze every key until it
+        # returned (#111). Not exclusive: the daemon runs every request it
+        # was sent (its per-node lock, #49, serialises them), so cancelling
+        # the earlier worker would only lose its reply -- the error it
+        # reports, or the DaemonError that marks the daemon offline. `work`
+        # is a partial, not a coroutine, for the reason in _refresh_runtime.
+        self.run_worker(work, group=f"node-{name}")
+
+    def action_converge_node(self) -> None:
         if self._current_orphan:
             self._append_warnings(
                 [f"'{self._current_orphan}': not in this manifest — "
@@ -281,6 +297,9 @@ class SheppyApp(App):
             return
         if alt is not None and self._invalid_alt(node, alt):
             return
+        self._node_worker(node.name, partial(self._converge_node, node, alt))
+
+    async def _converge_node(self, node: Node, alt) -> None:
         if not await self._ensure_daemon():
             return
         if alt is None:                     # converge-to-nothing = stop
@@ -296,16 +315,18 @@ class SheppyApp(App):
             return
         await self._request_safely("launch", spec=spec.to_wire())
 
-    async def action_stop_node(self) -> None:
+    def action_stop_node(self) -> None:
         if self._current_orphan:
             if self.daemon_connected:
-                await self._request_safely("stop", node=self._current_orphan)
+                self._node_worker(self._current_orphan, partial(
+                    self._request_safely, "stop", node=self._current_orphan))
             return
         node = self._current_node()
         if node and self.daemon_connected:
-            await self._request_safely("stop", node=node.name)
+            self._node_worker(node.name, partial(
+                self._request_safely, "stop", node=node.name))
 
-    async def action_restart_node(self) -> None:
+    def action_restart_node(self) -> None:
         if self._current_orphan:
             self._append_warnings(
                 [f"'{self._current_orphan}': not in this manifest — "
@@ -313,7 +334,8 @@ class SheppyApp(App):
             return
         node = self._current_node()
         if node and self.daemon_connected:
-            await self._request_safely("restart", node=node.name)
+            self._node_worker(node.name, partial(
+                self._request_safely, "restart", node=node.name))
 
     async def action_converge_all(self) -> None:
         if not self.state or not self.manifest:

@@ -1,3 +1,5 @@
+import asyncio
+import pytest
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.widgets import status as st
@@ -92,6 +94,71 @@ async def test_x_stops_and_r_restarts_current_node():
         await pilot.press("r")
         ops = [op for op, _ in fake.requests]
         assert "stop" in ops and "restart" in ops
+
+
+@pytest.mark.parametrize("key", ["x", "r", "space"])
+async def test_node_actions_do_not_block_the_message_pump(key):
+    # #111: the request was awaited inside the action handler, so a stop
+    # (up to stop_grace + kill_grace) froze every key until it returned.
+    fake = FakeDaemonClient({"camera": payload("camera", "running")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.daemon_connected
+        fake.delay = 0.5                # a slow stop, after the connect
+        await pilot.press(key)          # camera: stop / restart / converge
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.query_one(NodeList).index == 1
+        assert fake.inflight == 1       # the cursor moved while it ran
+        await app.workers.wait_for_complete()
+        assert fake.inflight == 0
+        assert [op for op, _ in fake.requests][-1] in ("stop", "restart")
+
+
+async def test_a_second_action_keeps_the_first_requests_error():
+    # The node workers are not exclusive: the daemon runs both requests
+    # anyway, and cancelling the first would drop its reply.
+    class _StopFails(FakeDaemonClient):
+        def _reply(self, op):
+            if op == "stop":
+                return {"ok": False, "error": "stop failed"}
+            return super()._reply(op)
+
+    fake = _StopFails({"camera": payload("camera", "running")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        fake.delay = 0.2
+        await pilot.press("x")
+        await pilot.press("r")              # within the stop's delay
+        await app.workers.wait_for_complete()
+        assert "stop: stop failed" in app._runtime_warnings
+        assert [op for op, _ in fake.requests][-2:] == ["stop", "restart"]
+
+
+async def test_parallel_node_actions_spawn_sheppyd_once():
+    # _ensure_daemon runs in each node's worker; two of them offline used
+    # to connect (and spawn) twice, orphaning the first pump.
+    class _SlowConnect(FakeDaemonClient):
+        async def connect(self, spawn=True):
+            await asyncio.sleep(0.2)
+            return await super().connect(spawn)
+
+    fake = _SlowConnect(connect_ok=False)
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await app.workers.wait_for_complete()
+        assert fake.spawn_attempts == [False]
+        await pilot.press("enter", "enter", "escape")           # camera
+        await pilot.press("down", "enter", "enter", "escape")   # lidar
+        fake._ok = True
+        await pilot.press("space", "up", "space")
+        await app.workers.wait_for_complete()
+        assert fake.spawn_attempts == [False, True]
+        launched = sorted(kw["spec"]["node"] for op, kw in fake.requests
+                          if op == "launch")
+        assert launched == ["camera", "lidar"]
 
 
 async def test_crash_event_updates_glyph_live():
