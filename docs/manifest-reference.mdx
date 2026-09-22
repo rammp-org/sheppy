@@ -190,8 +190,9 @@ surfaces as a warning when you try to launch the node, and the node is not
 started. The same applies to a `compose` reference whose file or service does
 not exist, or whose service has no `image`.
 
-**Relative host paths** in `volumes` (bind sources starting with `./`, `../`,
-or `~`, in short or long form) and `env_file` are resolved the way compose
+**Relative host paths** in `volumes` (bind sources that are `.` or `..`, or
+start with `./`, `../`, or `~`, in short or long form, so `.:/app` works) and
+`env_file` are resolved the way compose
 resolves them: against the manifest's directory for an inline `container`,
 and against the compose file's directory for a `compose` service. Named
 volumes and absolute paths are passed through unchanged. The `compose` `file`

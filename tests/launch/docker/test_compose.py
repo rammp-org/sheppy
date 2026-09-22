@@ -145,6 +145,7 @@ def test_relative_bind_sources_resolve_against_base_dir():
     flags, _, _, errs, _ = service_to_docker_args(
         {"image": "i", "volumes": [
             "./maps:/maps:ro",
+            ".:/app",                            # the common compose idiom
             "../shared:/shared",
             {"type": "bind", "source": "./cfg", "target": "/cfg", "read_only": True},
             "data:/data",                        # named volume, untouched
@@ -153,7 +154,7 @@ def test_relative_bind_sources_resolve_against_base_dir():
         base_dir="/proj/ws")
     assert errs == []
     vols = [flags[i + 1] for i, f in enumerate(flags) if f == "-v"]
-    assert vols == ["/proj/ws/maps:/maps:ro", "/proj/shared:/shared",
+    assert vols == ["/proj/ws/maps:/maps:ro", "/proj/ws:/app", "/proj/shared:/shared",
                     "/proj/ws/cfg:/cfg:ro", "data:/data", "/abs:/abs", "/anon"]
 
 

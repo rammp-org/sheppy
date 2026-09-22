@@ -268,13 +268,13 @@ def _deploy_flags(deploy, errors, warnings):
     return flags
 
 def _host_path(path, base_dir):
-    """Anchor a compose-style relative host path (./x, ../x, ~/x) to
+    """Anchor a compose-style relative host path (., .., ./x, ../x, ~/x) to
     base_dir, as compose does. sheppyd's cwd is arbitrary, so docker must
     never see a relative path. Anything else (absolute, named volume) is
     returned unchanged."""
     if path.startswith("~"):
         return os.path.expanduser(path)
-    if path.startswith(("./", "../")):
+    if path in (".", "..") or path.startswith(("./", "../")):
         return os.path.abspath(os.path.join(base_dir, path))
     return path
 
