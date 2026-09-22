@@ -61,7 +61,7 @@ def test_repeated_unsupported_form_in_one_value_warns_once(tmp_path):
 def test_launcher_surfaces_interpolation_warnings(tmp_path):
     write(tmp_path, "services: {perception: {image: org/perc:$TAG}}")
     a = Alternative(id="real", kind="docker",
-                    config={"compose": {"file": "demo.compose.yml",
+                    raw={"compose": {"file": "demo.compose.yml",
                                         "service": "perception"}})
     ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
                         home=str(tmp_path), manifest_dir=str(tmp_path))
@@ -87,7 +87,7 @@ def test_launcher_reads_compose_reference(tmp_path):
 
 
 def _resolve(tmp_path, config):
-    a = Alternative(id="real", kind="docker", config=config)
+    a = Alternative(id="real", kind="docker", raw=config)
     return resolve(Manifest(machines=[], nodes=[]), "perception", a, {},
                    manifest_dir=str(tmp_path))
 
@@ -128,7 +128,7 @@ def test_compose_service_paths_resolve_against_compose_file_dir(tmp_path):
             env_file: ./ros.env
     """))
     a = Alternative(id="real", kind="docker",
-                    config={"compose": {"file": "deploy/svc.yml",
+                    raw={"compose": {"file": "deploy/svc.yml",
                                         "service": "perception"}})
     ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
                         home=str(tmp_path), manifest_dir=str(tmp_path))
