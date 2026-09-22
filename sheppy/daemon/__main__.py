@@ -1,4 +1,5 @@
 """sheppyd: take the single-instance lock, adopt survivors, serve."""
+import argparse
 import asyncio
 import fcntl
 import os
@@ -39,6 +40,10 @@ async def _amain(cfg, warnings) -> None:
 
 
 def main(argv: "list[str] | None" = None) -> int:
+    argparse.ArgumentParser(
+        prog="sheppyd",
+        description="Run the sheppy daemon in the foreground. sheppy up "
+                    "starts it for you; see `sheppy --help`.").parse_args(argv)
     home = sheppy_home()
     os.makedirs(home, mode=0o700, exist_ok=True)
     cfg, warnings = load_config(home)
