@@ -200,6 +200,8 @@ async def _up(args) -> int:
         for err in loaded.errors:
             _error(str(err))
         return 1
+    for err in loaded.errors:           # loaded, but with parts dropped (#102)
+        _warn(str(err))
     rec = reconcile(loaded.profile, result.manifest)
     for w in rec.warnings:
         _warn(w)
