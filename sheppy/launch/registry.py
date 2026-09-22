@@ -15,6 +15,12 @@ class LauncherRegistry:
             self.register(launcher)
 
     def register(self, launcher) -> None:
+        existing = self._by_kind.get(launcher.kind)
+        if existing is not None:
+            print(f"sheppy: ignoring launcher {type(launcher).__name__} for "
+                  f"kind {launcher.kind!r}: already registered by "
+                  f"{type(existing).__name__}", file=sys.stderr)
+            return                          # first registration wins
         self._by_kind[launcher.kind] = launcher
 
     def get(self, kind: str):

@@ -129,6 +129,40 @@ def test_resolve_catches_launcher_raising_and_returns_none_spec():
     assert any("n" in w and "boom" in w and "kaboom" in w for w in warnings)
 
 
+def test_resolve_rejects_launcher_returning_non_descriptor():
+    # A dict would yield a LaunchSpec whose to_wire() raises AttributeError
+    # in the CLI/TUI, outside any guard (#69).
+    class DictLauncher:
+        kind = "dicty"
+
+        def launch(self, alt, params, ctx):
+            return {"supervise": "inherit", "start": ["true"]}
+
+    from sheppy.launch.registry import LauncherRegistry
+    reg = LauncherRegistry([DictLauncher()])
+    alt = Alternative(id="a", kind="dicty")
+    spec, warnings = resolve(manifest(), "n", alt, {}, registry=reg)
+    assert spec is None
+    assert any("n" in w and "dicty" in w and "LaunchDescriptor" in w
+               for w in warnings)
+
+
+def test_resolve_rejects_invalid_descriptor():
+    class HalfLauncher:
+        kind = "half"
+
+        def launch(self, alt, params, ctx):
+            # detached with neither watch nor poll fails validate()
+            return LaunchDescriptor.detached("x", ["true"])
+
+    from sheppy.launch.registry import LauncherRegistry
+    reg = LauncherRegistry([HalfLauncher()])
+    alt = Alternative(id="a", kind="half")
+    spec, warnings = resolve(manifest(), "n", alt, {}, registry=reg)
+    assert spec is None
+    assert any("half" in w and "watch" in w for w in warnings)
+
+
 def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     from sheppy.launch import resolve
