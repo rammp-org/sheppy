@@ -219,3 +219,52 @@ def test_status_is_plain_when_piped_or_no_color(capsys, monkeypatch):
 def test_unknown_profile_errors(site, capsys):
     rc = cli.main(["up", "nope", "--manifest", str(site / "system.yaml")])
     assert rc == 1
+
+
+def test_up_leaves_a_node_alone_when_its_launcher_stops_resolving(
+        site, capsys, monkeypatch):
+    # A node that is running fine must not be stopped just because its
+    # launcher fails to resolve on the next `up` (#98): it stays out of the
+    # plan, the failure is printed, and `up` exits 1.
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: compose\n"
+        "    alternatives:\n"
+        "      - id: svc\n"
+        "        kind: sometimes\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "compose": "svc"}))
+
+    class SometimesLauncher:
+        kind = "sometimes"
+        fails = False
+
+        def validate(self, raw_alt):
+            return []
+
+        def launch(self, alt, params, ctx):
+            if self.fails:
+                raise FileNotFoundError("compose file went missing")
+            from sheppy.launch.descriptor import LaunchDescriptor
+            return LaunchDescriptor.inherit(
+                (PY, "-c", "import time; time.sleep(30)"))
+
+        def summary(self, alt):
+            return []
+
+    launcher = SometimesLauncher()
+    _register_launcher(monkeypatch, launcher)
+    assert cli.main(["up", "cam-only", "--manifest", str(manifest_path)]) == 0
+    capsys.readouterr()
+
+    launcher.fails = True
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "stop compose" not in captured.out
+    assert "compose" in captured.err and "went missing" in captured.err
+    cli.main(["status"])
+    status = capsys.readouterr().out
+    assert any(line.startswith("compose") and "running" in line
+               for line in status.splitlines())

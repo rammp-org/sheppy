@@ -314,7 +314,7 @@ class SheppyApp(App):
         if reply is None or not reply.get("ok"):
             return
         self.actual = reply["nodes"]
-        desired = {}
+        desired, unresolved = {}, set()
         for node in self.manifest.nodes:
             alt = self.state.selected_alt(node.name)
             if alt is None:
@@ -326,10 +326,16 @@ class SheppyApp(App):
             if warns:
                 self._append_warnings(warns)
             if spec is None:
+                # Absent from `desired` would read as "stop it" (#98): keep
+                # the node out of the diff entirely so it is left as it is.
+                self._append_warnings(
+                    [f"'{node.name}': left as is, launcher failed to resolve"])
+                unresolved.add(node.name)
                 continue
             desired[node.name] = spec
         known = {n: p for n, p in self.actual.items()
-                 if self.manifest.node(n) is not None}    # orphans excluded
+                 if self.manifest.node(n) is not None     # orphans excluded
+                 and n not in unresolved}
         actions = diff(desired, known)
         if not actions:
             self._append_warnings(["already converged"])

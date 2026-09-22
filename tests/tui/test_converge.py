@@ -124,6 +124,33 @@ async def test_converge_all_leaves_orphans_alone():
         assert not any(op == "stop" for op, _ in fake.requests)
 
 
+async def test_converge_all_leaves_unresolved_nodes_alone(monkeypatch):
+    # camera is selected and running; its launcher now fails to resolve.
+    # Apply-all must not stop it (#98): it stays out of the plan, and the
+    # unselected lidar is still stopped.
+    fake = FakeDaemonClient({
+        "camera": payload("camera", "running", alt="realsense"),
+        "lidar": payload("lidar", "running"),
+    })
+    app = make_app(fake)
+    monkeypatch.setattr("sheppy.tui.app.resolve",
+                        lambda *a, **kw: (None, ["boom"]))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.select("camera", "realsense")
+        await pilot.press("L")
+        await pilot.pause()
+        assert isinstance(app.screen, ConvergeModal)
+        text = " ".join(str(s.content) for s in app.screen.query("Static"))
+        assert "camera" not in text
+        await pilot.press("enter")
+        await pilot.pause()
+        stopped = [kw["node"] for op, kw in fake.requests if op == "stop"]
+        assert stopped == ["lidar"]
+        assert any("camera" in w and "left as is" in w
+                   for w in app._runtime_warnings)
+
+
 async def test_converge_all_survives_status_error_reply():
     fake = FakeDaemonClient()
     app = make_app(fake)
