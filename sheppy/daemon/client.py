@@ -20,6 +20,9 @@ def spawn_daemon() -> None:
     # it can log anything would otherwise vanish without a trace (#88).
     cfg, _ = load_config()
     try:
+        # The home holds node specs and params: owner-only, as the daemon
+        # itself makes it. mode applies to the leaf only, so it is explicit.
+        os.makedirs(cfg.home, mode=0o700, exist_ok=True)
         os.makedirs(cfg.log_dir, exist_ok=True)
         stderr = open(daemon_log_path(cfg), "a")
     except OSError:

@@ -124,3 +124,17 @@ async def test_spawn_daemon_sends_stderr_to_daemon_log(tmp_path, monkeypatch):
         while not (log.exists() and "boom from stderr" in log.read_text()):
             await asyncio.sleep(0.02)
     await asyncio.wait_for(written(), 5)
+
+
+async def test_spawn_daemon_creates_home_owner_only(tmp_path, monkeypatch):
+    # spawn_daemon() now creates the home (for the log dir) before sheppyd
+    # does; the state file with node specs lives there, so 0o700 like
+    # sheppyd's own makedirs, not the umask default.
+    home = tmp_path / "home"
+    monkeypatch.setenv("SHEPPY_HOME", str(home))
+    fake = tmp_path / "fake-python"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(fake))
+    spawn_daemon()
+    assert os.stat(home).st_mode & 0o777 == 0o700
