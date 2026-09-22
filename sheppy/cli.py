@@ -78,7 +78,7 @@ def main(argv: "list[str] | None" = None) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="sheppy",
-        usage="sheppy [MANIFEST]\n       sheppy <verb> [...]\n       sheppy --version",
+        usage="sheppy [MANIFEST]\n       sheppy <verb> [...]\n       sheppy --version\n       sheppy --help",
         description="With a manifest path (or nothing) sheppy opens the TUI; "
                     f"MANIFEST defaults to ./{DEFAULT_MANIFEST}. With a verb "
                     "it runs headless.")
