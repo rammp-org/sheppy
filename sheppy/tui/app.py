@@ -43,7 +43,10 @@ class SheppyApp(App):
     #alts-pane { width: 26%; max-width: 46; height: 1fr; border-right: solid $divider; }
     #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
-    #dialog { width: 60; height: auto; border: thick $accent; background: $surface; padding: 1 2; }
+    #dialog { width: 60; height: auto; max-height: 90%; border: thick $accent; background: $surface; padding: 1 2; }
+    /* A long plan or param list scrolls inside the dialog; the key hint
+       is docked so it stays on screen (#113). */
+    #dialog .dialog-hint { dock: bottom; }
     """
     BINDINGS = [
         ("e", "toggle_errors", "Errors"),

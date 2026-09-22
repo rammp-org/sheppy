@@ -183,6 +183,30 @@ async def test_param_editor_handles_non_identifier_param_names(tmp_path):
                 == "best_effort")
 
 
+async def test_param_editor_with_many_params_fits_and_scrolls(tmp_path):
+    # #113: 20 params put the last Input at row 80 of a 30-row terminal.
+    from sheppy.tui.profile_modals import ParamEditorModal
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    results: list = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        app.push_screen(ParamEditorModal({f"p{i}": i for i in range(20)}),
+                        results.append)
+        await pilot.pause()
+        screen = app.screen.region
+        assert screen.contains_region(app.screen.query_one("#dialog").region)
+        for _ in range(19):
+            await pilot.press("tab")
+        await pilot.pause()
+        last = app.screen.query_one("#param-19")
+        assert app.focused is last
+        assert screen.contains_region(last.region)
+        last.value = "99"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert results and results[0]["p19"] == 99
+
+
 async def test_reload_preserves_description_across_resave(tmp_path):
     # A hand-authored description must survive load -> re-save ('s') round trip.
     ProfileStore(str(tmp_path)).save(

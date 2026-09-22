@@ -2,7 +2,7 @@
 import yaml
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListView, ListItem
 
@@ -116,12 +116,13 @@ class ParamEditorModal(ModalScreen["dict | None"]):
         self._names = list(self._params.keys())
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
+        with VerticalScroll(id="dialog"):
             yield Label("Edit params — Enter=apply, Esc=cancel")
             for i, name in enumerate(self._names):
                 yield Label(name, markup=False)
                 yield Input(value=str(self._params[name]), id=f"param-{i}")
-            yield Label("", id="param-error", markup=False)
+            yield Label("", id="param-error", markup=False,
+                        classes="dialog-hint")
 
     def on_mount(self) -> None:
         # Focus the first param field so pilot key presses land and Enter submits.
