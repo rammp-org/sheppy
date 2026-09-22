@@ -69,7 +69,7 @@ exit code. It prints `(nothing supervised)` for an empty table and
 
 ### `sheppy logs <node> [-n N]`
 
-Print the last `N` (default 50) lines of a node's output. `sheppyd` keeps the
+Print the last `N` (default 50, must be at least 1) lines of a node's output. `sheppyd` keeps the
 last 300 lines in memory; the full per-run log files are under
 `~/.sheppy/logs/<node>/`. Exits 1 if the node is unknown or the daemon isn't
 running.

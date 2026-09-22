@@ -268,7 +268,7 @@ A `spec` without a `descriptor` is rejected. The request above is the
 | `stop` | begin the stop escalation for a node |
 | `restart` | stop, then relaunch the same spec |
 | `status` | return the full table: per node `{state, pid, exit_code, started_at, usage, spec}` |
-| `logs` | return the last `n` ring-buffer lines for a node |
+| `logs` | return the last `n` ring-buffer lines for a node; `n` must be at least 1 (0 or less returns none) |
 | `subscribe` | receive pushed `status` events for every state change and usage tick until the connection closes |
 | `shutdown` | daemon exits; children keep running |
 

@@ -75,6 +75,16 @@ def main(argv: "list[str] | None" = None) -> int:
 
 
 # ---- headless verbs --------------------------------------------------------
+def _positive_int(text: str) -> int:
+    try:
+        n = int(text)
+    except ValueError:
+        n = 0
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"must be a positive integer: {text!r}")
+    return n
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="sheppy",
@@ -90,7 +100,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="one line per supervised node")
     lg = sub.add_parser("logs", help="tail a node's output")
     lg.add_argument("node")
-    lg.add_argument("-n", type=int, default=50)
+    lg.add_argument("-n", type=_positive_int, default=50)
     rs = sub.add_parser("restart", help="restart a node")
     rs.add_argument("node")
     dm = sub.add_parser("daemon", help="daemon lifecycle")

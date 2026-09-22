@@ -110,3 +110,14 @@ def test_attach_latest_drops_the_fragment_at_the_window_edge(tmp_path):
     assert all(len(line) == 1000 for line in fresh.tail())
     assert fresh.tail()[-1].startswith("line 00999 ")
     assert fresh.read_new() == []
+
+
+def test_tail_of_zero_or_negative_is_empty(tmp_path):
+    # lines[-0:] is everything and lines[5:] drops the head (#104)
+    log = make_log(tmp_path)
+    fd = log.open_run()
+    os.write(fd, b"a\nb\nc\n")
+    os.close(fd)
+    log.read_new()
+    assert log.tail(0) == []
+    assert log.tail(-2) == []

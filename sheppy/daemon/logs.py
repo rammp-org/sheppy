@@ -91,7 +91,9 @@ class NodeLog:
 
     def tail(self, n: "int | None" = None) -> list[str]:
         lines = list(self._ring)
-        return lines if n is None else lines[-n:]
+        if n is None:
+            return lines
+        return lines[-n:] if n > 0 else []     # lines[-0:] would be all (#104)
 
     def _runs(self) -> list[str]:
         if not os.path.isdir(self._dir):
