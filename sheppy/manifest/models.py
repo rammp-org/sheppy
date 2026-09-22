@@ -26,7 +26,7 @@ class Alternative:
 
     @property
     def config(self) -> dict:
-        """Deprecated name for `raw`; kept for one release after 1.0."""
+        """Deprecated name for `raw`; removed in 2.0."""
         warnings.warn("Alternative.config is deprecated; use Alternative.raw",
                       DeprecationWarning, stacklevel=2)
         return self.raw

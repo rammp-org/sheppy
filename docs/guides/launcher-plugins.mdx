@@ -82,7 +82,7 @@ class Launcher(Protocol):
   full raw dict for this alternative, so any custom keys your `kind` needs
   are always available via `alt.raw`, even if they aren't among the
   built-in typed fields like `.package`/`.executable`/`.command`; `.config`
-  is a deprecated alias for `.raw` that will be removed after 1.0). `params`
+  is a deprecated alias for `.raw` that is removed in 2.0). `params`
   is the resolved parameter dict for this node. `ctx` is a `LaunchContext`
   (below). Must return a `LaunchDescriptor`.
 - **`summary(alt)`** — a list of `(label, value)` string pairs for the TUI to
