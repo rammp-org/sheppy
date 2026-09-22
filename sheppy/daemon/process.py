@@ -74,10 +74,13 @@ class Supervised:
                       (signal.SIGTERM, self._cfg.kill_grace))
         for sig, grace in escalation:
             self._signal_group(sig)
-            if await self._exited_within(grace):
+            if await self._group_gone_within(grace):
                 return
         self._signal_group(signal.SIGKILL)
         await self._exited.wait()
+        # SIGKILL can't be ignored; anything left is only waiting to be
+        # reaped. Don't hold the node's lock forever if that never happens.
+        await self._group_gone_within(self._cfg.kill_grace)
 
     async def wait(self) -> None:
         await self._exited.wait()
@@ -94,6 +97,27 @@ class Supervised:
             return True
         except asyncio.TimeoutError:
             return False
+
+    def _group_alive(self) -> bool:
+        try:
+            os.killpg(self.pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+
+    async def _group_gone_within(self, grace: float) -> bool:
+        """True once the leader has exited *and* its process group is
+        empty. The leader dying is not enough: a helper it spawned (same
+        group) may have ignored the signal and still hold the hardware
+        (#89)."""
+        deadline = time.monotonic() + grace
+        if not await self._exited_within(grace):
+            return False
+        while self._group_alive():
+            if time.monotonic() >= deadline:
+                return False
+            await asyncio.sleep(0.05)
+        return True
 
 
 class ManagedProcess(Supervised):
