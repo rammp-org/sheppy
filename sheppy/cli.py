@@ -244,6 +244,11 @@ async def _wait_stable(client, desired: dict, timeout: float = 30.0) -> int:
             for n in sorted(states):
                 style = _STATE_STYLE.get(states[n])
                 print(f"{n}: {_style(str(states[n]), style)}")
+                if states[n] == "crashed":  # its dying words, if any
+                    reply = await client.request("logs", node=n, n=1)
+                    for line in reply.get("lines") or []:
+                        if line.strip():
+                            print(f"  {_style(line, 'dim')}")
             # Every desired node was started, restarted, or already running,
             # so anything but `running` (crashed, stopped, absent) is a
             # failure (#97).

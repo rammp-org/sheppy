@@ -31,7 +31,8 @@ It prints a plan (`start`, `restart`, or `stop` per node), then:
 - leaves nodes from other manifests alone.
 
 All the starts go out at once, with no ordering between nodes. It then waits
-up to 30 seconds for every node to settle and prints each node's final state.
+up to 30 seconds for every node to settle and prints each node's final state,
+with the last line of a crashed node's log indented under it.
 Running it twice in a row prints `already converged` the second time.
 
 `up` is the only verb that starts `sheppyd` when it isn't running, and the

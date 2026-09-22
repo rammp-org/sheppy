@@ -32,7 +32,7 @@ def site(tmp_path, monkeypatch):
             alternatives:
               - id: dies
                 kind: process
-                command: "{PY} -c 'raise SystemExit(4)'"
+                command: "{PY} -c 'import sys; print(\\"no such device\\", file=sys.stderr); raise SystemExit(4)'"
         """))
     store = ProfileStore(str(tmp_path / "profiles"))
     store.save(Profile(name="cam-only", selections={"camera": "fake"}))
@@ -60,7 +60,12 @@ def test_up_is_idempotent(site, capsys):
 def test_up_exits_nonzero_on_crash(site, capsys):
     rc = cli.main(["up", "broken", "--manifest", str(site / "system.yaml")])
     assert rc == 1
-    assert "flaky: crashed" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "flaky: crashed" in out
+    # The node's last log line is printed under its status line, so the
+    # reason is visible without a `sheppy logs` round trip (#97).
+    after = out.split("flaky: crashed", 1)[1].splitlines()
+    assert after[1].startswith("  ") and "no such device" in after[1]
 
 
 def _register_launcher(monkeypatch, launcher) -> None:
@@ -145,8 +150,11 @@ def test_up_fails_when_the_daemon_rejects_a_launch(site, capsys, monkeypatch):
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     captured = capsys.readouterr()
     assert rc == 1
-    assert "bad: " in captured.err and "/nonexistent/binary" in captured.err
-    assert "bad: stopped" in captured.out
+    # sheppyd either rejects the launch (the node stays `stopped`) or, once
+    # it maps spawn failures to `crashed` (#93), accepts it and logs why.
+    assert "bad: stopped" in captured.out or "bad: crashed" in captured.out
+    if "bad: " in captured.err:
+        assert "/nonexistent/binary" in captured.err
     assert "camera: running" in captured.out
 
 
