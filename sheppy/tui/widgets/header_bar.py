@@ -28,7 +28,7 @@ class HeaderBar(Horizontal):
         self._pending: "tuple | None" = None
 
     def compose(self):
-        yield Static(c("green", "🐑 sheppy"), id="hb-brand")
+        yield Static(c("green", "🐑🐕 sheppy"), id="hb-brand")
         yield Static("│", classes="hb-sep")
         yield Static("", id="profilebar")
         yield Static("│", classes="hb-sep")
