@@ -88,6 +88,26 @@ async def test_converge_all_shows_plan_then_executes():
         assert launches and launches[-1]["spec"]["node"] == "camera"
 
 
+async def test_long_plan_fits_the_screen_with_the_hint_visible():
+    # #113: a 30-action plan made a 36-row dialog on a 30-row terminal,
+    # with the confirm hint and the last actions off screen.
+    app = make_app(FakeDaemonClient())
+    results: list = []
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        actions = [("start", f"node_{i}") for i in range(30)]
+        app.push_screen(ConvergeModal(actions), results.append)
+        await pilot.pause()
+        screen = app.screen.region
+        assert screen.contains_region(app.screen.query_one("#dialog").region)
+        hint = app.screen.query_one(".dialog-hint")
+        assert "enter apply" in str(hint.content)
+        assert screen.contains_region(hint.region)
+        await pilot.press("enter")            # the scrolling body must not eat it
+        await pilot.pause()
+        assert results == [True]
+
+
 async def test_converge_all_escape_touches_nothing():
     fake = FakeDaemonClient()
     app = make_app(fake)

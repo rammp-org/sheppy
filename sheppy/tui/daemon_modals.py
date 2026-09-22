@@ -1,6 +1,6 @@
 """Modals for daemon actions. Presentational; the app executes."""
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -17,14 +17,15 @@ class ConvergeModal(ModalScreen[bool]):
         self._actions = actions
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="dialog"):
+        with VerticalScroll(id="dialog"):
             yield Static(c("fg", f"apply all — {len(self._actions)} action(s)"))
             for verb, node in self._actions:
                 # Whole line in one color span: c() escapes the joined text,
                 # so a color-tag boundary can never split "verb node" and
                 # break substring checks against the plan text.
                 yield Static(c(_VERB_COLOR[verb], f"{verb} {node}"))
-            yield Static(c("muted", "enter apply · esc cancel"))
+            yield Static(c("muted", "enter apply · esc cancel"),
+                         classes="dialog-hint")
 
     def action_apply(self) -> None:
         self.dismiss(True)
