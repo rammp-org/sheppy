@@ -150,7 +150,7 @@ The same table applies to an inline `container` and to a service read from a
 | `environment`, `env_file` | `-e`, `--env-file` |
 | `volumes`, `tmpfs`, `volumes_from`, `read_only` | `-v` (short and long form), `--tmpfs`, `--volumes-from`, `--read-only` |
 | `devices`, `device_cgroup_rules`, `gpus` | `--device`, `--device-cgroup-rule`, `--gpus` (short form only, e.g. `gpus: all`) |
-| `deploy.resources.reservations.devices` | `--gpus`, for each entry with `capabilities: [gpu]`: `count: all` (or no count) → `--gpus all`, `count: 2` → `--gpus 2`, `device_ids: ["0", "1"]` → `--gpus "device=0,1"`. Every other `deploy` sub-key is ignored with a warning; `deploy.replicas` above 1 is an error. |
+| `deploy.resources.reservations.devices` | `--gpus`, for each entry whose `capabilities` include `gpu`: `count: all` (or no count) → `--gpus all`, `count: 2` → `--gpus 2`, `device_ids: ["0", "1"]` → `--gpus "device=0,1"`. Further capabilities are carried: `capabilities: [gpu, compute, video]` → `--gpus all,"capabilities=compute,video"`. Setting both `count` and `device_ids` is an error, as in compose. Every other `deploy` sub-key is ignored with a warning; `deploy.replicas` above 1 is an error. |
 | `network_mode`, `ipc`, `pid`, `uts`, `userns_mode`, `cgroup`, `cgroupns_mode` | `--network`, `--ipc`, `--pid`, `--uts`, `--userns`, `--cgroupns`, `--cgroupns` |
 | `ports`, `expose` | `-p` (short `host:container` form only), `--expose` |
 | `hostname`, `domainname`, `mac_address`, `extra_hosts`, `dns`, `dns_search`, `dns_opt` | `--hostname`, `--domainname`, `--mac-address`, `--add-host`, `--dns`, `--dns-search`, `--dns-option` |
