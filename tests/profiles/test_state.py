@@ -100,6 +100,13 @@ def test_apply_with_description_round_trips_to_profile():
     assert st.to_profile("p").description == "hello"
 
 
+def test_description_property_exposes_the_applied_one():
+    st = ProfileState(_manifest())
+    assert st.description == ""
+    st.apply({}, {}, "p", description="hello")
+    assert st.description == "hello"
+
+
 def test_apply_without_description_clears_previous_description():
     st = ProfileState(_manifest())
     st.apply({}, {}, "p", description="hello")

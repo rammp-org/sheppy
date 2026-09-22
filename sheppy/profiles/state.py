@@ -66,6 +66,10 @@ class ProfileState:
         merged.update(self._overrides.get(node_name, {}))
         return merged
 
+    @property
+    def description(self) -> str:
+        return self._description
+
     # --- lifecycle ---
     def apply(self, selections: dict, overrides: dict,
               profile_name: "str | None", description: str = "") -> None:

@@ -249,6 +249,22 @@ async def test_snapshot_copies_running_set_and_skips_orphans():
         assert any("old_recorder" in w for w in app._runtime_warnings)
 
 
+async def test_snapshot_keeps_the_loaded_profiles_description():
+    # #115: `!` kept the active profile name but re-applied with the
+    # default description, so the next `s` rewrote the file without it.
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="mock_camera")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.apply({}, {}, "described", description="keep me")
+        await pilot.press("!")
+        await pilot.pause()
+        assert app.state.active_profile_name == "described"
+        assert app.state.description == "keep me"
+        assert app.state.to_profile("described").description == "keep me"
+
+
 async def test_converge_all_runs_actions_in_parallel():
     # lidar is in the manifest but unselected -> "stop"; camera -> "start"
     fake = FakeDaemonClient({"lidar": payload("lidar", "running")})
