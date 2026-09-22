@@ -159,6 +159,12 @@ class NodeList(ListView):
                 row.query_one(".col-alt", Label).update(p["spec"]["alt_id"])
             return
         self._orphans_built = False
+        n = len(self._manifest_nodes)
+        if self.index is not None and self.index >= n:
+            # The cursor sits on a row about to go; an index past the end
+            # makes the next Up raise inside ListView (#107). Moving it
+            # also re-posts NodeHighlighted, so the app forgets the orphan.
+            self.index = n - 1 if n else None
         for item in list(self.query(".orphan-divider, .orphan-row")):
             # Shielded: this runs in an exclusive worker that the next status
             # event cancels. Unshielded, the cancel reaches the row's own
