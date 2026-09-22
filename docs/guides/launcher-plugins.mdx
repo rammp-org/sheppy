@@ -78,10 +78,11 @@ class Launcher(Protocol):
   mid-launch.
 - **`launch(alt, params, ctx)`** — called at resolve time
   (`sheppy/launch/resolve.py::resolve`), once the manifest is valid. `alt` is
-  the built `Alternative` (has `.id`, `.kind`, `.machine`, and `.config` — the
+  the built `Alternative` (has `.id`, `.kind`, `.machine`, and `.raw` — the
   full raw dict for this alternative, so any custom keys your `kind` needs
-  are always available via `alt.config`, even if they aren't among the
-  built-in typed fields like `.package`/`.executable`/`.command`). `params`
+  are always available via `alt.raw`, even if they aren't among the
+  built-in typed fields like `.package`/`.executable`/`.command`; `.config`
+  is a deprecated alias for `.raw` that is removed in 2.0). `params`
   is the resolved parameter dict for this node. `ctx` is a `LaunchContext`
   (below). Must return a `LaunchDescriptor`.
 - **`summary(alt)`** — a list of `(label, value)` string pairs for the TUI to
@@ -263,11 +264,11 @@ class EchoLauncher:
 
     def launch(self, alt, params, ctx):
         # shlex.quote, not repr: manifest text must never become shell syntax.
-        msg = shlex.quote(alt.config.get("message", ""))
+        msg = shlex.quote(alt.raw.get("message", ""))
         return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg}; sleep 3600"))
 
     def summary(self, alt):
-        return [("message", alt.config.get("message", "—"))]
+        return [("message", alt.raw.get("message", "—"))]
 ```
 
 A manifest alternative for this launcher looks like:
@@ -286,7 +287,7 @@ alternatives:
 
 - `validate({"kind": "echo", "message": "hello ..."})` checks the one field
   this `kind` requires and returns `[]` (valid) or an error string.
-- `launch()` reads `alt.config["message"]` — `.config` is the full raw
+- `launch()` reads `alt.raw["message"]` — `.raw` is the full raw
   alternative dict, so custom keys like `message` are always reachable even
   though `Alternative` has no typed `.message` field — and returns an
   `inherit` descriptor. The message goes through `shlex.quote` before it is

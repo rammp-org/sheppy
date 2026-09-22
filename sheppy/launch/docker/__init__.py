@@ -14,14 +14,14 @@ class DockerLauncher:
         """The service definition and the directory its relative host
         paths are anchored to: the manifest's for an inline container, the
         compose file's for a compose service."""
-        inline = alt.config.get("container")
+        inline = alt.raw.get("container")
         if inline:
             if not isinstance(inline, dict):
                 ctx.warn(f"'{ctx.node_name}': 'container' must be a mapping, "
                          f"got {type(inline).__name__}")
                 return {}, ctx.manifest_dir
             return dict(inline), ctx.manifest_dir
-        ref = alt.config.get("compose") or {}
+        ref = alt.raw.get("compose") or {}
         if not isinstance(ref, dict):
             ctx.warn(f"'{ctx.node_name}': 'compose' must be a mapping, "
                      f"got {type(ref).__name__}")
@@ -71,7 +71,7 @@ class DockerLauncher:
                     # build a `docker run ... ''` that crashes with no log
             raise ValueError("; ".join(errs))
         if params:
-            host = ctx.write_params_file(params, alt.config.get("ros_node_name"))
+            host = ctx.write_params_file(params, alt.raw.get("ros_node_name"))
             flags += ["-v", f"{host}:/sheppy/params.yaml:ro"]
             command += ["--ros-args", "--params-file", "/sheppy/params.yaml"]
         start = (["docker", "run", "-d", "--name", name] + flags
@@ -84,11 +84,11 @@ class DockerLauncher:
             reset=["docker", "rm", "-f", name])
 
     def summary(self, alt) -> list:
-        inline = alt.config.get("container")
+        inline = alt.raw.get("container")
         if isinstance(inline, dict):
             return [("image", inline.get("image", "—")),
                     ("network", str(inline.get("network_mode", "default")))]
-        ref = alt.config.get("compose")
+        ref = alt.raw.get("compose")
         if isinstance(ref, dict):
             return [("compose", f"{ref.get('file', '—')}#{ref.get('service', '—')}")]
         return [("image", "—"), ("network", "default")]

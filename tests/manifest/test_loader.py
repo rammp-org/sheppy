@@ -1,4 +1,7 @@
 import textwrap
+
+import pytest
+
 from sheppy.manifest import parse_manifest, load_manifest, LoadResult
 
 
@@ -220,7 +223,15 @@ def test_config_bag_captures_kind_specific_fields():
     data["nodes"][0]["alternatives"][0]["some_custom_field"] = {"a": 1}
     result = parse_manifest(data)
     alt = result.manifest.node("camera").alternatives[0]
-    assert alt.config["some_custom_field"] == {"a": 1}
+    assert alt.raw["some_custom_field"] == {"a": 1}
+
+
+def test_alternative_config_is_a_deprecated_alias_for_raw():
+    data = _valid_data()
+    result = parse_manifest(data)
+    alt = result.manifest.node("camera").alternatives[0]
+    with pytest.warns(DeprecationWarning):
+        assert alt.config is alt.raw
 
 
 def test_unknown_kind_lists_known_kinds():

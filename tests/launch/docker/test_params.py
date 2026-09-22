@@ -11,7 +11,7 @@ def ctx(tmp_path):
 
 def test_params_are_written_mounted_and_referenced(tmp_path):
     a = Alternative(id="real", kind="docker",
-                    config={"container": {"image": "img",
+                    raw={"container": {"image": "img",
                                           "command": "ros2 launch p up.py"}})
     d = DockerLauncher().launch(a, {"max_range": 5.0}, ctx(tmp_path))
     start = list(d.start)
@@ -27,7 +27,7 @@ def test_params_are_written_mounted_and_referenced(tmp_path):
 
 def test_ros_node_name_targets_the_params_file(tmp_path):
     a = Alternative(id="real", kind="docker",
-                    config={"container": {"image": "img"},
+                    raw={"container": {"image": "img"},
                             "ros_node_name": "percep"})
     d = DockerLauncher().launch(a, {"x": 1}, ctx(tmp_path))
     mount = next(s for s in d.start if s.endswith(":/sheppy/params.yaml:ro"))
@@ -37,7 +37,7 @@ def test_ros_node_name_targets_the_params_file(tmp_path):
 
 def test_no_params_no_mount(tmp_path):
     a = Alternative(id="real", kind="docker",
-                    config={"container": {"image": "img", "command": "run"}})
+                    raw={"container": {"image": "img", "command": "run"}})
     d = DockerLauncher().launch(a, {}, ctx(tmp_path))
     assert not any(":/sheppy/params.yaml:ro" in s for s in d.start)
     assert "--params-file" not in d.start

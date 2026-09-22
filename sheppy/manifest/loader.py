@@ -68,7 +68,7 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
         launch_file=raw.get("launch_file"), command=raw.get("command"),
         params=params or {},
         publishes=topics["publishes"], subscribes=topics["subscribes"],
-        config=dict(raw))
+        raw=dict(raw))
 
 
 def _build_node(raw: dict, loc: str, machine_names: set, errors: list) -> Node:

@@ -157,6 +157,6 @@ class DetailTabs(Vertical):
             "subscribes": alt.subscribes,
         }
         data = {k: v for k, v in data.items() if v not in (None, [], {})}
-        if alt.config:
-            data["config"] = alt.config
+        if alt.raw:
+            data["config"] = alt.raw
         return yaml.safe_dump(data, sort_keys=False).rstrip()
