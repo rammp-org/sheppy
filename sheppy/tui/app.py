@@ -274,6 +274,8 @@ class SheppyApp(App):
             self._append_warnings(
                 [f"'{node.name}': no alternative selected"])
             return
+        if alt is not None and self._invalid_alt(node, alt):
+            return
         if not await self._ensure_daemon():
             return
         if alt is None:                     # converge-to-nothing = stop
@@ -322,6 +324,9 @@ class SheppyApp(App):
             alt = self.state.selected_alt(node.name)
             if alt is None:
                 continue
+            if self._invalid_alt(node, alt):
+                unresolved.add(node.name)
+                continue
             spec, warns = resolve(self.manifest, node.name, alt,
                                   self.state.effective_params(node.name),
                                   manifest_dir=os.path.dirname(
@@ -347,6 +352,16 @@ class SheppyApp(App):
             ConvergeModal(actions),
             lambda ok: self.run_worker(self._execute(actions, desired))
             if ok else None)
+
+    def _invalid_alt(self, node, alt) -> bool:
+        """Refuse to launch an alternative that failed validation (#61):
+        resolve() would build a half-formed command from it. The node is
+        left as it is and the load errors go to the overlay."""
+        errs = self.load_result.errors_for(node, alt)
+        if errs:
+            self._append_warnings(
+                [f"'{node.name}': not launched, {e.message}" for e in errs])
+        return bool(errs)
 
     async def _execute(self, actions, desired) -> None:
         # One request per node, all in flight at once (#48); diff() never

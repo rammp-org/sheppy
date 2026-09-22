@@ -106,7 +106,9 @@ stop them along with everything else.
 ## Errors
 
 A manifest with errors in some entries still opens: the errors are listed in
-the overlay (`e`) and the rest stays browsable. If the file is missing or
+the overlay (`e`) and the rest stays browsable. An alternative with errors
+can be selected but not launched: `space` and `Shift+L` refuse it, leave the
+node as it is, and put the error in the overlay. If the file is missing or
 isn't valid YAML, `sheppy` prints the error and exits instead. The same holds for profiles: a corrupt
 profile file or one that has drifted from the manifest surfaces warnings in the
 overlay and the applicable remainder still loads.
