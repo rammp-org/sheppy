@@ -276,16 +276,7 @@ async def _up(args) -> int:
             if not reply["ok"]:
                 _error(f"{node}: {reply['error']}")
                 rejected = True
-        # A restart stops the old process first (stop_grace, then kill_grace)
-        # and the new one is `launching` for launch_grace, so the settle
-        # timeout follows the daemon's config rather than a fixed 30 s (#103).
-        cfg, _ = load_config()
-        # A detached descriptor's own grace["launch"] overrides launch_grace
-        # in the daemon, so take the largest one in play.
-        launch = max([cfg.launch_grace] + [
-            (s.descriptor.grace or {}).get("launch", 0)
-            for s in desired.values()])
-        timeout = launch + cfg.stop_grace + cfg.kill_grace + 10
+        timeout = _settle_timeout(load_config()[0], desired)
         launched = sum(verb != "stop" for verb, _ in actions)
         if launched:
             print(f"waiting for {launched} node(s) to settle "
@@ -294,6 +285,17 @@ async def _up(args) -> int:
         return 1 if (rejected or unresolved) else rc
     finally:
         await client.close()
+
+
+def _settle_timeout(cfg, desired: dict) -> float:
+    """How long `up` waits for nodes to settle: a restart stops the old
+    process first (stop_grace, then kill_grace) and the new one is
+    `launching` for launch_grace, so it follows the daemon's config rather
+    than a fixed 30 s (#103). A detached descriptor's own grace["launch"]
+    overrides launch_grace in the daemon, so take the largest one in play."""
+    launch = max([cfg.launch_grace] + [
+        (s.descriptor.grace or {}).get("launch", 0) for s in desired.values()])
+    return launch + cfg.stop_grace + cfg.kill_grace + 10
 
 
 async def _wait_stable(client, desired: dict, timeout: float) -> int:
