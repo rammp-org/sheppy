@@ -265,3 +265,30 @@ def test_label_values_follow_the_same_rules():
     assert errs == []
     assert _values(flags, "--label") == ["com.example.rt=true",
                                          "com.example.n=2", "com.example.flag"]
+
+
+def test_list_form_entrypoint_leads_the_command():
+    # compose semantics: --entrypoint takes the first element, the rest
+    # go in front of the command
+    flags, _, command, errs, _ = service_to_docker_args(
+        {"image": "i", "entrypoint": ["/bin/sh", "-c"], "command": "echo hi"})
+    assert errs == []
+    assert flags[flags.index("--entrypoint") + 1] == "/bin/sh"
+    assert "/bin/sh -c" not in flags
+    assert command == ["-c", "echo", "hi"]
+
+
+def test_string_entrypoint_is_split_like_command():
+    flags, _, command, errs, _ = service_to_docker_args(
+        {"image": "i", "entrypoint": "/bin/sh -c", "command": ["echo", "hi"]})
+    assert errs == []
+    assert flags[flags.index("--entrypoint") + 1] == "/bin/sh"
+    assert command == ["-c", "echo", "hi"]
+
+
+def test_empty_entrypoint_overrides_the_image_default():
+    flags, _, command, errs, _ = service_to_docker_args(
+        {"image": "i", "entrypoint": [], "command": "echo hi"})
+    assert errs == []
+    assert flags[flags.index("--entrypoint") + 1] == ""
+    assert command == ["echo", "hi"]
