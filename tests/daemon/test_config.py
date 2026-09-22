@@ -30,6 +30,36 @@ def test_bad_json_falls_back_to_defaults_with_warning(tmp_path):
     assert len(warnings) == 1
 
 
+def test_wrong_type_falls_back_to_default_with_warning(tmp_path):
+    # {"stop_grace": "5"} used to load silently and blow up the first stop
+    # with a TypeError inside wait_for, stranding the node in STOPPING (#91).
+    (tmp_path / "sheppyd.json").write_text(json.dumps(
+        {"stop_grace": "5", "keep_runs": "5", "coredumps": 1,
+         "ring_lines": True, "kill_grace": 3.0}))
+    cfg, warnings = load_config(str(tmp_path))
+    assert cfg.stop_grace == 5.0 and cfg.keep_runs == 5
+    assert cfg.coredumps is False and cfg.ring_lines == 300
+    assert cfg.kill_grace == 3.0            # a good key still applies
+    assert len(warnings) == 4
+    assert all("expects" in w and "default" in w for w in warnings)
+
+
+def test_int_is_accepted_for_a_float_key(tmp_path):
+    (tmp_path / "sheppyd.json").write_text(json.dumps({"stop_grace": 5}))
+    cfg, warnings = load_config(str(tmp_path))
+    assert cfg.stop_grace == 5.0 and isinstance(cfg.stop_grace, float)
+    assert warnings == []
+
+
+def test_log_dir_expands_tilde(tmp_path, monkeypatch):
+    # The docs' own example is "~/.sheppy/logs"; unexpanded it created a
+    # literal ./~ directory in the daemon's cwd (#91).
+    monkeypatch.setenv("HOME", str(tmp_path))
+    (tmp_path / "sheppyd.json").write_text(json.dumps({"log_dir": "~/lg"}))
+    cfg, warnings = load_config(str(tmp_path))
+    assert cfg.log_dir == str(tmp_path / "lg") and warnings == []
+
+
 def test_sheppy_home_env_override(monkeypatch, tmp_path):
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     assert sheppy_home() == str(tmp_path)

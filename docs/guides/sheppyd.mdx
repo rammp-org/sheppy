@@ -167,8 +167,9 @@ raises) the traceback is there.
 
 Optional, at `~/.sheppy/sheppyd.json`. It is a single flat JSON object —
 plain keys, no nesting — read once at startup. Every key is optional; unknown
-keys are ignored with a warning in the daemon log. A missing or malformed file
-falls back to defaults.
+keys, and keys whose value has the wrong type (`"stop_grace": "5"`), are
+ignored with a warning in the daemon log and the default is used. A missing or
+malformed file falls back to defaults. `log_dir` expands a leading `~`.
 
 ```json
 {

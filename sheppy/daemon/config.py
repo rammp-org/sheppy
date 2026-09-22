@@ -51,8 +51,17 @@ def load_config(home: "str | None" = None) -> "tuple[Config, list[str]]":
         if key not in _TUNABLE:
             warnings.append(f"{path}: unknown key '{key}' ignored")
             continue
+        typ = _TUNABLE[key]
+        if typ is float and type(value) is int:
+            value = float(value)           # 5 is a fine float
+        # bool is an int subclass; a JSON true is still not a count (#91).
+        if not isinstance(value, typ) or (typ is int and type(value) is bool):
+            warnings.append(f"{path}: '{key}' expects {typ.__name__}, "
+                            f"got {value!r}; using the default")
+            continue
         kwargs[key] = value
-    log_dir = kwargs.pop("log_dir", None) or os.path.join(home, "logs")
+    log_dir = os.path.expanduser(
+        kwargs.pop("log_dir", None) or os.path.join(home, "logs"))
     try:
         cfg = Config(home=home, log_dir=log_dir, **kwargs)
     except TypeError as e:
