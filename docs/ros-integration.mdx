@@ -136,10 +136,11 @@ container:
     RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
 ```
 
-Relative host paths in `volumes` and `env_file` are passed to `docker run`
-unchanged, so they resolve against `sheppyd`'s working directory, not the
-manifest's. Use absolute paths. A `compose:` file path is the exception: it is
-resolved relative to the manifest.
+Relative host paths in `volumes` (`./maps:/maps`, `~/bags:/bags`) and
+`env_file` are resolved against the manifest's directory for an inline
+`container`, and against the compose file's directory for a `compose:`
+service, as compose does. A `compose:` file path is resolved relative to the
+manifest.
 
 ## After you rebuild or edit
 

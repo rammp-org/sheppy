@@ -139,6 +139,42 @@ def test_compose_only_lifecycle_hooks_warn_rather_than_error():
     assert len(warns) == 4
 
 
+def test_relative_bind_sources_resolve_against_base_dir():
+    # sheppyd's cwd is arbitrary, so ./ and ~ bind sources are anchored to
+    # the manifest (inline) or compose file (compose) directory (#33).
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "volumes": [
+            "./maps:/maps:ro",
+            "../shared:/shared",
+            {"type": "bind", "source": "./cfg", "target": "/cfg", "read_only": True},
+            "data:/data",                        # named volume, untouched
+            "/abs:/abs",                         # absolute, untouched
+            "/anon"]},                           # anonymous, untouched
+        base_dir="/proj/ws")
+    assert errs == []
+    vols = [flags[i + 1] for i, f in enumerate(flags) if f == "-v"]
+    assert vols == ["/proj/ws/maps:/maps:ro", "/proj/shared:/shared",
+                    "/proj/ws/cfg:/cfg:ro", "data:/data", "/abs:/abs", "/anon"]
+
+
+def test_tilde_bind_source_expands_home(monkeypatch):
+    monkeypatch.setenv("HOME", "/home/me")
+    flags, _, _, _, _ = service_to_docker_args(
+        {"image": "i", "volumes": ["~/bags:/bags"]}, base_dir="/proj")
+    assert flags[flags.index("-v") + 1] == "/home/me/bags:/bags"
+
+
+def test_relative_env_file_resolves_against_base_dir():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "env_file": "./ros.env"}, base_dir="/proj")
+    assert errs == []
+    assert flags[flags.index("--env-file") + 1] == "/proj/ros.env"
+    flags, _, _, _, _ = service_to_docker_args(
+        {"image": "i", "env_file": ["./a.env", "/etc/b.env"]}, base_dir="/proj")
+    assert [flags[i + 1] for i, f in enumerate(flags) if f == "--env-file"] \
+        == ["/proj/a.env", "/etc/b.env"]
+
+
 def test_label_file_and_cgroup_translate():
     flags, _, _, errs, _ = service_to_docker_args(
         {"image": "i", "label_file": "./labels", "cgroup": "host"})
