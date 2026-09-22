@@ -508,8 +508,8 @@ class SheppyApp(App):
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
         # Deliberate descent: move focus into the alternatives pane, and
-        # highlight the current selection (or the first alternative) so a
-        # second Enter can select it immediately.
+        # highlight the current selection (or the first alternative). A
+        # second Enter then selects it, or de-selects it if it already was.
         panel = self.query_one(AlternativesPanel)
         panel.focus()
         node = self._current_node()
@@ -544,8 +544,8 @@ class SheppyApp(App):
         await panel.show(event.node, selected)
         # The rebuild drops the cursor; keep it on the row just acted on so
         # another Enter toggles the same alternative.
-        panel.index = next(i for i, a in enumerate(event.node.alternatives)
-                           if a.id == event.alt.id)
+        panel.index = next((i for i, a in enumerate(event.node.alternatives)
+                            if a.id == event.alt.id), None)
 
     # ---- PROCESS tab -------------------------------------------------------
     def on_tabbed_content_tab_activated(self, event) -> None:

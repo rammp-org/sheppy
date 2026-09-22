@@ -19,6 +19,7 @@ class ProfileState:
 
     def clear(self, node_name: str) -> None:
         self._selection.clear(node_name)
+        self._overrides.pop(node_name, None)   # overrides need a selection
         self.is_dirty = True
 
     def selected(self, node_name: str) -> "str | None":
