@@ -178,7 +178,11 @@ runtime-specific behavior.
 `descriptor.validate()` enforces: `supervise` is `"inherit"` or `"detached"`;
 `start` is non-empty; and for `detached`, `name` is set and exactly one of
 `watch`/`poll` is given. It's cheap and worth calling from your own tests, as
-the example test does — and the daemon independently re-checks the same
+the example test does. `resolve()` also runs it on whatever `launch()`
+returns: a value that is not a `LaunchDescriptor`, or one that fails
+`validate()`, is reported as a warning (`'<node>': launcher '<kind>'
+returned ...`) and the node is not launched, the same path an exception from
+`launch()` takes. The daemon independently re-checks the same
 rules against the wire dict on every incoming launch request
 (`sheppy/daemon/server.py::_validate_descriptor`), so a malformed descriptor
 is rejected even if a client skipped local validation.
@@ -236,6 +240,12 @@ A broken plugin (import error, exception on instantiation) is skipped with a
 warning on stderr — `sheppy: skipping launcher plugin '<name>': <error>` —
 and never breaks discovery of the other launchers
 (`LauncherRegistry.discover`).
+
+Each `kind` can be registered once. If two plugins claim the same kind, the
+first one discovered keeps it and the other is ignored with a warning on
+stderr — `sheppy: ignoring launcher <Class> for kind '<kind>': already
+registered by <Class>`. Entry-point order is undefined, so a plugin cannot
+rely on replacing a built-in kind; pick a new kind name instead.
 
 ## Walk-through: `examples/launchers/echo_launcher.py`
 

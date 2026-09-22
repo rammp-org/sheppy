@@ -16,6 +16,16 @@ def test_register_and_get():
     assert reg.kinds() == ["docker", "process"]
 
 
+def test_kind_collision_keeps_first_and_warns(capsys):
+    # Entry-point order is undefined, so a later plugin must not silently
+    # replace a built-in kind (#69).
+    first, second = FakeLauncher("process"), FakeLauncher("process")
+    reg = LauncherRegistry([first, second])
+    assert reg.get("process") is first
+    err = capsys.readouterr().err
+    assert "process" in err and "already registered" in err
+
+
 def test_unknown_kind_lists_known():
     reg = LauncherRegistry([FakeLauncher("process")])
     with pytest.raises(UnknownKind) as ei:

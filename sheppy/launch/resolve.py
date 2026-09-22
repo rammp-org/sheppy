@@ -34,6 +34,15 @@ def resolve(manifest, node_name, alt, params, registry=None, manifest_dir=None):
         ctx.warn(f"'{node_name}': launcher {alt.kind!r} failed to resolve: "
                  f"{type(e).__name__}: {e}")
         return (None, ctx.warnings)
+    if not isinstance(descriptor, LaunchDescriptor):
+        ctx.warn(f"'{node_name}': launcher {alt.kind!r} returned "
+                 f"{type(descriptor).__name__}, not a LaunchDescriptor")
+        return (None, ctx.warnings)
+    errs = descriptor.validate()
+    if errs:
+        ctx.warn(f"'{node_name}': launcher {alt.kind!r} returned an invalid "
+                 f"descriptor: {'; '.join(errs)}")
+        return (None, ctx.warnings)
     return (LaunchSpec(node=node_name, alt_id=alt.id, descriptor=descriptor,
                        params=dict(params)), ctx.warnings)
 
