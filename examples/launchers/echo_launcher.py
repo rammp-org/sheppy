@@ -18,8 +18,8 @@ class EchoLauncher:
 
     def launch(self, alt, params, ctx):
         # shlex.quote, not repr: manifest text must never become shell syntax.
-        msg = shlex.quote(alt.config.get("message", ""))
+        msg = shlex.quote(alt.raw.get("message", ""))
         return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg}; sleep 3600"))
 
     def summary(self, alt):
-        return [("message", alt.config.get("message", "—"))]
+        return [("message", alt.raw.get("message", "—"))]

@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass, field
 
 
@@ -21,7 +22,14 @@ class Alternative:
     params: dict = field(default_factory=dict)
     publishes: list[str] = field(default_factory=list)
     subscribes: list[str] = field(default_factory=list)
-    config: dict = field(default_factory=dict)
+    raw: dict = field(default_factory=dict)   # the alternative's full mapping
+
+    @property
+    def config(self) -> dict:
+        """Deprecated name for `raw`; kept for one release after 1.0."""
+        warnings.warn("Alternative.config is deprecated; use Alternative.raw",
+                      DeprecationWarning, stacklevel=2)
+        return self.raw
 
 
 @dataclass(frozen=True)

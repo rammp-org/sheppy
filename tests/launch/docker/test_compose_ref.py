@@ -77,7 +77,7 @@ def test_launcher_reads_compose_reference(tmp_path):
             command: ros2 launch perc up.py
     """)
     a = Alternative(id="real", kind="docker",
-                    config={"compose": {"file": "demo.compose.yml",
+                    raw={"compose": {"file": "demo.compose.yml",
                                         "service": "perception"}})
     ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
                         home=str(tmp_path), manifest_dir=str(tmp_path))

@@ -11,7 +11,7 @@ def ctx(tmp_path):
 
 
 def alt(**config):
-    return Alternative(id="real", kind="docker", config=config)
+    return Alternative(id="real", kind="docker", raw=config)
 
 
 def test_inline_container_descriptor(tmp_path):
