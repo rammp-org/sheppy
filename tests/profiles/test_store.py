@@ -91,3 +91,21 @@ def test_delete_when_path_is_directory_does_not_raise(tmp_path):
     (d / "victim.yaml").mkdir()      # path is a directory, not a file
     store = ProfileStore(str(d))
     store.delete("victim")           # must not raise (IsADirectoryError)
+
+
+def test_load_rejects_name_that_escapes_profiles_dir(tmp_path):
+    (tmp_path / "secret.yaml").write_text("selections: {}\n")
+    store = ProfileStore(str(tmp_path / "profiles"))
+    for name in ("../secret", "foo/bar"):
+        res = store.load(name)
+        assert res.profile is None
+        assert res.errors == [f"invalid profile name: {name!r}"]
+
+
+def test_delete_ignores_name_that_escapes_profiles_dir(tmp_path):
+    secret = tmp_path / "secret.yaml"
+    secret.write_text("selections: {}\n")
+    store = ProfileStore(str(tmp_path / "profiles"))
+    store.save(Profile(name="real"))          # so profiles/.. resolves
+    store.delete("../secret")
+    assert secret.exists()

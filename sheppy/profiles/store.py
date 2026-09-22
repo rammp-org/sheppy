@@ -29,6 +29,8 @@ class ProfileStore:
         return sorted(stems)
 
     def load(self, name: str) -> ProfileLoadResult:
+        if not NAME_RE.match(name):        # keep name == filename stem (#101)
+            return ProfileLoadResult(None, [f"invalid profile name: {name!r}"])
         path = self._path(name)
         if not os.path.isfile(path):
             return ProfileLoadResult(None, [f"profile not found: {name}"])
@@ -84,6 +86,8 @@ class ProfileStore:
             yaml.safe_dump(data, f, sort_keys=True, default_flow_style=False)
 
     def delete(self, name: str) -> None:
+        if not NAME_RE.match(name):
+            return
         try:
             os.remove(self._path(name))
         except OSError:
