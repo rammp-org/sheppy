@@ -119,15 +119,18 @@ class SheppyApp(App):
         # mount/compose messages have been processed, so TabbedContent's inner
         # panes (and #detail) are guaranteed to exist by the time it runs.
         self.call_after_refresh(self._populate_initial)
+        if self._client is None:
+            from sheppy.daemon.client import DaemonClient
+            self._client = DaemonClient()
+        # Once, not per connect: the client keeps its callbacks across
+        # reconnects, so each one used to add another (#114).
+        self._client.on_event(self._on_daemon_event)
         self.run_worker(self._daemon_connect(spawn=False), exclusive=False)
         self._proc_timer = self.set_interval(
             1.0, self._refresh_process_tab, pause=True)
 
     # ---- daemon connection -------------------------------------------------
     async def _daemon_connect(self, spawn: bool) -> bool:
-        if self._client is None:
-            from sheppy.daemon.client import DaemonClient
-            self._client = DaemonClient()
         if not await self._client.connect(spawn=spawn):
             self._refresh_runtime()
             return False
@@ -136,7 +139,6 @@ class SheppyApp(App):
             self._append_warnings([stale])
         from sheppy.daemon.client import DaemonError
         try:
-            self._client.on_event(self._on_daemon_event)
             await self._client.subscribe()
             reply = await self._client.request("status")
         except DaemonError:
