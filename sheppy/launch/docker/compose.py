@@ -29,7 +29,7 @@ _ALIAS = {
 # Keys whose docker flag is exactly --kebab-case of the key.
 _MECHANICAL = frozenset({
     "env_file", "ipc", "pid", "uts", "privileged", "cap_add", "cap_drop",
-    "gpus", "entrypoint", "hostname", "domainname", "mac_address", "init",
+    "gpus", "hostname", "domainname", "mac_address", "init",
     "read_only", "tty", "shm_size", "security_opt", "group_add", "tmpfs",
     "dns", "dns_search", "cgroup_parent", "runtime", "platform", "isolation",
     "expose", "volumes_from", "storage_opt", "pids_limit", "oom_kill_disable",
@@ -63,7 +63,7 @@ _NOT_APPLICABLE = {
 }
 
 # Handled by their own code below rather than by the generic translation.
-_BESPOKE = frozenset({"image", "command", "deploy"})
+_BESPOKE = frozenset({"image", "command", "entrypoint", "deploy"})
 
 _KNOWN = frozenset(_ALIAS) | _MECHANICAL | frozenset(_NOT_APPLICABLE) | _BESPOKE
 
@@ -185,14 +185,19 @@ def _check_gpus(value, errors):
     return None
 
 
-def _check_entrypoint(value, errors):
-    return value if isinstance(value, str) else " ".join(str(v) for v in value)
+def _entrypoint(value):
+    """--entrypoint takes one binary; compose puts the remaining elements in
+    front of the command. [] or "" overrides the image's entrypoint with
+    nothing, null keeps it."""
+    if value is None:
+        return [], []
+    parts = _command_list(value)
+    return ["--entrypoint", parts[0] if parts else ""], parts[1:]
 
 
 _CHECK = {
     "environment": _check_environment, "volumes": _check_volumes,
     "ports": _check_ports, "gpus": _check_gpus,
-    "entrypoint": _check_entrypoint,
 }
 
 
@@ -298,4 +303,6 @@ def service_to_docker_args(service: dict):
             continue
         flags += _emit(key, value)
 
-    return flags, image or "", _command_list(service.get("command")), errors, warnings
+    entry_flags, lead = _entrypoint(service.get("entrypoint"))
+    command = lead + _command_list(service.get("command"))
+    return flags + entry_flags, image or "", command, errors, warnings
