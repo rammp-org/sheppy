@@ -25,10 +25,13 @@ class ProfileStore:
     def list_profiles(self) -> list[str]:
         if not os.path.isdir(self._dir):
             return []
-        stems = [fn[:-5] for fn in os.listdir(self._dir) if fn.endswith(".yaml")]
+        stems = [fn[:-5] for fn in os.listdir(self._dir)
+                 if fn.endswith(".yaml") and NAME_RE.match(fn[:-5])]
         return sorted(stems)
 
     def load(self, name: str) -> ProfileLoadResult:
+        if not NAME_RE.match(name):        # keep name == filename stem (#101)
+            return ProfileLoadResult(None, [f"invalid profile name: {name!r}"])
         path = self._path(name)
         if not os.path.isfile(path):
             return ProfileLoadResult(None, [f"profile not found: {name}"])
@@ -84,6 +87,8 @@ class ProfileStore:
             yaml.safe_dump(data, f, sort_keys=True, default_flow_style=False)
 
     def delete(self, name: str) -> None:
+        if not NAME_RE.match(name):
+            return
         try:
             os.remove(self._path(name))
         except OSError:

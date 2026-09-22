@@ -12,6 +12,8 @@ in the TUI or headless with `sheppy up`.
 
 One YAML file per profile, in a `profiles/` directory next to the manifest.
 The filename is the profile's name: `profiles/mock.yaml` is the profile `mock`.
+A name is letters, digits, `_`, and `-` (`[A-Za-z0-9_-]`, no slashes or
+dots); a file named anything else is not a profile and won't load.
 
 ```
 my_robot/
