@@ -169,6 +169,9 @@ class SheppyApp(App):
     def _on_daemon_event(self, event: dict) -> None:
         if event.get("event") == "disconnected":
             self.daemon_connected = False
+            # Same text as _request_safely's DaemonError message on purpose:
+            # a request failing at the same moment then dedupes with it in
+            # the overlay rather than stacking a second line.
             self._append_warnings(["sheppyd connection lost — space/L "
                                    "reconnects (and restarts sheppyd if it "
                                    "died)"])
