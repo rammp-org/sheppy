@@ -88,7 +88,7 @@ class Supervised:
     def _signal_group(self, sig: int) -> None:
         try:
             os.killpg(self.pid, sig)       # pgid == pid (new session)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
 
     async def _exited_within(self, grace: float) -> bool:
@@ -104,6 +104,11 @@ class Supervised:
             return True
         except ProcessLookupError:
             return False
+        except PermissionError:
+            # EPERM: every remaining member belongs to another uid (a helper
+            # started via sudo). It exists but we can't signal it; treat it
+            # as alive and let the escalation run out its grace.
+            return True
 
     async def _group_gone_within(self, grace: float) -> bool:
         """True once the leader has exited *and* its process group is

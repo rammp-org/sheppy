@@ -130,9 +130,9 @@ A stop is not finished when the direct child exits; it is finished when the
 whole process group is empty. If the child dies on `SIGINT` but a helper it
 spawned (a camera pipeline, a serial bridge) ignores the signal and lives on,
 the escalation continues against the group — `SIGTERM`, then `SIGKILL` —
-until nothing in it remains or the grace budget is spent. A `restart` or
-relaunch of that node waits for this, so a new instance never fights a
-leftover helper for the hardware.
+until nothing in it remains or the grace budget is spent. A stop, restart,
+or relaunch of a running node waits for this. If the leader crashed on its
+own, see #163.
 
 ### Crashes are flagged, never auto-restarted
 
