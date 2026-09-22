@@ -139,8 +139,19 @@ class ManagedProcess(Supervised):
                 start_new_session=True,
                 env={**os.environ, **_CHILD_ENV},
                 preexec_fn=_unlimited_core if self._cfg.coredumps else None)
+        except (OSError, ValueError) as e:
+            # Not found, not executable, a non-string argv element: the
+            # node never ran. Say why where the operator looks (#93).
+            os.write(fd, f"sheppyd: cannot start: {e}\n".encode())
+            proc = None
         finally:
             os.close(fd)                   # the child holds its own copy
+        if proc is None:
+            self.started_at = time.time()
+            self.log.read_new()            # the reason, into the ring
+            self._exited.set()
+            self._set(CRASHED)
+            return
         self.pid = proc.pid
         self.started_at = time.time()
         self._stop_requested = False

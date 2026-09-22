@@ -52,6 +52,24 @@ async def test_instant_failure_is_crashed_with_exit_code(tmp_path):
     assert mp.state == pr.CRASHED and mp.exit_code == 3
 
 
+async def test_spawn_failure_is_crashed_with_the_reason_in_the_log(tmp_path):
+    # A command that cannot even be exec'd used to raise out of start(),
+    # leaving the node at stopped/pid=None with no state event and an
+    # empty run file (#93).
+    cfg = make_cfg(tmp_path)
+    log = NodeLog(cfg.log_dir, "n", cfg.ring_lines, cfg.keep_runs)
+    states = []
+    argv = ["/nonexistent/sheppy-test-binary"]
+    mp = pr.ManagedProcess(                # the shape ProcessTable passes
+        {"node": "n", "alt_id": "a", "params": {}, "argv": argv,
+         "descriptor": {"supervise": "inherit", "start": argv}},
+        cfg, log, on_state=lambda m: states.append(m.state))
+    await mp.start()
+    assert mp.state == pr.CRASHED and mp.pid is None and mp.exit_code is None
+    assert mp._exited.is_set() and states == [pr.CRASHED]
+    assert any("No such file" in line for line in log.tail())
+
+
 async def test_late_crash_after_running(tmp_path):
     mp, states, _ = make_mp(
         tmp_path, "import time; time.sleep(0.5); raise SystemExit(2)",

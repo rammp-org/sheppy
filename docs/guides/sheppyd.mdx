@@ -116,7 +116,9 @@ how each one looks.
 
 A node is **launching** until it survives `launch_grace` seconds; a process
 that exits inside that window (for example, a bad package name) is reported as
-**crashed** rather than flickering through *running*.
+**crashed** rather than flickering through *running*. A command that cannot be
+started at all (not found, not executable) is reported as **crashed** too, with
+the reason as the only line in that run's log.
 
 ### Stopping is an escalation
 

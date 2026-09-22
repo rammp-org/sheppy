@@ -63,6 +63,15 @@ async def test_crash_is_retained_with_exit_code(tmp_path):
     assert table.status()["flaky"]["exit_code"] == 7
 
 
+async def test_spawn_failure_is_reported_as_crashed(tmp_path):
+    events = []
+    table, _ = make_table(tmp_path, events)
+    await table.launch(spec("ghost", ["/nonexistent/sheppy-test-binary"]))
+    st = table.status()["ghost"]
+    assert st["state"] == pr.CRASHED and st["pid"] is None
+    assert [p["state"] for n, p in events if n == "ghost"] == [pr.CRASHED]
+
+
 async def test_restart_relaunches_same_spec(tmp_path):
     table, _ = make_table(tmp_path)
     await table.launch(spec("flaky", CRASH))
