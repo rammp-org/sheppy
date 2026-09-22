@@ -215,3 +215,26 @@ async def test_daemon_death_renders_offline_and_warns():
         await pilot.pause()
         assert fake.spawn_attempts[-1] is True
         assert app.daemon_connected is True
+
+
+async def test_reconnecting_registers_the_event_callback_once():
+    # #114: every reconnect added another callback, so one status event
+    # ran _refresh_runtime once per reconnect so far.
+    fake = FakeDaemonClient({"camera": payload("camera", "running")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        for _ in range(2):
+            fake.raise_on_request = True
+            await pilot.press("x")              # request fails -> offline
+            await pilot.pause()
+            assert app.daemon_connected is False
+            fake.raise_on_request = False
+            await pilot.press("space")          # reconnects
+            await pilot.pause()
+            assert app.daemon_connected is True
+        assert len(fake._callbacks) == 1
+        calls = []
+        app._refresh_runtime = lambda: calls.append(1)
+        fake.push(payload("camera", "crashed"))
+        assert len(calls) == 1
