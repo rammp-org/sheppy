@@ -117,10 +117,11 @@ class ManagedProcess(Supervised):
         self._stop_requested = False
         self._exited = asyncio.Event()
         self.exit_code = None
-        self._set(LAUNCHING)
         # The loop holds only weak refs to tasks; dropping this reference
-        # could GC a live watcher and silently kill supervision.
+        # could GC a live watcher and silently kill supervision. Created
+        # before the state report so a failing report (#86) can't either.
         self._watch_task = asyncio.ensure_future(self._watch(proc))
+        self._set(LAUNCHING)
 
     async def _watch(self, proc) -> None:
         try:
