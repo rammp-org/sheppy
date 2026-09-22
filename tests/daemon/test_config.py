@@ -1,6 +1,7 @@
 import json
 from sheppy.daemon.config import (
-    Config, load_config, sheppy_home, socket_path, state_path, lock_path,
+    Config, daemon_log, load_config, sheppy_home, socket_path, state_path,
+    lock_path,
 )
 
 
@@ -51,3 +52,12 @@ def test_socket_uses_xdg_when_no_sheppy_home(monkeypatch, tmp_path):
     import os
     assert socket_path(os.path.expanduser("~/.sheppy")) == \
         str(tmp_path / "sheppy" / "sheppyd.sock")
+
+
+def test_daemon_log_survives_a_lone_surrogate(tmp_path):
+    # A non-UTF-8 byte in a path rides along in an OSError's filename as a
+    # surrogate; the log line must not raise UnicodeEncodeError over it.
+    cfg, _ = load_config(str(tmp_path))
+    daemon_log(cfg, "state file not written: '/bad/\udcff'")
+    text = (tmp_path / "logs" / "sheppyd.log").read_text()
+    assert "state file not written" in text and "\\udcff" in text

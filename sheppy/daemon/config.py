@@ -102,7 +102,9 @@ def daemon_log(cfg: Config, text: str) -> None:
     full, unwritable log dir) must never take supervision down with it."""
     try:
         os.makedirs(cfg.log_dir, exist_ok=True)
-        with open(daemon_log_path(cfg), "a") as f:
+        # backslashreplace: a lone surrogate (a non-UTF-8 byte in a path,
+        # carried in an OSError's filename) must not make the log line raise.
+        with open(daemon_log_path(cfg), "a", errors="backslashreplace") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
     except OSError:
         pass
