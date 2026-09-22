@@ -3,12 +3,11 @@ stdlib only. A bad request can never take the daemon down."""
 import asyncio
 import os
 
+import sheppy
 from sheppy.daemon import usage as usage_mod
 from sheppy.daemon.config import Config, socket_path
 from sheppy.daemon.protocol import Decoder, encode
 from sheppy.daemon.table import ProcessTable
-
-VERSION = "0.1"
 
 
 def _validate_descriptor(node, d) -> "str | None":
@@ -76,7 +75,8 @@ class Server:
     async def _client(self, reader, writer) -> None:
         self._connections.add(writer)
         writer.write(encode(
-            {"event": "hello", "sheppyd": VERSION, "protocol": 2}))
+            {"event": "hello", "sheppyd": sheppy.__version__,
+             "protocol": 2}))
         decoder = Decoder()
         # Each request runs as its own task so a slow op (a stop escalating
         # through its grace periods) never holds up the ones behind it

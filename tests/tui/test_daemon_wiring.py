@@ -32,6 +32,17 @@ async def test_offline_daemon_shows_unknown_and_offline_footer():
         assert app._client.spawn_attempts == [False]   # browsing never spawns
 
 
+async def test_stale_daemon_version_is_warned_about():
+    fake = FakeDaemonClient({"camera": payload("camera", "running")})
+    fake.daemon_version = "0.1"
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.daemon_connected is True
+        assert any("sheppyd 0.1 is not this client's" in w
+                   for w in app._runtime_warnings)
+
+
 async def test_daemon_dropping_during_connect_renders_offline_not_crash():
     fake = FakeDaemonClient(connect_ok=True)
     fake.raise_on_request = True

@@ -180,6 +180,20 @@ def test_down_stops_everything_and_daemon(site, capsys):
     assert "not running" in capsys.readouterr().out
 
 
+def test_verbs_warn_when_daemon_version_differs(site, capsys, monkeypatch):
+    import sheppy
+    cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
+    capsys.readouterr()
+    assert cli.main(["status"]) == 0
+    assert "sheppyd" not in capsys.readouterr().err
+    real = sheppy.__version__                    # what the daemon reports
+    monkeypatch.setattr(sheppy, "__version__", "0.0.0")   # client upgraded
+    assert cli.main(["status"]) == 0
+    assert (f"sheppy: sheppyd {real} is not this client's 0.0.0; "
+            "run 'sheppy daemon stop' to restart it"
+            ) in capsys.readouterr().err
+
+
 def test_verbs_without_daemon_are_graceful(site, capsys):
     assert cli.main(["status"]) == 0
     assert "not running" in capsys.readouterr().out

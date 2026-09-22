@@ -4,8 +4,10 @@ import sys
 
 import pytest
 
+from sheppy import __version__
 from sheppy.daemon.client import DaemonClient, DaemonError, spawn_daemon
 from sheppy.daemon.config import socket_path
+from sheppy.daemon.protocol import encode
 
 SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
 
@@ -152,3 +154,34 @@ async def test_daemon_exit_reaches_callback_as_disconnected(client):
             await asyncio.sleep(0.02)
     await asyncio.wait_for(gone(), 5)
     assert client.connected is False
+
+
+async def test_connect_records_daemon_version(client):
+    assert client.daemon_version == __version__
+    assert client.version_mismatch() is None
+
+
+async def test_stale_daemon_version_is_reported(tmp_path, monkeypatch):
+    """A daemon left running across an upgrade still says its old
+    version in the hello; the client surfaces it (#58)."""
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+
+    async def old_daemon(reader, writer):
+        writer.write(encode({"event": "hello", "sheppyd": "0.1",
+                             "protocol": 2}))
+        await writer.drain()
+        await reader.read()
+
+    server = await asyncio.start_unix_server(
+        old_daemon, socket_path(str(tmp_path)))
+    c = DaemonClient(str(tmp_path))
+    try:
+        assert await c.connect(spawn=False) is True
+        assert c.daemon_version == "0.1"
+        assert c.version_mismatch() == (
+            f"sheppyd 0.1 is not this client's {__version__}; "
+            "run 'sheppy daemon stop' to restart it")
+    finally:
+        await c.close()
+        server.close()
+        await server.wait_closed()

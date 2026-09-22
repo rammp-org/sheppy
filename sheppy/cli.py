@@ -36,6 +36,12 @@ def _error(msg: str) -> None:
     print(_style(msg, "red", sys.stderr), file=sys.stderr)
 
 
+def _warn_stale_daemon(client) -> None:
+    msg = client.version_mismatch()
+    if msg:
+        print(f"sheppy: {msg}", file=sys.stderr)
+
+
 # ---- TUI path (unchanged behavior) ----------------------------------------
 def build_app(argv: list[str]):
     from sheppy.manifest import load_manifest
@@ -98,6 +104,7 @@ async def _dispatch(args) -> int:
     if not await client.connect(spawn=False):
         print(f"sheppyd: {_style('not running', 'dim')}")
         return 0 if args.cmd in ("down", "status", "daemon") else 1
+    _warn_stale_daemon(client)
     try:
         if args.cmd == "down":
             nodes = (await client.request("status"))["nodes"]
@@ -211,6 +218,7 @@ async def _up(args) -> int:
     if not await client.connect(spawn=True):
         _error("could not start sheppyd")
         return 1
+    _warn_stale_daemon(client)
     try:
         nodes = (await client.request("status"))["nodes"]
         actual = {n: p for n, p in nodes.items()

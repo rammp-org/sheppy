@@ -3,6 +3,7 @@ import json
 import os
 import sys
 
+from sheppy import __version__
 from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config, socket_path
 from sheppy.daemon.protocol import Decoder, encode
@@ -33,6 +34,7 @@ class Wire:
         wire = cls(reader, writer)
         hello = await wire._read_one()
         assert hello["event"] == "hello" and hello["protocol"] == 2
+        assert hello["sheppyd"] == __version__
         return wire
 
     async def _read_one(self):

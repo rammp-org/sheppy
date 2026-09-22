@@ -240,8 +240,14 @@ Clients talk to `sheppyd` over the unix socket using newline-delimited JSON
 `nc -U <socket>`. On connect the daemon sends a hello:
 
 ```json
-{"event": "hello", "sheppyd": "0.1", "protocol": 1}
+{"event": "hello", "sheppyd": "1.0.0", "protocol": 2}
 ```
+
+`sheppyd` is the installed package version, `protocol` the wire format
+number. The CLI and TUI compare `sheppyd` with their own version and warn
+when they differ, which happens after an upgrade while the old daemon is
+still running; `sheppy daemon stop` ends it, and the next command starts
+one on the new code.
 
 Requests carry an `id`; the matching reply echoes it and carries `ok`:
 

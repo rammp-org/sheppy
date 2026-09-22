@@ -128,6 +128,9 @@ class SheppyApp(App):
         if not await self._client.connect(spawn=spawn):
             self._refresh_runtime()
             return False
+        stale = self._client.version_mismatch()
+        if stale:
+            self._append_warnings([stale])
         from sheppy.daemon.client import DaemonError
         try:
             self._client.on_event(self._on_daemon_event)
