@@ -55,10 +55,11 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
     topics = {}
     for key in ("publishes", "subscribes"):
         value = raw.get(key)
-        if value is not None and not isinstance(value, list):
+        if value is not None and not (isinstance(value, list)
+                                      and all(isinstance(v, str) for v in value)):
             errors.append(ValidationError(
-                f"{loc}.{key}", f"alternative '{alt_id}': '{key}' must be a list, "
-                                f"got {type(value).__name__}"))
+                f"{loc}.{key}", f"alternative '{alt_id}': '{key}' must be a list "
+                                f"of strings, got {type(value).__name__}"))
             value = None
         topics[key] = value or []
     return Alternative(

@@ -331,3 +331,13 @@ def test_publishes_and_subscribes_must_be_lists():
     assert "nodes[0].alternatives[0].subscribes" in locs
     alt = result.manifest.node("camera").alternatives[0]
     assert alt.publishes == [] and alt.subscribes == []
+
+
+def test_publishes_elements_must_be_strings():
+    # The TUI's detail tab joins these, which raises on a non-str element.
+    data = _valid_data()
+    data["nodes"][0]["alternatives"][0]["publishes"] = [{"topic": "/x"}, 5]
+    result = parse_manifest(data)
+    assert any(e.location == "nodes[0].alternatives[0].publishes"
+               and "string" in e.message for e in result.errors)
+    assert result.manifest.node("camera").alternatives[0].publishes == []
