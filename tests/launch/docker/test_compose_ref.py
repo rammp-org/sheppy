@@ -2,6 +2,7 @@ import textwrap
 from sheppy.launch.docker.compose import load_service
 from sheppy.launch.docker import DockerLauncher
 from sheppy.launch.base import LaunchContext
+from sheppy.launch.resolve import resolve
 from sheppy.manifest import Alternative, Manifest
 
 
@@ -42,22 +43,32 @@ def test_launcher_reads_compose_reference(tmp_path):
     assert d.name == "sheppy-perception"
 
 
-def test_missing_service_warns_not_crashes(tmp_path):
-    path = write(tmp_path, "services: {other: {image: i}}")
-    a = Alternative(id="real", kind="docker",
-                    config={"compose": {"file": "demo.compose.yml",
-                                        "service": "perception"}})
-    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
-                        home=str(tmp_path), manifest_dir=str(tmp_path))
-    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
-    assert any("perception" in w for w in ctx.warnings)
+def _resolve(tmp_path, config):
+    a = Alternative(id="real", kind="docker", config=config)
+    return resolve(Manifest(machines=[], nodes=[]), "perception", a, {},
+                   manifest_dir=str(tmp_path))
 
 
-def test_malformed_compose_ref_warns_not_crashes(tmp_path):
+def test_missing_service_resolves_to_no_spec(tmp_path):
+    # There is nothing to run, so resolve() must hand back None with the
+    # warning rather than a `docker run ... ''` that crashes with no log (#67)
+    write(tmp_path, "services: {other: {image: i}}")
+    spec, warnings = _resolve(tmp_path, {"compose": {"file": "demo.compose.yml",
+                                                     "service": "perception"}})
+    assert spec is None
+    assert any("perception" in w for w in warnings)
+
+
+def test_missing_compose_file_resolves_to_no_spec(tmp_path):
+    spec, warnings = _resolve(tmp_path, {"compose": {"file": "nope.yml",
+                                                     "service": "perception"}})
+    assert spec is None
+    assert any("nope.yml" in w for w in warnings)
+
+
+def test_malformed_compose_ref_resolves_to_no_spec(tmp_path):
     # 'compose' as a non-mapping (e.g. a plain string) must not crash
-    # launch(); it should warn and fall back like a missing service does.
-    a = Alternative(id="real", kind="docker", config={"compose": "juststring"})
-    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
-                        home=str(tmp_path), manifest_dir=str(tmp_path))
-    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
-    assert any("compose" in w for w in ctx.warnings)
+    # resolve(); it warns and yields no spec like a missing service does.
+    spec, warnings = _resolve(tmp_path, {"compose": "juststring"})
+    assert spec is None
+    assert any("compose" in w for w in warnings)

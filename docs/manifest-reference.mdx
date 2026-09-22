@@ -174,7 +174,9 @@ and `nofile: {soft: 1024, hard: 4096}` becomes `--ulimit nofile=1024:4096`.
 **Any other key is a validation error**, with a `did you mean` suggestion —
 `ulimit: 99` is rejected rather than silently dropped. For an inline
 `container` the error fails manifest validation; for a `compose` reference it
-surfaces as a warning when the node launches.
+surfaces as a warning when you try to launch the node, and the node is not
+started. The same applies to a `compose` reference whose file or service does
+not exist, or whose service has no `image`.
 
 **Relative host paths** in `volumes` and `env_file` are passed to `docker run`
 unchanged, so they resolve against `sheppyd`'s working directory, not the
