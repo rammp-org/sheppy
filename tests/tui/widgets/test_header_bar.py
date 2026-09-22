@@ -45,3 +45,9 @@ async def test_header_omits_running_count_when_none():
         hb.update_state("p", False, "system.yaml", 12, 0)
         src = str(app.query_one("#hb-source").content)
         assert "running" not in src
+
+
+async def test_header_brand_is_the_sheep_and_the_dog():
+    app = _Harness()
+    async with app.run_test():
+        assert "🐑🐕 sheppy" in str(app.query_one("#hb-brand").content)   # #54
