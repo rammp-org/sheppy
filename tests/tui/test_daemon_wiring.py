@@ -1,3 +1,4 @@
+import pytest
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.widgets import status as st
@@ -92,6 +93,26 @@ async def test_x_stops_and_r_restarts_current_node():
         await pilot.press("r")
         ops = [op for op, _ in fake.requests]
         assert "stop" in ops and "restart" in ops
+
+
+@pytest.mark.parametrize("key", ["x", "r", "space"])
+async def test_node_actions_do_not_block_the_message_pump(key):
+    # #111: the request was awaited inside the action handler, so a stop
+    # (up to stop_grace + kill_grace) froze every key until it returned.
+    fake = FakeDaemonClient({"camera": payload("camera", "running")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.daemon_connected
+        fake.delay = 0.5                # a slow stop, after the connect
+        await pilot.press(key)          # camera: stop / restart / converge
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.query_one(NodeList).index == 1
+        assert fake.inflight == 1       # the cursor moved while it ran
+        await app.workers.wait_for_complete()
+        assert fake.inflight == 0
+        assert [op for op, _ in fake.requests][-1] in ("stop", "restart")
 
 
 async def test_crash_event_updates_glyph_live():

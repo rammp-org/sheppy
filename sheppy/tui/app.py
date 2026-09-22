@@ -258,7 +258,16 @@ class SheppyApp(App):
         return None
 
     # ---- daemon actions -------------------------------------------------------
-    async def action_converge_node(self) -> None:
+    def _node_worker(self, name: str, work) -> None:
+        # Off the message pump: a stop waits out stop_grace + kill_grace,
+        # and awaiting it in the action handler froze every key until it
+        # returned (#111). Exclusive per node, so a second press on the same
+        # node replaces the request in flight; the daemon's per-node lock
+        # (#49) keeps overlapping requests for one node safe. `work` is a
+        # partial, not a coroutine, for the reason given in _refresh_runtime.
+        self.run_worker(work, group=f"node-{name}", exclusive=True)
+
+    def action_converge_node(self) -> None:
         if self._current_orphan:
             self._append_warnings(
                 [f"'{self._current_orphan}': not in this manifest — "
@@ -276,6 +285,9 @@ class SheppyApp(App):
             return
         if alt is not None and self._invalid_alt(node, alt):
             return
+        self._node_worker(node.name, partial(self._converge_node, node, alt))
+
+    async def _converge_node(self, node: Node, alt) -> None:
         if not await self._ensure_daemon():
             return
         if alt is None:                     # converge-to-nothing = stop
@@ -291,16 +303,18 @@ class SheppyApp(App):
             return
         await self._request_safely("launch", spec=spec.to_wire())
 
-    async def action_stop_node(self) -> None:
+    def action_stop_node(self) -> None:
         if self._current_orphan:
             if self.daemon_connected:
-                await self._request_safely("stop", node=self._current_orphan)
+                self._node_worker(self._current_orphan, partial(
+                    self._request_safely, "stop", node=self._current_orphan))
             return
         node = self._current_node()
         if node and self.daemon_connected:
-            await self._request_safely("stop", node=node.name)
+            self._node_worker(node.name, partial(
+                self._request_safely, "stop", node=node.name))
 
-    async def action_restart_node(self) -> None:
+    def action_restart_node(self) -> None:
         if self._current_orphan:
             self._append_warnings(
                 [f"'{self._current_orphan}': not in this manifest — "
@@ -308,7 +322,8 @@ class SheppyApp(App):
             return
         node = self._current_node()
         if node and self.daemon_connected:
-            await self._request_safely("restart", node=node.name)
+            self._node_worker(node.name, partial(
+                self._request_safely, "restart", node=node.name))
 
     async def action_converge_all(self) -> None:
         if not self.state or not self.manifest:
