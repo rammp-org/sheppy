@@ -21,6 +21,17 @@ def test_select_marks_dirty():
     assert st.is_dirty is True
 
 
+def test_clear_drops_the_nodes_overrides():
+    # Otherwise a de-selected node's overrides get saved, and reconcile
+    # warns about them on the next load (#52).
+    st = ProfileState(_manifest())
+    st.select("camera", "mock")
+    st.override("camera", "fps", 30)
+    st.clear("camera")
+    assert st.selected("camera") is None
+    assert st.to_profile("p").overrides == {}
+
+
 def test_override_and_effective_params():
     st = ProfileState(_manifest())
     st.select("camera", "mock")

@@ -174,6 +174,11 @@ async def test_no_drift_marker_when_selection_matches_running():
     app = make_app(fake)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("enter", "enter")     # select realsense (converged)
+        await pilot.press("enter")              # into camera's alternatives
         await pilot.pause()
+        assert app.state.selected("camera") == "realsense"   # adopted
         assert "Δ" not in str(app.query_one("#node-0 .col-status").content)
+        await pilot.press("enter")              # de-select it (#52)
+        await pilot.pause()
+        assert app.state.selected("camera") is None
+        assert "Δ" in str(app.query_one("#node-0 .col-status").content)
