@@ -93,3 +93,27 @@ async def test_process_group_kills_grandchildren(tmp_path):
     await asyncio.sleep(0.1)               # give the kernel a beat to reap
     with pytest.raises(ProcessLookupError):
         os.kill(grandchild, 0)
+
+
+async def test_child_is_watched_even_if_first_state_callback_raises(tmp_path):
+    # start() has already forked when it reports LAUNCHING; a failure in
+    # that report must not leave the child running unwatched (#86).
+    cfg = make_cfg(tmp_path)
+    log = NodeLog(cfg.log_dir, "n", cfg.ring_lines, cfg.keep_runs)
+    states = []
+
+    def flaky(m):
+        states.append(m.state)
+        if len(states) == 1:
+            raise OSError("disk full")
+
+    mp = pr.ManagedProcess(
+        {"node": "n", "alt_id": "a", "params": {},
+         "argv": [sys.executable, "-c", "import time; time.sleep(30)"]},
+        cfg, log, on_state=flaky)
+    with pytest.raises(OSError):
+        await mp.start()
+    assert mp._watch_task is not None
+    os.killpg(mp.pid, 9)
+    await asyncio.wait_for(mp.wait(), 5)
+    assert mp.state == pr.CRASHED

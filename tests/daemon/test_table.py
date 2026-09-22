@@ -181,3 +181,19 @@ async def test_concurrent_launches_of_one_node_leave_one_process(tmp_path):
     for pid in pids:
         subprocess.run(["kill", "-9", pid.decode()], capture_output=True)
     assert len(pids) == 1, f"leaked children: {pids}"
+
+
+async def test_unwritable_state_file_does_not_break_supervision(tmp_path):
+    # A full disk or an unwritable home must not stop launches or stops
+    # (#86): the child stays supervised and the failure is logged once.
+    (tmp_path / "blocker").write_text("")          # home cannot be created
+    cfg = Config(home=str(tmp_path / "blocker" / "home"),
+                 log_dir=str(tmp_path / "logs"),
+                 launch_grace=0.1, stop_grace=0.3, kill_grace=0.3)
+    table = ProcessTable(cfg, on_event=lambda n, p: None)
+    await table.launch(spec("camera"))
+    await wait_state(table, "camera", pr.RUNNING)   # the watcher is alive
+    await table.stop("camera")
+    assert table.status()["camera"]["state"] == pr.STOPPED
+    log = (tmp_path / "logs" / "sheppyd.log").read_text()
+    assert log.count("state file") == 1

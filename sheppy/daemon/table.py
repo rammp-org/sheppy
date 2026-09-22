@@ -5,7 +5,7 @@ import json
 import os
 
 from sheppy.daemon import process as pr
-from sheppy.daemon.config import Config, state_path
+from sheppy.daemon.config import Config, daemon_log, state_path
 from sheppy.daemon.logs import NodeLog
 
 
@@ -27,6 +27,7 @@ class ProcessTable:
         # Requests run concurrently (#48); ops on one node take its lock so
         # two launches can't interleave and leave an untracked child.
         self._locks: dict = {}
+        self._persist_failed = False
 
     def _lock(self, node: str) -> asyncio.Lock:
         return self._locks.setdefault(node, asyncio.Lock())
@@ -143,9 +144,18 @@ class ProcessTable:
                 live[node] = {"spec": e.spec, "pid": e.pid,
                               "started_at": e.started_at,
                               "proc_start": ticks}
-        os.makedirs(self._cfg.home, exist_ok=True)
         path = state_path(self._cfg.home)
         tmp = path + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump({"nodes": live}, f)
-        os.replace(tmp, path)                  # atomic on POSIX
+        try:
+            os.makedirs(self._cfg.home, exist_ok=True)
+            with open(tmp, "w") as f:
+                json.dump({"nodes": live}, f)
+            os.replace(tmp, path)              # atomic on POSIX
+        except OSError as e:
+            # Every state transition passes through here; a full disk must
+            # not stop launches and stops (#86). Log the first failure only.
+            if not self._persist_failed:
+                daemon_log(self._cfg, f"state file not written: {e}")
+            self._persist_failed = True
+        else:
+            self._persist_failed = False
