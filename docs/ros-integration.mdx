@@ -78,6 +78,9 @@ nodes:
   machine.
 - `~` is expanded to your home directory, so `~/ws/install/setup.bash`
   works.
+- A relative path is resolved against the manifest's directory, so
+  `ros_setup: install/setup.bash` in a manifest at the root of your workspace
+  sources that workspace's overlay wherever `sheppyd` was started from.
 - Point it at your overlay's `install/setup.bash`; colcon's setup script also
   sources the underlay the workspace was built against.
 - It applies to `executable`, `launch_file`, and `process` alternatives, and

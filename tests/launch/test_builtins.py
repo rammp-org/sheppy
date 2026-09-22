@@ -62,3 +62,22 @@ def test_ros_setup_expands_home(tmp_path, monkeypatch):
     c = ctx(tmp_path, Manifest(machines=[ws], nodes=[]))
     text = cmd(ExecutableLauncher().launch(alt, {}, c))
     assert text.startswith("source /home/me/ws/install/setup.bash && ")
+
+
+def test_relative_ros_setup_resolves_against_manifest_dir(tmp_path):
+    # The command runs in sheppyd, whose cwd is wherever it was first
+    # spawned, so a relative path must be made absolute here (#68).
+    ws = Machine(name="ws", host="h", user="u", ros_setup="install/setup.bash")
+    alt = Alternative(id="a", kind="process", machine="ws", command="true")
+    c = LaunchContext("n", Manifest(machines=[ws], nodes=[]),
+                      home=str(tmp_path), manifest_dir="/proj/ws")
+    text = cmd(ProcessLauncher().launch(alt, {}, c))
+    assert text.startswith("source /proj/ws/install/setup.bash && ")
+
+
+def test_relative_ros_setup_with_default_manifest_dir_uses_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ws = Machine(name="ws", host="h", user="u", ros_setup="install/setup.bash")
+    alt = Alternative(id="a", kind="process", machine="ws", command="true")
+    text = cmd(ProcessLauncher().launch(alt, {}, ctx(tmp_path, Manifest(machines=[ws], nodes=[]))))
+    assert text.startswith(f"source {tmp_path}/install/setup.bash && ")

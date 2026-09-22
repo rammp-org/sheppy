@@ -25,10 +25,14 @@ def _ros_setup(manifest, machine_name):
     return None
 
 
-def _wrap(manifest, alt, cmd):
-    setup = _ros_setup(manifest, alt.machine)
+def _wrap(ctx, alt, cmd):
+    setup = _ros_setup(ctx.manifest, alt.machine)
     if setup:
-        cmd = f"source {shlex.quote(os.path.expanduser(setup))} && {cmd}"
+        # The command runs in sheppyd, whose cwd is wherever it was first
+        # spawned, so a relative path is anchored to the manifest here.
+        setup = os.path.abspath(
+            os.path.join(ctx.manifest_dir, os.path.expanduser(setup)))
+        cmd = f"source {shlex.quote(setup)} && {cmd}"
     return LaunchDescriptor.inherit(("bash", "-c", cmd))
 
 
@@ -45,7 +49,7 @@ class ExecutableLauncher:
         if params:
             toks = " ".join(f"-p {_param_token(k, v)}" for k, v in params.items())
             cmd += f" --ros-args {toks}"
-        return _wrap(ctx.manifest, alt, cmd)
+        return _wrap(ctx, alt, cmd)
 
     def summary(self, alt):
         return [("package", alt.package or "—"),
@@ -64,7 +68,7 @@ class LaunchFileLauncher:
         cmd = f"exec ros2 launch {q(alt.package or '')} {q(alt.launch_file or '')}"
         for k, v in params.items():
             cmd += f" {_param_token(k, v)}"
-        return _wrap(ctx.manifest, alt, cmd)
+        return _wrap(ctx, alt, cmd)
 
     def summary(self, alt):
         return [("package", alt.package or "—"),
@@ -81,7 +85,7 @@ class ProcessLauncher:
         if params:
             ctx.warn(f"'{ctx.node_name}': params on process-kind alternative "
                      f"'{alt.id}' are ignored")
-        return _wrap(ctx.manifest, alt, alt.command or "")
+        return _wrap(ctx, alt, alt.command or "")
 
     def summary(self, alt):
         return [("command", alt.command or "—")]
