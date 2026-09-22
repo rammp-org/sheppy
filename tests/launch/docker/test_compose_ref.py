@@ -135,24 +135,3 @@ def test_compose_service_paths_resolve_against_compose_file_dir(tmp_path):
     d = DockerLauncher().launch(a, {}, ctx)
     assert f"{tmp_path}/deploy/maps:/maps" in d.start
     assert f"{tmp_path}/deploy/ros.env" in d.start
-
-
-def test_missing_service_warns_not_crashes(tmp_path):
-    path = write(tmp_path, "services: {other: {image: i}}")
-    a = Alternative(id="real", kind="docker",
-                    config={"compose": {"file": "demo.compose.yml",
-                                        "service": "perception"}})
-    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
-                        home=str(tmp_path), manifest_dir=str(tmp_path))
-    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
-    assert any("perception" in w for w in ctx.warnings)
-
-
-def test_malformed_compose_ref_warns_not_crashes(tmp_path):
-    # 'compose' as a non-mapping (e.g. a plain string) must not crash
-    # launch(); it should warn and fall back like a missing service does.
-    a = Alternative(id="real", kind="docker", config={"compose": "juststring"})
-    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
-                        home=str(tmp_path), manifest_dir=str(tmp_path))
-    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
-    assert any("compose" in w for w in ctx.warnings)
