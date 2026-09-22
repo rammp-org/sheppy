@@ -13,7 +13,7 @@ class _Harness(ThemedApp):
         yield MachinesStrip(self._machines)
 
 
-async def test_renders_declared_machines_and_phase3_note():
+async def test_renders_declared_machines_without_status_note():
     machines = [Machine(name="robot", host="10.0.0.20", user="ros"),
                 Machine(name="workstation", host="local", user="ros")]
     app = _Harness(machines)
@@ -21,7 +21,8 @@ async def test_renders_declared_machines_and_phase3_note():
         text = " ".join(str(s.content) for s in app.query("MachinesStrip Static"))
         assert "robot" in text and "10.0.0.20" in text
         assert "workstation" in text
-        assert "phase 3" in text
+        assert "phase 3" not in text
+        assert not app.query("#ms-note")
 
 
 async def test_empty_machines_render_placeholder():
