@@ -24,7 +24,7 @@ jobs:
           fi
 
       - name: Run tests
-        run: uv run pytest -q
+        run: uv run --locked --python 3.10 pytest -q
 
       - name: Build sdist and wheel
         run: uv build
