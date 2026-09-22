@@ -11,7 +11,7 @@ def test_main_logs_a_fatal_exception(tmp_path, monkeypatch):
         raise RuntimeError("bad state file")
 
     monkeypatch.setattr(daemon_main, "_amain", doomed)
-    assert daemon_main.main() == 1
+    assert daemon_main.main([]) == 1
     text = (tmp_path / "logs" / "sheppyd.log").read_text()
     assert "RuntimeError: bad state file" in text and "Traceback" in text
 

@@ -8,6 +8,7 @@ import time
 
 COMMANDS = {"up", "down", "status", "logs", "restart", "woof", "daemon"}
 VERSION_FLAGS = {"--version", "-V"}
+HELP_FLAGS = {"--help", "-h"}
 
 DEFAULT_MANIFEST = "sheppy-manifest.yaml"
 
@@ -59,6 +60,9 @@ def main(argv: "list[str] | None" = None) -> int:
         from sheppy import __version__
         print(f"sheppy {__version__}")
         return 0
+    if argv and argv[0] in HELP_FLAGS:    # else it's taken as a manifest (#76)
+        _build_parser().print_help()
+        return 0
     if argv and argv[0] in COMMANDS:
         return _run_verb(argv)
     app = build_app(argv)
@@ -72,7 +76,12 @@ def main(argv: "list[str] | None" = None) -> int:
 
 # ---- headless verbs --------------------------------------------------------
 def _build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="sheppy")
+    p = argparse.ArgumentParser(
+        prog="sheppy",
+        usage="sheppy [MANIFEST]\n       sheppy <verb> [...]\n       sheppy --version\n       sheppy --help",
+        description="With a manifest path (or nothing) sheppy opens the TUI; "
+                    f"MANIFEST defaults to ./{DEFAULT_MANIFEST}. With a verb "
+                    "it runs headless.")
     sub = p.add_subparsers(dest="cmd", required=True)
     up = sub.add_parser("up", help="converge to a profile")
     up.add_argument("profile")

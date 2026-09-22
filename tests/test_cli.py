@@ -63,3 +63,26 @@ def test_up_manifest_flag_defaults_to_sheppy_manifest():
     args = _build_parser().parse_args(["up", "some-profile"])
 
     assert args.manifest == "sheppy-manifest.yaml"
+
+
+def test_help_flag_prints_usage_and_exits_zero(capsys):
+    from sheppy.cli import main
+
+    for flag in ("--help", "-h"):
+        assert main([flag]) == 0
+        out = capsys.readouterr().out
+        assert "sheppy [MANIFEST]" in out, "bare TUI form must be in the help"
+        assert "up" in out and "status" in out
+
+
+def test_sheppyd_help_flag_prints_usage_and_exits_zero(capsys, tmp_path,
+                                                        monkeypatch):
+    import pytest
+
+    from sheppy.daemon.__main__ import main as daemon_main
+
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))   # never the real home
+    with pytest.raises(SystemExit) as exc:
+        daemon_main(["--help"])
+    assert exc.value.code == 0
+    assert "sheppyd" in capsys.readouterr().out
