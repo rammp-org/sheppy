@@ -73,3 +73,40 @@ def test_attach_latest_holds_back_incomplete_last_line(tmp_path):
 
 def test_attach_latest_with_no_runs_returns_false(tmp_path):
     assert make_log(tmp_path).attach_latest() is False
+
+
+def write_burst(fd, n=1000):
+    """n lines of exactly 1000 bytes: a 64 KiB window opens mid-line."""
+    os.write(fd, b"".join(b"line %05d " % i + b"x" * 989 + b"\n"
+                          for i in range(n)))
+
+
+def test_read_new_is_bounded_to_the_tail_window(tmp_path):
+    # A chatty node that logged unwatched for hours must not make the
+    # daemon decode the whole file to keep ring_lines of it (#87). The
+    # ring is large enough that a fragment at the window's edge would
+    # survive in it; none may.
+    log = make_log(tmp_path, ring_lines=300)
+    fd = log.open_run()
+    os.write(fd, b"hal")                    # a fragment from before the burst
+    assert log.read_new() == []
+    write_burst(fd)                         # ~1 MB
+    os.close(fd)
+    lines = log.read_new()
+    assert 0 < len(lines) < 100             # a window, not the whole file
+    assert lines[-1].startswith("line 00999 ")
+    assert all(len(line) == 1000 and line.startswith("line ")
+               for line in log.tail())      # no fragment, no stale "hal"
+    assert log.read_new() == []             # offset is at EOF
+
+
+def test_attach_latest_drops_the_fragment_at_the_window_edge(tmp_path):
+    log = make_log(tmp_path, ring_lines=300)
+    fd = log.open_run()
+    write_burst(fd)
+    os.close(fd)
+    fresh = make_log(tmp_path, ring_lines=300)
+    assert fresh.attach_latest() is True
+    assert all(len(line) == 1000 for line in fresh.tail())
+    assert fresh.tail()[-1].startswith("line 00999 ")
+    assert fresh.read_new() == []

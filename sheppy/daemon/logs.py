@@ -7,6 +7,14 @@ import os
 import time
 from collections import deque
 
+_TAIL_WINDOW = 64 * 1024      # bytes of a run file ever read at once
+
+
+def _after_first_newline(data: bytes) -> bytes:
+    """A window opened mid-line starts with a fragment: drop through the
+    first newline (a window with none is all fragment)."""
+    return data.split(b"\n", 1)[1] if b"\n" in data else b""
+
 
 class NodeLog:
     def __init__(self, log_dir: str, node: str, ring_lines: int,
@@ -38,8 +46,11 @@ class NodeLog:
         self.path = runs[-1]
         size = os.path.getsize(self.path)
         with open(self.path, "rb") as f:
-            f.seek(max(0, size - 64 * 1024))     # tail window is plenty
+            start = max(0, size - _TAIL_WINDOW)  # tail window is plenty
+            f.seek(start)
             data = f.read()
+        if start:
+            data = _after_first_newline(data)  # opened mid-line
         # A line still being written (no trailing newline yet) must not
         # enter the ring as if complete; hold it back like read_new() does.
         *complete, partial = data.split(b"\n")
@@ -55,11 +66,23 @@ class NodeLog:
             return []
         try:
             with open(self.path, "rb") as f:
-                f.seek(self._offset)
+                size = f.seek(0, os.SEEK_END)
+                # Only the tail can reach the ring; decoding hours of unread
+                # output to keep ring_lines of it is an OOM risk (#87).
+                start = max(self._offset, size - _TAIL_WINDOW)
+                f.seek(start)
                 data = f.read()
         except OSError:
             return []
-        self._offset += len(data)
+        # Bytes actually read, not `size`: the file may have grown between
+        # the size probe and the read, and those bytes must not be re-read.
+        end = start + len(data)
+        if start > self._offset:
+            # The window opens mid-line: the held-back fragment lost its
+            # continuation, and the line straddling the edge is a fragment.
+            self._partial = b""
+            data = _after_first_newline(data)
+        self._offset = end
         data = self._partial + data
         *complete, self._partial = data.split(b"\n")
         lines = [c.decode(errors="replace") for c in complete]
