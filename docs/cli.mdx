@@ -5,7 +5,7 @@ title: CLI reference
 # CLI reference
 
 `sheppy` with a manifest path (or nothing) opens [the TUI](../tui). If the
-manifest is missing or isn't valid YAML, it prints the error and exits 1
+manifest is missing, unreadable, or isn't valid YAML, it prints the error and exits 1
 instead. With a **verb**, it runs headless — the verbs never import Textual, so they work over
 SSH on a machine with no display.
 
@@ -133,7 +133,7 @@ sheppy up mock
 | Situation | Code |
 |-----------|------|
 | Success | 0 |
-| TUI: manifest missing or not valid YAML | 1 |
+| TUI: manifest missing, unreadable, or not valid YAML | 1 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
 | Daemon not running — `logs`, `restart` | 1 |
 | Unknown node (`logs`, `restart`) | 1 |

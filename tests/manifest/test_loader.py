@@ -105,6 +105,30 @@ def test_load_bad_yaml(tmp_path):
     assert len(result.errors) == 1
 
 
+def test_load_directory_is_an_error_not_a_traceback(tmp_path):
+    result = load_manifest(str(tmp_path))
+    assert result.manifest is None
+    assert len(result.errors) == 1
+    assert result.errors[0].location == "<file>"
+    assert "cannot read manifest" in result.errors[0].message
+
+
+def test_load_unreadable_file_is_an_error_not_a_traceback(tmp_path):
+    import os
+    import pytest
+    if os.geteuid() == 0:
+        pytest.skip("root can read anything")
+    p = tmp_path / "system.yaml"
+    p.write_text("nodes: []\n")
+    p.chmod(0)
+    try:
+        result = load_manifest(str(p))
+    finally:
+        p.chmod(0o600)
+    assert result.manifest is None
+    assert "cannot read manifest" in result.errors[0].message
+
+
 def test_load_valid_file(tmp_path):
     p = tmp_path / "system.yaml"
     p.write_text(textwrap.dedent("""

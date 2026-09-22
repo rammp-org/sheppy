@@ -111,6 +111,8 @@ def load_manifest(path: str) -> LoadResult:
             raw = yaml.safe_load(f)
     except FileNotFoundError:
         return LoadResult(None, [ValidationError("<file>", f"manifest not found: {path}")])
+    except OSError as exc:              # a directory, no read permission (#100)
+        return LoadResult(None, [ValidationError("<file>", f"cannot read manifest: {exc}")])
     except yaml.YAMLError as exc:
         return LoadResult(None, [ValidationError("<file>", f"invalid YAML: {exc}")])
     return parse_manifest(raw)
