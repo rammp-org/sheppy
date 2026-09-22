@@ -145,3 +145,85 @@ def test_label_file_and_cgroup_translate():
     assert errs == []
     assert flags[flags.index("--label-file") + 1] == "./labels"
     assert flags[flags.index("--cgroupns") + 1] == "host"
+
+
+def _gpu_service(**device):
+    return {"image": "i", "deploy": {"resources": {"reservations": {
+        "devices": [{"driver": "nvidia", "capabilities": ["gpu"], **device}]}}}}
+
+
+def test_deploy_gpu_reservation_count_all():
+    # the standard compose GPU shape; dropping it silently ran on CPU (#60)
+    flags, _, _, errs, warns = service_to_docker_args(_gpu_service(count="all"))
+    assert errs == [] and warns == []
+    assert flags[flags.index("--gpus") + 1] == "all"
+
+
+def test_deploy_gpu_reservation_count_n():
+    flags, _, _, errs, _ = service_to_docker_args(_gpu_service(count=2))
+    assert errs == []
+    assert flags[flags.index("--gpus") + 1] == "2"
+
+
+def test_deploy_gpu_reservation_device_ids():
+    flags, _, _, errs, _ = service_to_docker_args(
+        _gpu_service(device_ids=["0", "GPU-abc"]))
+    assert errs == []
+    assert flags[flags.index("--gpus") + 1] == '"device=0,GPU-abc"'
+
+
+def test_deploy_gpu_reservation_without_count_means_all():
+    flags, _, _, errs, _ = service_to_docker_args(_gpu_service())
+    assert errs == []
+    assert flags[flags.index("--gpus") + 1] == "all"
+
+
+def test_deploy_gpu_extra_capabilities_are_carried():
+    # a container needing NVENC must not silently lose 'video'; docker's
+    # CSV wants the capabilities field quoted, not the whole argument
+    flags, _, _, errs, _ = service_to_docker_args(
+        _gpu_service(count="all", capabilities=["gpu", "compute", "video"]))
+    assert errs == []
+    assert flags[flags.index("--gpus") + 1] == 'all,"capabilities=compute,video"'
+    flags, _, _, errs, _ = service_to_docker_args(
+        _gpu_service(device_ids=["0"], capabilities=["gpu", "compute"]))
+    assert errs == []
+    assert flags[flags.index("--gpus") + 1] == '"device=0","capabilities=compute"'
+
+
+def test_deploy_gpu_count_and_device_ids_together_is_an_error():
+    flags, _, _, errs, _ = service_to_docker_args(
+        _gpu_service(count=1, device_ids=["0"]))
+    assert "--gpus" not in flags
+    assert any("count" in e and "device_ids" in e for e in errs)
+
+
+def test_deploy_device_entry_must_be_a_mapping():
+    svc = {"image": "i", "deploy": {"resources": {"reservations": {
+        "devices": ["nvidia"]}}}}
+    flags, _, _, errs, _ = service_to_docker_args(svc)   # must not raise
+    assert "--gpus" not in flags
+    assert any("devices" in e and "mapping" in e for e in errs)
+
+
+def test_deploy_device_without_gpu_capability_warns():
+    svc = {"image": "i", "deploy": {"resources": {"reservations": {
+        "devices": [{"driver": "tpu", "capabilities": ["tpu"]}]}}}}
+    flags, _, _, errs, warns = service_to_docker_args(svc)
+    assert errs == []
+    assert "--gpus" not in flags
+    assert any("devices" in w and "gpu" in w for w in warns)
+
+
+def test_other_deploy_keys_warn():
+    svc = {"image": "i", "deploy": {
+        "replicas": 1, "mode": "global",
+        "resources": {"limits": {"cpus": "0.5"},
+                      "reservations": {"memory": "1G"}}}}
+    flags, _, _, errs, warns = service_to_docker_args(svc)
+    assert errs == []
+    assert "--gpus" not in flags
+    assert any("'deploy.mode'" in w for w in warns)
+    assert any("'deploy.resources.limits'" in w for w in warns)
+    assert any("'deploy.resources.reservations.memory'" in w for w in warns)
+    assert not any("'deploy.replicas'" in w for w in warns)

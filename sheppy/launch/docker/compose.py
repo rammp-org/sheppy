@@ -202,6 +202,54 @@ def _emit(key, value):
     return [flag, str(value)]
 
 
+_DEVICES = "deploy.resources.reservations.devices"
+
+
+def _gpus_arg(device, errors):
+    """docker's --gpus CSV: the device selection, then any capabilities
+    beyond gpu (docker adds gpu itself) as a quoted CSV field."""
+    ids = device.get("device_ids")
+    if ids and "count" in device:
+        errors.append(f"compose '{_DEVICES}' entry sets both 'count' and "
+                      f"'device_ids'; use one")
+        return None
+    if ids:
+        arg = '"device=' + ",".join(str(i) for i in ids) + '"'
+    else:
+        arg = str(device.get("count", "all"))
+    extra = [c for c in device.get("capabilities") or [] if c != "gpu"]
+    if extra:
+        arg += ',"capabilities=' + ",".join(extra) + '"'
+    return arg
+
+
+def _deploy_flags(deploy, errors, warnings):
+    """Of compose's 'deploy' block only GPU reservations mean anything to
+    docker run ('replicas' is checked by the caller); the rest is swarm's."""
+    flags = []
+    resources = deploy.get("resources") or {}
+    reservations = resources.get("reservations") or {}
+    for device in _as_list(reservations.get("devices")):
+        if not isinstance(device, dict):
+            errors.append(f"compose '{_DEVICES}' entries must be mappings, "
+                          f"got {type(device).__name__}")
+        elif "gpu" in (device.get("capabilities") or []):
+            arg = _gpus_arg(device, errors)
+            if arg is not None:
+                flags += ["--gpus", arg]
+        else:
+            warnings.append(f"compose '{_DEVICES}' entry without the 'gpu' "
+                            f"capability is ignored")
+    ignored = ([f"deploy.{k}" for k in deploy if k not in ("replicas", "resources")]
+               + [f"deploy.resources.{k}" for k in resources if k != "reservations"]
+               + [f"deploy.resources.reservations.{k}" for k in reservations
+                  if k != "devices"])
+    for path in ignored:
+        warnings.append(f"compose '{path}' is ignored (sheppy translates only "
+                        f"deploy.replicas and deploy.resources.reservations.devices)")
+    return flags
+
+
 def _unknown_key_error(key):
     near = difflib.get_close_matches(key, _KNOWN, n=1)
     hint = f"; did you mean '{near[0]}'?" if near else ""
@@ -221,7 +269,7 @@ def service_to_docker_args(service: dict):
         errors.append("docker service needs an 'image' "
                       "(build-only services are unsupported)")
 
-    flags = []
+    flags = _deploy_flags(deploy, errors, warnings)
     for key, value in service.items():
         if key in _BESPOKE:
             continue
