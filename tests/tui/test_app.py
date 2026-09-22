@@ -54,6 +54,28 @@ async def test_selecting_alternative_updates_state_and_label():
         assert "mock" in str(app.query_one("#node-0 .col-alt").content)
 
 
+async def test_enter_on_selected_alternative_deselects_it():
+    # #52: a node with nothing selected is left out of the launch set.
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        app.query_one("#alternatives").index = 1
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.selected("camera") is None
+        assert str(app.query_one("#node-0 .col-alt").content) == "—"
+        radios = " ".join(str(l.content) for l in
+                          app.query("#alternatives .alt-main"))
+        assert "◉" not in radios
+
+
 async def test_node_list_navigation_keeps_focus():
     """Arrow-key navigation on #nodes must NOT steal focus to #alternatives."""
     app = SheppyApp(_result())

@@ -531,11 +531,21 @@ class SheppyApp(App):
             self, event: AlternativesPanel.AlternativeSelected) -> None:
         if not self.state or event.node is not self._current_node():
             return
-        self.state.select(event.node.name, event.alt.id)
+        if self.state.selected(event.node.name) == event.alt.id:
+            self.state.clear(event.node.name)      # Enter again de-selects (#52)
+            selected = None
+        else:
+            self.state.select(event.node.name, event.alt.id)
+            selected = event.alt.id
         self.query_one(NodeList).set_selection(self._current_selection())
         self._refresh_header()
         self._refresh_runtime()   # selection changed -> drift may too
-        await self.query_one(AlternativesPanel).show(event.node, event.alt.id)
+        panel = self.query_one(AlternativesPanel)
+        await panel.show(event.node, selected)
+        # The rebuild drops the cursor; keep it on the row just acted on so
+        # another Enter toggles the same alternative.
+        panel.index = next(i for i, a in enumerate(event.node.alternatives)
+                           if a.id == event.alt.id)
 
     # ---- PROCESS tab -------------------------------------------------------
     def on_tabbed_content_tab_activated(self, event) -> None:

@@ -36,7 +36,7 @@ and `worker` crashed, with the PROCESS tab open.
 - **Nodes (left):** one row per manifest node — its state, a `Δ` if it has
   [drifted](#drift), the selected alternative, its machine, and CPU and memory.
 - **Alternatives (middle):** the highlighted node's alternatives. `◉` marks
-  the selected one.
+  the selected one; a node can also have none selected.
 - **Detail (right):** DETAIL shows the alternative's settings, TOPICS its
   declared `publishes`/`subscribes`, PROCESS its live state and last output,
   and YAML the raw manifest entry.
@@ -77,7 +77,7 @@ A `Δ` means what's running differs from what's selected (see
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move through the node list, or through the alternatives once you're in them |
-| `Enter` | On a node: move into its alternatives. On an alternative: select it |
+| `Enter` | On a node: move into its alternatives. On an alternative: select it, or de-select it if it's already selected, which leaves the node with nothing to launch |
 | `Esc` | Back to the node list |
 | `1`–`4` | Switch detail tab: DETAIL, TOPICS, PROCESS, YAML |
 | `space` | Apply the selection to the highlighted node: launch the selected alternative, restarting the node if it's already running, or stop the node if nothing is selected |
