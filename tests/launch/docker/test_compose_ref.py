@@ -92,6 +92,31 @@ def _resolve(tmp_path, config):
                    manifest_dir=str(tmp_path))
 
 
+def test_missing_service_resolves_to_no_spec(tmp_path):
+    # There is nothing to run, so resolve() must hand back None with the
+    # warning rather than a `docker run ... ''` that crashes with no log (#67)
+    write(tmp_path, "services: {other: {image: i}}")
+    spec, warnings = _resolve(tmp_path, {"compose": {"file": "demo.compose.yml",
+                                                     "service": "perception"}})
+    assert spec is None
+    assert any("perception" in w for w in warnings)
+
+
+def test_missing_compose_file_resolves_to_no_spec(tmp_path):
+    spec, warnings = _resolve(tmp_path, {"compose": {"file": "nope.yml",
+                                                     "service": "perception"}})
+    assert spec is None
+    assert any("nope.yml" in w for w in warnings)
+
+
+def test_malformed_compose_ref_resolves_to_no_spec(tmp_path):
+    # 'compose' as a non-mapping (e.g. a plain string) must not crash
+    # resolve(); it warns and yields no spec like a missing service does.
+    spec, warnings = _resolve(tmp_path, {"compose": "juststring"})
+    assert spec is None
+    assert any("compose" in w for w in warnings)
+
+
 def test_compose_service_paths_resolve_against_compose_file_dir(tmp_path):
     # As compose does: relative to the compose file, not the manifest (#33).
     (tmp_path / "deploy").mkdir()
@@ -123,26 +148,11 @@ def test_missing_service_warns_not_crashes(tmp_path):
     assert any("perception" in w for w in ctx.warnings)
 
 
-def test_missing_service_resolves_to_no_spec(tmp_path):
-    # There is nothing to run, so resolve() must hand back None with the
-    # warning rather than a `docker run ... ''` that crashes with no log (#67)
-    write(tmp_path, "services: {other: {image: i}}")
-    spec, warnings = _resolve(tmp_path, {"compose": {"file": "demo.compose.yml",
-                                                     "service": "perception"}})
-    assert spec is None
-    assert any("perception" in w for w in warnings)
-
-
-def test_missing_compose_file_resolves_to_no_spec(tmp_path):
-    spec, warnings = _resolve(tmp_path, {"compose": {"file": "nope.yml",
-                                                     "service": "perception"}})
-    assert spec is None
-    assert any("nope.yml" in w for w in warnings)
-
-
-def test_malformed_compose_ref_resolves_to_no_spec(tmp_path):
+def test_malformed_compose_ref_warns_not_crashes(tmp_path):
     # 'compose' as a non-mapping (e.g. a plain string) must not crash
-    # resolve(); it warns and yields no spec like a missing service does.
-    spec, warnings = _resolve(tmp_path, {"compose": "juststring"})
-    assert spec is None
-    assert any("compose" in w for w in warnings)
+    # launch(); it should warn and fall back like a missing service does.
+    a = Alternative(id="real", kind="docker", config={"compose": "juststring"})
+    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                        home=str(tmp_path), manifest_dir=str(tmp_path))
+    d = DockerLauncher().launch(a, {}, ctx)     # must not raise
+    assert any("compose" in w for w in ctx.warnings)

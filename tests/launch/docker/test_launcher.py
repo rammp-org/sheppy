@@ -35,16 +35,6 @@ def test_launch_refuses_a_service_with_translation_errors(tmp_path):
         DockerLauncher().launch(a, {}, ctx(tmp_path))
 
 
-def test_inline_container_paths_resolve_against_manifest_dir(tmp_path):
-    a = alt(container={"image": "i", "volumes": ["./maps:/maps:ro"],
-                       "env_file": "./ros.env"})
-    c = LaunchContext("perception", Manifest(machines=[], nodes=[]),
-                      home=str(tmp_path), manifest_dir="/proj")
-    d = DockerLauncher().launch(a, {}, c)
-    assert "/proj/maps:/maps:ro" in d.start
-    assert "/proj/ros.env" in d.start
-
-
 def test_validate_requires_exactly_one_source(tmp_path):
     dl = DockerLauncher()
     assert any("exactly one" in e for e in dl.validate({"kind": "docker"}))
@@ -96,3 +86,13 @@ def test_summary_still_shows_image_for_well_formed_container():
     a = alt(container={"image": "org/perc:1"})
     rows = DockerLauncher().summary(a)
     assert ("image", "org/perc:1") in rows
+
+
+def test_inline_container_paths_resolve_against_manifest_dir(tmp_path):
+    a = alt(container={"image": "i", "volumes": ["./maps:/maps:ro"],
+                       "env_file": "./ros.env"})
+    c = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                      home=str(tmp_path), manifest_dir="/proj")
+    d = DockerLauncher().launch(a, {}, c)
+    assert "/proj/maps:/maps:ro" in d.start
+    assert "/proj/ros.env" in d.start
