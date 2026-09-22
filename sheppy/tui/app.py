@@ -399,7 +399,8 @@ class SheppyApp(App):
         selections, overrides, skipped = self._selections_from_actual(
             ("launching", "running"))
         self.state.apply(selections, overrides,
-                         self.state.active_profile_name)
+                         self.state.active_profile_name,
+                         description=self.state.description)   # kept (#115)
         self.state.is_dirty = True
         if skipped:
             self._append_warnings(
