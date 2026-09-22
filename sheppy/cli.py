@@ -280,7 +280,12 @@ async def _up(args) -> int:
         # and the new one is `launching` for launch_grace, so the settle
         # timeout follows the daemon's config rather than a fixed 30 s (#103).
         cfg, _ = load_config()
-        timeout = cfg.launch_grace + cfg.stop_grace + cfg.kill_grace + 10
+        # A detached descriptor's own grace["launch"] overrides launch_grace
+        # in the daemon, so take the largest one in play.
+        launch = max([cfg.launch_grace] + [
+            (s.descriptor.grace or {}).get("launch", 0)
+            for s in desired.values()])
+        timeout = launch + cfg.stop_grace + cfg.kill_grace + 10
         launched = sum(verb != "stop" for verb, _ in actions)
         if launched:
             print(f"waiting for {launched} node(s) to settle "

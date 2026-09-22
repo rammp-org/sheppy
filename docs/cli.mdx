@@ -44,7 +44,9 @@ and prints each node's final state, with the last line of a crashed
 node's log indented under it. The wait is bounded by the daemon's grace
 periods: `launch_grace + stop_grace + kill_grace + 10` seconds from
 [`sheppyd.json`](../guides/sheppyd#configuration), 22 seconds with the
-defaults. Running it twice in a row prints `already converged` the second
+defaults. A [launcher plugin](../guides/launcher-plugins) that sets its own
+`grace["launch"]` on a detached descriptor raises the bound by the same
+amount. Running it twice in a row prints `already converged` the second
 time.
 
 `up` is the only verb that starts `sheppyd` when it isn't running, and the
