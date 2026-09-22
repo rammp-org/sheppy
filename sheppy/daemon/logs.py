@@ -74,12 +74,15 @@ class NodeLog:
                 data = f.read()
         except OSError:
             return []
+        # Bytes actually read, not `size`: the file may have grown between
+        # the size probe and the read, and those bytes must not be re-read.
+        end = start + len(data)
         if start > self._offset:
             # The window opens mid-line: the held-back fragment lost its
             # continuation, and the line straddling the edge is a fragment.
             self._partial = b""
             data = _after_first_newline(data)
-        self._offset = size
+        self._offset = end
         data = self._partial + data
         *complete, self._partial = data.split(b"\n")
         lines = [c.decode(errors="replace") for c in complete]
