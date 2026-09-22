@@ -22,11 +22,18 @@ CI runs the suite on Python 3.10 and 3.13 for every pull request.
 
 ## Making a change
 
-- `main` is protected. Open a pull request; both CI checks must pass before
-  it merges.
+- `dev` is the default branch and where changes land; `main` holds releases
+  and is what `install.sh` installs. Open a pull request against `dev`; both
+  CI checks must pass before it merges.
 - A behaviour change needs a test. A bug fix should come with a test that
   fails without the fix.
 - Update the docs in the same pull request as the behaviour they describe.
+
+## Releasing
+
+Merge `dev` into `main`, set `sheppy.__version__` in `sheppy/__init__.py`,
+and push a `vX.Y.Z` tag that matches it. The tag builds the package and
+publishes the GitHub release.
 
 ## Documentation
 

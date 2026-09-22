@@ -12,7 +12,7 @@
 set -eu
 
 REPO="https://github.com/rammp-org/sheppy"
-REF="${SHEPPY_REF:-}"
+REF="${SHEPPY_REF:-main}"   # main holds releases; dev is where work lands
 
 say()  { printf '%s\n' "sheppy: $*" >&2; }
 fail() { say "error: $*"; exit 1; }
@@ -35,8 +35,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 # 2. sheppy
-SRC="git+${REPO}"
-[ -n "$REF" ] && SRC="${SRC}@${REF}"
+SRC="git+${REPO}@${REF}"
 say "installing from ${SRC}"
 uv tool install --force --quiet "$SRC"
 
