@@ -333,3 +333,11 @@ def test_up_warns_about_nonfatal_profile_errors(site, capsys):
     rc = cli.main(["up", "sloppy", "--manifest", str(site / "system.yaml")])
     assert rc == 0
     assert "'overrides' is not a mapping; ignored" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("n", ["0", "-5", "x"])
+def test_logs_rejects_non_positive_line_count(n, capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["logs", "camera", "-n", n])
+    assert exc.value.code == 2
+    assert "positive integer" in capsys.readouterr().err
