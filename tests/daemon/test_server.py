@@ -222,3 +222,34 @@ async def test_requests_on_one_connection_run_concurrently(tmp_path,
     assert (await wire.request("status"))["nodes"]["stubborn"]["state"] \
         in (pr.STOPPING, pr.STOPPED)
     await server.close()
+
+
+async def test_replies_to_one_connection_never_drain_concurrently(tmp_path):
+    # Per-request tasks (#48) can reply to the same client at once. Python
+    # 3.10's StreamWriter.drain() asserts a single waiter, so two concurrent
+    # drains on a paused (slow-client) socket raise AssertionError out of
+    # _handle and the reply is lost (#95). Writes must serialize per writer.
+    class SlowWriter:
+        draining = 0
+        overlap = 0
+        data = b""
+
+        def is_closing(self):
+            return False
+
+        def write(self, chunk):
+            self.data += chunk
+
+        async def drain(self):
+            self.draining += 1
+            self.overlap = max(self.overlap, self.draining)
+            await asyncio.sleep(0.01)
+            self.draining -= 1
+
+    cfg = Config(home=str(tmp_path), log_dir=str(tmp_path / "logs"))
+    server = Server(cfg)
+    writer = SlowWriter()
+    await asyncio.gather(*(server._reply(writer, {"id": i, "ok": True})
+                           for i in range(5)))
+    assert writer.overlap == 1
+    assert len(writer.data.splitlines()) == 5
