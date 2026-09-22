@@ -102,6 +102,14 @@ def test_load_rejects_name_that_escapes_profiles_dir(tmp_path):
         assert res.errors == [f"invalid profile name: {name!r}"]
 
 
+def test_list_profiles_skips_files_whose_stem_is_not_a_name(tmp_path):
+    d = tmp_path / "profiles"
+    d.mkdir()
+    (d / "foo.bar.yaml").write_text("selections: {}\n")   # load would reject it
+    (d / "ok.yaml").write_text("selections: {}\n")
+    assert ProfileStore(str(d)).list_profiles() == ["ok"]
+
+
 def test_delete_ignores_name_that_escapes_profiles_dir(tmp_path):
     secret = tmp_path / "secret.yaml"
     secret.write_text("selections: {}\n")

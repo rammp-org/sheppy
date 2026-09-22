@@ -25,7 +25,8 @@ class ProfileStore:
     def list_profiles(self) -> list[str]:
         if not os.path.isdir(self._dir):
             return []
-        stems = [fn[:-5] for fn in os.listdir(self._dir) if fn.endswith(".yaml")]
+        stems = [fn[:-5] for fn in os.listdir(self._dir)
+                 if fn.endswith(".yaml") and NAME_RE.match(fn[:-5])]
         return sorted(stems)
 
     def load(self, name: str) -> ProfileLoadResult:
