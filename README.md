@@ -45,7 +45,8 @@ so they keep running after you close the terminal.
 ## Install
 
 ```bash
-curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh                  # latest release
+SHEPPY_REF=dev curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh   # development version
 ```
 
 Then open the TUI with `sheppy` next to your `sheppy-manifest.yaml`, or follow

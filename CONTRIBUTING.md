@@ -22,9 +22,10 @@ CI runs the suite on Python 3.10 and 3.13 for every pull request.
 
 ## Making a change
 
-- `dev` is the default branch and where changes land; `main` holds releases
-  and is what `install.sh` installs. Open a pull request against `dev`; both
-  CI checks must pass before it merges.
+- `dev` is the default branch and where changes land; `main` holds releases.
+  `install.sh` installs the latest release tag by default and `dev` with
+  `SHEPPY_REF=dev`. Open a pull request against `dev`; both CI checks must
+  pass before it merges.
 - A behaviour change needs a test. A bug fix should come with a test that
   fails without the fix.
 - Update the docs in the same pull request as the behaviour they describe.

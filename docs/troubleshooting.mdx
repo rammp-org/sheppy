@@ -70,6 +70,12 @@ treat this as normal and exit 0; `logs` and `restart` exit 1.
 has to fit in 107 bytes, and `SHEPPY_HOME` put it past that. Use a shorter
 `SHEPPY_HOME`, or unset it so the socket goes in `$XDG_RUNTIME_DIR`.
 
+**I upgraded, but sheppy still behaves like the old version.** The running
+`sheppyd` was started by the old install and keeps executing that code; the
+TUI and CLI connect to it without noticing. Run `sheppy daemon stop` (nodes
+keep running), then any sheppy command starts a daemon on the new version and
+re-adopts them. `sheppy --version` shows the client's version.
+
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the
 foreground), or launch something with `space` or `sheppy up`. Their in-memory
