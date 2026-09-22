@@ -12,14 +12,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13"]
+        python-version: ["3.10", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
       - name: Run tests
-        run: uv run --python ${{ matrix.python-version }} pytest -q
+        run: uv run --locked --python ${{ matrix.python-version }} pytest -q
 
   textual-floor:
     name: textual-floor
@@ -30,4 +30,4 @@ jobs:
         with:
           enable-cache: true
       - name: Run TUI tests at the textual lower bound
-        run: uv run --with textual==8.0.0 pytest -q tests/tui
+        run: uv run --locked --with textual==8.0.0 pytest -q tests/tui
