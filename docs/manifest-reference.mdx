@@ -52,7 +52,7 @@ nodes:
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `name` | **yes** | string | Must be unique across the manifest; the loader errors on a duplicate. |
+| `name` | **yes** | string | Must be unique across the manifest; the loader errors on a duplicate. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*` (letters, digits, `_`, `.`, `-`; no spaces or `/`), because it becomes the docker container name `sheppy-<node>` and the scratch directory `~/.sheppy/scratch/<node>`. |
 | `description` | no | string | Stored, but rendered nowhere in the TUI today. |
 | `select` | no | string | Defaults to `single`, the only accepted value — see [below](#things-that-surprise-people). |
 | `alternatives` | **yes** | non-empty list of [alternative](#alternatives) | The interchangeable ways to do this job. |
@@ -63,7 +63,7 @@ Common fields, valid regardless of `kind`:
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `id` | **yes** | string | Unique within its node; the loader errors on a duplicate. |
+| `id` | **yes** | string | Unique within its node; the loader errors on a duplicate. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*`, the same rule as a node `name`. |
 | `kind` | **yes** | string | Must name a registered launcher — one of `executable`, `launch_file`, `process`, `docker`, or a kind added by a third-party plugin. |
 | `machine` | no | string | Must name a declared machine (validated). Selects that machine's `ros_setup` to source before the command, and is shown in the TUI's host column and detail panel. It does **not** launch the command remotely — see [below](#things-that-surprise-people). |
 | `params` | no | mapping | How it's used depends on `kind` — see the per-kind sections below. |
