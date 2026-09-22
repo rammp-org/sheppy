@@ -126,6 +126,14 @@ escalates to `SIGTERM`, waits `kill_grace` seconds, and finally `SIGKILL`.
 Each child leads its own process group, so the entire process tree is
 signalled — not just the direct child.
 
+A stop is not finished when the direct child exits; it is finished when the
+whole process group is empty. If the child dies on `SIGINT` but a helper it
+spawned (a camera pipeline, a serial bridge) ignores the signal and lives on,
+the escalation continues against the group — `SIGTERM`, then `SIGKILL` —
+until nothing in it remains or the grace budget is spent. A stop, restart,
+or relaunch of a running node waits for this. If the leader crashed on its
+own, see #163.
+
 ### Crashes are flagged, never auto-restarted
 
 If a node exits on its own, `sheppyd` marks it **crashed**, records the exit

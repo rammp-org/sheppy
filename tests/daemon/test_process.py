@@ -119,3 +119,25 @@ async def test_child_is_watched_even_if_first_state_callback_raises(tmp_path):
     os.killpg(mp.pid, 9)
     await asyncio.wait_for(mp.wait(), 5)
     assert mp.state == pr.CRASHED
+
+
+async def test_stop_outlasts_leader_until_group_is_empty(tmp_path):
+    # The leader dies on SIGINT at once, but its helper (same process
+    # group) ignores SIGINT. stop() must keep escalating against the group
+    # rather than declaring victory when the leader alone is gone (#89).
+    helper = ("import signal, time\n"
+              "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+              "print('ready', flush=True)\n"
+              "time.sleep(30)\n")
+    code = ("import subprocess, sys, time\n"
+            f"p = subprocess.Popen([sys.executable, '-c', {helper!r}])\n"
+            "print(p.pid, flush=True)\n"
+            "time.sleep(30)\n")
+    mp, _, log = make_mp(tmp_path, code)
+    await mp.start()
+    await wait_for(lambda: log.read_new() is not None and len(log.tail()) >= 2)
+    helper_pid = int(log.tail()[0])
+    await mp.stop()
+    assert mp.state == pr.STOPPED
+    with pytest.raises(ProcessLookupError):
+        os.kill(helper_pid, 0)              # SIGTERM reached the survivor
