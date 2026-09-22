@@ -107,9 +107,10 @@ async def test_child_is_watched_even_if_first_state_callback_raises(tmp_path):
         if len(states) == 1:
             raise OSError("disk full")
 
-    mp = pr.ManagedProcess(
-        {"node": "n", "alt_id": "a", "params": {},
-         "argv": [sys.executable, "-c", "import time; time.sleep(30)"]},
+    argv = [sys.executable, "-c", "import time; time.sleep(30)"]
+    mp = pr.ManagedProcess(                # the shape ProcessTable passes
+        {"node": "n", "alt_id": "a", "params": {}, "argv": argv,
+         "descriptor": {"supervise": "inherit", "start": argv}},
         cfg, log, on_state=flaky)
     with pytest.raises(OSError):
         await mp.start()
