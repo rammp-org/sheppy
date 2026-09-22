@@ -101,10 +101,10 @@ async def _dispatch(args) -> int:
     try:
         if args.cmd == "down":
             nodes = (await client.request("status"))["nodes"]
-            async def stop(node):
-                await client.request("stop", node=node)
+            await asyncio.gather(*(client.request("stop", node=n)
+                                   for n in nodes))
+            for node in sorted(nodes):
                 print(f"{_style('stopped', 'dim')} {node}")
-            await asyncio.gather(*(stop(n) for n in sorted(nodes)))
             await client.request("shutdown")
             print("sheppyd stopped")
             return 0

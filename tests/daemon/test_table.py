@@ -1,5 +1,6 @@
 import asyncio
 import json
+import subprocess
 import sys
 
 import pytest
@@ -160,3 +161,23 @@ async def test_adoption_skips_dead_and_recycled_pids(tmp_path):
     table_b, _ = make_table(tmp_path)
     assert table_b.adopt_from_state() == []
     assert table_b.status() == {}
+
+
+async def test_concurrent_launches_of_one_node_leave_one_process(tmp_path):
+    # Requests run concurrently in sheppyd (#48), so two launches for the
+    # same node can interleave inside launch(); the second must not fork a
+    # child the table then forgets.
+    marker = f"sheppy-test-{tmp_path.name}"
+    argv = [sys.executable, "-c", f"import time; time.sleep(30)  # {marker}"]
+    table, _ = make_table(tmp_path)
+    await asyncio.gather(table.launch(spec("camera", argv)),
+                         table.launch(spec("camera", argv)))
+    await wait_state(table, "camera", pr.RUNNING)
+    proc = await asyncio.create_subprocess_exec(
+        "pgrep", "-f", marker, stdout=asyncio.subprocess.PIPE)
+    out, _ = await proc.communicate()
+    pids = out.split()
+    await table.stop_all()
+    for pid in pids:
+        subprocess.run(["kill", "-9", pid.decode()], capture_output=True)
+    assert len(pids) == 1, f"leaked children: {pids}"

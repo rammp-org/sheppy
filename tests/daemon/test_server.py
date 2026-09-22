@@ -190,9 +190,12 @@ async def test_socket_has_owner_only_perms(tmp_path, monkeypatch):
     await server.close()
 
 
-IGNORE_INT = [sys.executable, "-c",
-              "import signal, time; signal.signal(signal.SIGINT, "
-              "signal.SIG_IGN); time.sleep(30)"]
+def ignore_int(ready_path):
+    """Ignores SIGINT and touches `ready_path` once the handler is in."""
+    return [sys.executable, "-c",
+            "import signal, sys, time; signal.signal(signal.SIGINT, "
+            "signal.SIG_IGN); open(sys.argv[1], 'w').close(); "
+            "time.sleep(30)", str(ready_path)]
 
 
 async def test_requests_on_one_connection_run_concurrently(tmp_path,
@@ -202,10 +205,11 @@ async def test_requests_on_one_connection_run_concurrently(tmp_path,
     # (#48: stop all / apply all were effectively serial in the daemon).
     server = await make_server(tmp_path, monkeypatch)
     wire = await Wire.connect(str(tmp_path))
-    assert (await wire.request("launch", spec=spec("stubborn", IGNORE_INT)))["ok"]
-    await wire.request("subscribe")
-    await wire.wait_event(lambda e: e.get("node") == "stubborn"
-                          and e["state"] == pr.RUNNING)
+    ready = tmp_path / "ready"
+    assert (await wire.request(
+        "launch", spec=spec("stubborn", ignore_int(ready))))["ok"]
+    while not ready.exists():
+        await asyncio.sleep(0.01)
     wire.writer.write(encode({"id": 100, "op": "stop", "node": "stubborn"}))
     wire.writer.write(encode({"id": 101, "op": "status"}))
     await wire.writer.drain()
