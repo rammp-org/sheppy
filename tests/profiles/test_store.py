@@ -133,3 +133,4 @@ def test_save_failure_leaves_previous_file_intact(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         store.save(Profile(name="keep", selections={"camera": "real"}))
     assert store.load("keep").profile.selections == {"camera": "mock"}
+    assert not (tmp_path / "profiles" / "keep.yaml.tmp").exists()
