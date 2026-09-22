@@ -112,21 +112,6 @@ def test_up_skips_node_whose_launcher_raises(site, capsys, monkeypatch):
 
     _register_launcher(monkeypatch, BoomLauncher())
 
-
-    import importlib
-    # sheppy.launch's __init__ re-binds the name "resolve" to the resolve()
-    # function, shadowing the submodule at that attribute — so `import
-    # sheppy.launch.resolve as x` would resolve to the function, not the
-    # module. Go through sys.modules via import_module to get the module.
-    resolve_mod = importlib.import_module("sheppy.launch.resolve")
-    from sheppy.launch.registry import LauncherRegistry, default_registry
-    launchers = list(default_registry()._by_kind.values()) + [BoomLauncher()]
-    monkeypatch.setattr(resolve_mod, "default_registry",
-                        lambda: LauncherRegistry(launchers))
-    # The loader validates kinds against the registry too (#61).
-    monkeypatch.setattr("sheppy.launch.registry.default_registry",
-                        lambda: LauncherRegistry(launchers))
-
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     captured = capsys.readouterr()
     assert rc == 1                          # the profile wasn't reached (#98)
@@ -162,21 +147,6 @@ def test_up_fails_when_the_daemon_rejects_a_launch(site, capsys, monkeypatch):
 
     _register_launcher(monkeypatch, MissingBinaryLauncher())
 
-
-def test_up_refuses_an_alternative_with_load_errors(site, capsys):
-    # A selected alternative that failed manifest validation must not be
-    # launched with a half-built command (#61): print the error, leave the
-    # node alone, converge the rest, exit 1.
-    manifest_path = site / "system.yaml"
-    manifest_path.write_text(manifest_path.read_text() + (
-        "  - name: broken_alt\n"
-        "    alternatives:\n"
-        "      - id: nocmd\n"
-        "        kind: process\n"))
-    store = ProfileStore(str(site / "profiles"))
-    store.save(Profile(name="cam-only",
-                       selections={"camera": "fake", "broken_alt": "nocmd"}))
-
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     captured = capsys.readouterr()
     assert rc == 1
@@ -186,13 +156,6 @@ def test_up_refuses_an_alternative_with_load_errors(site, capsys):
     if "bad: " in captured.err:
         assert "/nonexistent/binary" in captured.err
     assert "camera: running" in captured.out
-
-
-    assert "start broken_alt" not in captured.out
-    assert "broken_alt" in captured.err and "needs 'command'" in captured.err
-    assert "camera: running" in captured.out
-    cli.main(["status"])
-    assert "broken_alt" not in capsys.readouterr().out
 
 
 def test_status_and_restart_and_logs(site, capsys):
@@ -380,3 +343,27 @@ def test_logs_rejects_non_positive_line_count(n, capsys, tmp_path,
         cli.main(["logs", "camera", "-n", n])
     assert exc.value.code == 2
     assert "positive integer" in capsys.readouterr().err
+
+
+def test_up_refuses_an_alternative_with_load_errors(site, capsys):
+    # A selected alternative that failed manifest validation must not be
+    # launched with a half-built command (#61): print the error, leave the
+    # node alone, converge the rest, exit 1.
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: broken_alt\n"
+        "    alternatives:\n"
+        "      - id: nocmd\n"
+        "        kind: process\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "broken_alt": "nocmd"}))
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "start broken_alt" not in captured.out
+    assert "broken_alt" in captured.err and "needs 'command'" in captured.err
+    assert "camera: running" in captured.out
+    cli.main(["status"])
+    assert "broken_alt" not in capsys.readouterr().out
