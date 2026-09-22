@@ -18,7 +18,7 @@ to any of them is a 2.0:
   protocol (`kind`, `validate`, `launch`, `summary`), `Alternative`,
   `LaunchDescriptor` and `LaunchContext`, as described in
   `docs/guides/launcher-plugins.mdx`. `Alternative.config` is a deprecated
-  alias for `Alternative.raw` and is removed in the next minor release.
+  alias for `Alternative.raw` and is removed in 2.0.
 - **Socket protocol.** The NDJSON protocol between clients and `sheppyd`
   (`"protocol": 2`): the hello event, the request and reply shape, and the
   `launch`, `stop`, `restart`, `status`, `logs`, `subscribe` and `shutdown`
@@ -28,7 +28,8 @@ to any of them is a 2.0:
   `stop_grace`, `kill_grace`) and the `SHEPPY_HOME` variable.
 - **CLI verbs.** `sheppy up`, `down`, `status`, `logs`, `restart`,
   `daemon status` and `daemon stop`, their arguments and exit codes, as
-  described in `docs/cli.mdx`.
+  described in `docs/cli.mdx`. `woof` is an alias of `restart` and is kept
+  as well.
 
 Upgrade note: `sheppyd` is long-lived and keeps running the version it was
 started with. After upgrading, run `sheppy daemon stop`; the next command
