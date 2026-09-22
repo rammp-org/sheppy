@@ -1,6 +1,7 @@
 import asyncio
 import os
 
+from sheppy import __version__
 from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.resolve import resolve
 from sheppy.manifest import load_manifest
@@ -39,6 +40,7 @@ class FakeDaemonClient:
 
     def __init__(self, nodes: "dict | None" = None, connect_ok: bool = True):
         self.connected = False
+        self.daemon_version = __version__
         self._ok = connect_ok
         self.nodes = dict(nodes or {})
         self.requests: list = []
@@ -55,6 +57,10 @@ class FakeDaemonClient:
         self.spawn_attempts.append(spawn)
         self.connected = self._ok
         return self._ok
+
+    def version_mismatch(self) -> "str | None":
+        from sheppy.daemon.client import DaemonClient
+        return DaemonClient.version_mismatch(self)
 
     def on_event(self, callback) -> None:
         self._callbacks.append(callback)

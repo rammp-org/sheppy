@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 
+import sheppy
 from sheppy.daemon.config import (
     daemon_log_path, load_config, sheppy_home, socket_path,
 )
@@ -41,6 +42,7 @@ class DaemonClient:
     def __init__(self, home: "str | None" = None) -> None:
         self._home = home or sheppy_home()
         self.connected = False
+        self.daemon_version: "str | None" = None   # from the hello
         self._writer = None
         self._pending: dict = {}
         self._next_id = 0
@@ -65,10 +67,38 @@ class DaemonClient:
                 if asyncio.get_running_loop().time() > deadline:
                     return False
                 await asyncio.sleep(0.05)
+        # The hello is the first frame; read it here so daemon_version is
+        # known by the time connect() returns (#58).
+        decoder = Decoder()
+        msgs: list = []
+        try:
+            while not msgs:
+                data = await asyncio.wait_for(reader.read(65536), 3.0)
+                if not data:
+                    writer.close()
+                    return False
+                msgs = decoder.feed(data)
+        except asyncio.TimeoutError:
+            writer.close()
+            return False
+        if msgs[0].get("event") == "hello":
+            self.daemon_version = msgs[0].get("sheppyd")
+            msgs = msgs[1:]
         self._writer = writer
         self.connected = True
-        self._pump_task = asyncio.ensure_future(self._pump(reader))
+        self._pump_task = asyncio.ensure_future(
+            self._pump(reader, decoder, msgs))
         return True
+
+    def version_mismatch(self) -> "str | None":
+        """Warning text when sheppyd runs another sheppy version (an
+        upgrade leaves the old daemon serving until it is stopped, #58),
+        else None."""
+        if self.daemon_version in (None, sheppy.__version__):
+            return None
+        return (f"sheppyd {self.daemon_version} is not this client's "
+                f"{sheppy.__version__}; run 'sheppy daemon stop' to "
+                "restart it")
 
     async def request(self, op: str, **kw) -> dict:
         if not self.connected:
@@ -94,14 +124,10 @@ class DaemonClient:
         if self._writer:
             self._writer.close()
 
-    async def _pump(self, reader) -> None:
-        decoder = Decoder()
+    async def _pump(self, reader, decoder, msgs: list) -> None:
         try:
             while True:
-                data = await reader.read(65536)
-                if not data:
-                    break
-                for msg in decoder.feed(data):
+                for msg in msgs:
                     if "event" in msg:
                         if msg["event"] != "hello":
                             for cb in self._callbacks:
@@ -114,6 +140,10 @@ class DaemonClient:
                         # raises and would take the whole pump down.
                         if not future.done():
                             future.set_result(msg)
+                data = await reader.read(65536)
+                if not data:
+                    break
+                msgs = decoder.feed(data)
         except (ConnectionResetError, OSError):
             pass
         finally:
