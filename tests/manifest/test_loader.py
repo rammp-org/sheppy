@@ -306,3 +306,28 @@ def test_alternative_id_must_be_a_safe_identifier():
         result = parse_manifest(data)
         assert any(e.location == "nodes[0].alternatives[0].id"
                    for e in result.errors), bad
+
+
+def test_params_not_a_mapping_is_a_located_error():
+    # params: "foo" used to load clean and then crash `sheppy up` and the
+    # TUI in effective_params (#65).
+    for bad in ("foo", ["a", "b"], 5):
+        data = _valid_data()
+        data["nodes"][0]["alternatives"][0]["params"] = bad
+        result = parse_manifest(data)
+        assert any(e.location == "nodes[0].alternatives[0].params"
+                   and "mapping" in e.message for e in result.errors), bad
+        # still browsable, with the bad value dropped
+        assert result.manifest.node("camera").alternatives[0].params == {}
+
+
+def test_publishes_and_subscribes_must_be_lists():
+    data = _valid_data()
+    data["nodes"][0]["alternatives"][0]["publishes"] = "/camera/image"
+    data["nodes"][0]["alternatives"][0]["subscribes"] = {"a": 1}
+    result = parse_manifest(data)
+    locs = {e.location for e in result.errors}
+    assert "nodes[0].alternatives[0].publishes" in locs
+    assert "nodes[0].alternatives[0].subscribes" in locs
+    alt = result.manifest.node("camera").alternatives[0]
+    assert alt.publishes == [] and alt.subscribes == []

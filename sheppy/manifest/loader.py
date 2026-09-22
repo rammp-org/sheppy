@@ -46,12 +46,27 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
     if machine is not None and machine not in machine_names:
         errors.append(ValidationError(
             loc, f"alternative '{alt_id}' references unknown machine '{machine}'"))
+    params = raw.get("params")
+    if params is not None and not isinstance(params, dict):
+        errors.append(ValidationError(
+            f"{loc}.params", f"alternative '{alt_id}': 'params' must be a mapping, "
+                             f"got {type(params).__name__}"))
+        params = None
+    topics = {}
+    for key in ("publishes", "subscribes"):
+        value = raw.get(key)
+        if value is not None and not isinstance(value, list):
+            errors.append(ValidationError(
+                f"{loc}.{key}", f"alternative '{alt_id}': '{key}' must be a list, "
+                                f"got {type(value).__name__}"))
+            value = None
+        topics[key] = value or []
     return Alternative(
         id=alt_id or "", kind=kind or "", machine=machine,
         package=raw.get("package"), executable=raw.get("executable"),
         launch_file=raw.get("launch_file"), command=raw.get("command"),
-        params=raw.get("params") or {},
-        publishes=raw.get("publishes") or [], subscribes=raw.get("subscribes") or [],
+        params=params or {},
+        publishes=topics["publishes"], subscribes=topics["subscribes"],
         config=dict(raw))
 
 
