@@ -5,6 +5,8 @@
 
 Then `kind: echo` alternatives run `echo <message>`.
 """
+import shlex
+
 from sheppy.launch.descriptor import LaunchDescriptor
 
 
@@ -15,8 +17,9 @@ class EchoLauncher:
         return [] if raw_alt.get("message") else ["echo alternative needs 'message'"]
 
     def launch(self, alt, params, ctx):
-        msg = alt.config.get("message", "")
-        return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg!r}; sleep 3600"))
+        # shlex.quote, not repr: manifest text must never become shell syntax.
+        msg = shlex.quote(alt.config.get("message", ""))
+        return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg}; sleep 3600"))
 
     def summary(self, alt):
         return [("message", alt.config.get("message", "—"))]

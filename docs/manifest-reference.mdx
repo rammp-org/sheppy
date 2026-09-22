@@ -222,8 +222,9 @@ in an inline `container` are not interpolated at all.
   missing or empty, same as `name` and `host`.
 - **`select:` accepts exactly one value: `single`.** Anything else is a
   validation error.
-- **`params` on a `process` alternative are ignored**, with a warning at
-  load time — `process` runs `command` verbatim and has nowhere to splice
+- **`params` on a `process` alternative are ignored**, with a warning when
+  the alternative is launched (not at load time; the manifest validates
+  clean) — `process` runs `command` verbatim and has nowhere to splice
   parameters in.
 - **`publishes`/`subscribes` are documentation only.** sheppy stores and
   displays them but never checks them against the live ROS graph — nothing

@@ -240,6 +240,8 @@ and never breaks discovery of the other launchers
 ## Walk-through: `examples/launchers/echo_launcher.py`
 
 ```python
+import shlex
+
 from sheppy.launch.descriptor import LaunchDescriptor
 
 
@@ -250,8 +252,9 @@ class EchoLauncher:
         return [] if raw_alt.get("message") else ["echo alternative needs 'message'"]
 
     def launch(self, alt, params, ctx):
-        msg = alt.config.get("message", "")
-        return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg!r}; sleep 3600"))
+        # shlex.quote, not repr: manifest text must never become shell syntax.
+        msg = shlex.quote(alt.config.get("message", ""))
+        return LaunchDescriptor.inherit(("bash", "-c", f"echo {msg}; sleep 3600"))
 
     def summary(self, alt):
         return [("message", alt.config.get("message", "—"))]
@@ -276,7 +279,10 @@ alternatives:
 - `launch()` reads `alt.config["message"]` — `.config` is the full raw
   alternative dict, so custom keys like `message` are always reachable even
   though `Alternative` has no typed `.message` field — and returns an
-  `inherit` descriptor. The `sleep 3600` keeps the process alive after the
+  `inherit` descriptor. The message goes through `shlex.quote` before it is
+  spliced into the `bash -c` string, so a `'` or `$HOME` in the manifest is
+  echoed literally instead of being parsed by the shell; do the same for any
+  manifest text your launcher puts in a command line. The `sleep 3600` keeps the process alive after the
   echo so there's something for `sheppyd` to supervise; a real launcher
   would `exec` a long-running command directly instead.
 - `summary()` gives the TUI a one-line description of this alternative.
