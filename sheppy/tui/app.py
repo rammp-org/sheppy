@@ -603,20 +603,21 @@ class SheppyApp(App):
             return
         if self.state.active_profile_name:
             name = self.state.active_profile_name
-            try:
-                self.store.save(self.state.to_profile(name))
-            except ValueError as e:
-                self._append_warnings([f"could not save profile '{name}': {e}"])
-                return
-            self.state.mark_saved(name)
-            self._refresh_header()
+            self._save_as(name)
         else:
             self.push_screen(SaveNameModal(), self._on_save_name)
 
     def _on_save_name(self, name: "str | None") -> None:
         if not name or not self.state or not self.store:
             return
-        self.store.save(self.state.to_profile(name))
+        self._save_as(name)
+
+    def _save_as(self, name: str) -> None:
+        try:
+            self.store.save(self.state.to_profile(name))
+        except (ValueError, OSError) as e:     # OSError: read-only dir (#110)
+            self._append_warnings([f"could not save profile '{name}': {e}"])
+            return
         self.state.mark_saved(name)
         self._refresh_header()
 

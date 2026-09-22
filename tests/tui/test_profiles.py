@@ -1,4 +1,5 @@
 import os
+import pytest
 from sheppy.manifest import Manifest, Node, Alternative, LoadResult
 from sheppy.profiles import Profile, ProfileStore
 from sheppy.tui.app import SheppyApp
@@ -224,3 +225,62 @@ async def test_typing_q_in_a_name_does_not_quit(tmp_path):
         await pilot.pause()
         assert app.is_running
         assert app.screen.query_one("#name").value == "q"
+
+
+def _unwritable(tmp_path):
+    # An installed package share or another user's checkout: the profiles
+    # directory can't be created, and existing files can't be removed.
+    root = tmp_path / "ro"
+    root.mkdir()
+    root.chmod(0o500)
+    return root
+
+
+async def _select_mock(pilot, app):
+    app.query_one("#nodes").index = 0
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+    app.query_one("#alternatives").index = 0
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file modes")
+async def test_save_new_name_in_unwritable_dir_warns(tmp_path):
+    # #110: the manifest lives somewhere read-only; `s` must warn, not crash.
+    root = _unwritable(tmp_path)
+    app = SheppyApp(_result(), profiles_dir=str(root / "profiles"))
+    try:
+        async with app.run_test() as pilot:
+            await _select_mock(pilot, app)
+            await pilot.press("s")
+            await pilot.pause()
+            for ch in "desk":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            await pilot.pause()
+            assert app.is_running
+            assert any(w.startswith("could not save profile 'desk':")
+                       for w in app._runtime_warnings)
+            assert app.state.active_profile_name is None
+    finally:
+        root.chmod(0o700)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file modes")
+async def test_resave_active_profile_in_unwritable_dir_warns(tmp_path):
+    root = _unwritable(tmp_path)
+    app = SheppyApp(_result(), profiles_dir=str(root / "profiles"))
+    app.state.mark_saved("desk")            # as if loaded earlier
+    try:
+        async with app.run_test() as pilot:
+            await pilot.press("s")
+            await pilot.pause()
+            assert app.is_running
+            assert any(w.startswith("could not save profile 'desk':")
+                       for w in app._runtime_warnings)
+    finally:
+        root.chmod(0o700)
+
