@@ -227,3 +227,41 @@ def test_other_deploy_keys_warn():
     assert any("'deploy.resources.limits'" in w for w in warns)
     assert any("'deploy.resources.reservations.memory'" in w for w in warns)
     assert not any("'deploy.replicas'" in w for w in warns)
+
+
+def _values(flags, flag):
+    return [flags[i + 1] for i, f in enumerate(flags) if f == flag]
+
+
+def test_environment_values_are_spelled_as_yaml_not_python():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "environment": {"DEBUG": True, "RATE": 30,
+                                       "GAIN": 1.5, "NAME": "x"}})
+    assert errs == []
+    assert _values(flags, "-e") == ["DEBUG=true", "RATE=30", "GAIN=1.5",
+                                    "NAME=x"]
+
+
+def test_null_environment_value_passes_the_host_value_through():
+    # compose: `FOO:` with no value takes FOO from the host environment,
+    # which docker run spells as a bare -e FOO
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "environment": {"FOO": None, "BAR": "1"}})
+    assert errs == []
+    assert _values(flags, "-e") == ["FOO", "BAR=1"]
+
+
+def test_list_form_environment_matches_the_mapping_form():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "environment": ["DEBUG=true", "FOO"]})
+    assert errs == []
+    assert _values(flags, "-e") == ["DEBUG=true", "FOO"]
+
+
+def test_label_values_follow_the_same_rules():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "labels": {"com.example.rt": True, "com.example.n": 2,
+                                  "com.example.flag": None}})
+    assert errs == []
+    assert _values(flags, "--label") == ["com.example.rt=true",
+                                         "com.example.n=2", "com.example.flag"]

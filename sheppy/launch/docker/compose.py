@@ -1,6 +1,7 @@
 """Translate a docker-compose service definition into docker-run arguments.
 We reuse compose's config vocabulary but not its orchestrator."""
 import difflib
+import json
 import re
 import shlex
 
@@ -128,6 +129,17 @@ def _ulimit_pair(name, limit):
     return f"{name}={limit}"
 
 
+def _pair(key, value):
+    """KEY=VALUE with the value spelled as YAML does (true, 30), not as
+    Python does (True); a null value is a bare KEY, which docker fills in
+    from the host environment."""
+    if value is None:
+        return key
+    if isinstance(value, (bool, int, float)):
+        return f"{key}={json.dumps(value)}"
+    return f"{key}={value}"
+
+
 # How one entry of a mapping-valued key becomes a single flag argument.
 _PAIR = {
     "ulimits": _ulimit_pair,
@@ -195,7 +207,7 @@ def _emit(key, value):
     if isinstance(value, bool):
         return [flag] if value else []
     if isinstance(value, dict):
-        pair = _PAIR.get(key, lambda k, v: f"{k}={v}")
+        pair = _PAIR.get(key, _pair)
         return [a for k, v in value.items() for a in (flag, pair(k, v))]
     if isinstance(value, (list, tuple)):
         return [a for item in value for a in (flag, str(item))]
