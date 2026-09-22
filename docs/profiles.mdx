@@ -75,8 +75,8 @@ sheppy up mock --manifest /home/me/robot/sheppy-manifest.yaml
   manifest errors.
 
 It prints that plan first, sends every start at once (there's no ordering
-between nodes), waits up to 30 seconds for them to settle, and prints each
-node's final state. It exits 1 if a selected node isn't running at the end
+between nodes), waits for them to settle (bounded by the daemon's grace
+periods, 22 seconds with the defaults), and prints each node's final state. It exits 1 if a selected node isn't running at the end
 (it crashed, or `sheppyd` couldn't start it), a launcher failed to resolve,
 a selected alternative has manifest errors,
 the manifest or profile didn't load, or the nodes didn't settle in time.

@@ -243,7 +243,7 @@ async def _up(args) -> int:
             continue
         desired[node.name] = spec
 
-    from sheppy.daemon.config import sheppy_home, socket_path_error
+    from sheppy.daemon.config import load_config, sheppy_home, socket_path_error
     reason = socket_path_error(sheppy_home())
     if reason:                          # the daemon couldn't bind it (#35)
         _error(f"could not start sheppyd: {reason}")
@@ -276,13 +276,22 @@ async def _up(args) -> int:
             if not reply["ok"]:
                 _error(f"{node}: {reply['error']}")
                 rejected = True
-        rc = await _wait_stable(client, desired)
+        # A restart stops the old process first (stop_grace, then kill_grace)
+        # and the new one is `launching` for launch_grace, so the settle
+        # timeout follows the daemon's config rather than a fixed 30 s (#103).
+        cfg, _ = load_config()
+        timeout = cfg.launch_grace + cfg.stop_grace + cfg.kill_grace + 10
+        launched = sum(verb != "stop" for verb, _ in actions)
+        if launched:
+            print(f"waiting for {launched} node(s) to settle "
+                  f"(up to {timeout:.0f}s)…")
+        rc = await _wait_stable(client, desired, timeout)
         return 1 if (rejected or unresolved) else rc
     finally:
         await client.close()
 
 
-async def _wait_stable(client, desired: dict, timeout: float = 30.0) -> int:
+async def _wait_stable(client, desired: dict, timeout: float) -> int:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         nodes = (await client.request("status"))["nodes"]

@@ -158,6 +158,26 @@ def test_up_fails_when_the_daemon_rejects_a_launch(site, capsys, monkeypatch):
     assert "camera: running" in captured.out
 
 
+def test_up_settle_timeout_follows_the_daemon_graces(site, capsys, monkeypatch):
+    # A launch_grace above the old fixed 30 s made healthy nodes "time out"
+    # while still launching (#103): the settle timeout must come from the
+    # daemon config, and `up` must say it is waiting.
+    (site / "home" / "sheppyd.json").write_text(json.dumps(
+        {"launch_grace": 35, "stop_grace": 5, "kill_grace": 5}))
+    seen = {}
+
+    async def fake_wait(client, desired, timeout):
+        seen["timeout"] = timeout
+        return 0
+
+    monkeypatch.setattr(cli, "_wait_stable", fake_wait)
+    rc = cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert seen["timeout"] == 35 + 5 + 5 + 10
+    assert "waiting for 1 node(s) to settle" in out
+
+
 def test_status_and_restart_and_logs(site, capsys):
     cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
     capsys.readouterr()
