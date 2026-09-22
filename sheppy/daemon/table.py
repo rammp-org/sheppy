@@ -8,6 +8,10 @@ from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config, daemon_log, state_path
 from sheppy.daemon.logs import NodeLog
 
+# Layout of sheppyd.state.json. Bump when a record's shape changes; a file
+# with no key is format 1 (written before the key existed).
+STATE_FORMAT = 1
+
 
 def _proc_start_ticks(pid: int) -> "int | None":
     """Field 22 of /proc/<pid>/stat — guards against recycled pids."""
@@ -48,8 +52,7 @@ class ProcessTable:
         descriptor = spec.get("descriptor") or {}
         supervise = descriptor.get("supervise")
         if supervise == "inherit":
-            mp_spec = {**spec, "argv": list(descriptor["start"])}
-            proc = pr.ManagedProcess(mp_spec, self._cfg, log, self._on_state)
+            proc = pr.ManagedProcess(spec, self._cfg, log, self._on_state)
         elif supervise == "detached":
             proc = pr.DetachedSupervisor(spec, self._cfg, log, self._on_state)
         else:
@@ -87,38 +90,50 @@ class ProcessTable:
     def adopt_from_state(self) -> list[str]:
         try:
             with open(state_path(self._cfg.home)) as f:
-                nodes = json.load(f).get("nodes", {})
+                data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return []
+        fmt = data.get("format", 1)            # pre-1.0 files have no key
+        if fmt != STATE_FORMAT:
+            daemon_log(self._cfg,
+                       f"state file: unknown format {fmt!r}; adopting nothing")
+            return []
         adopted = []
-        for node, rec in nodes.items():
-            if rec.get("detached"):
-                log = NodeLog(self._cfg.log_dir, node,
-                              self._cfg.ring_lines, self._cfg.keep_runs)
-                log.attach_latest()
-                sup = pr.DetachedSupervisor(rec["spec"], self._cfg, log,
-                                            self._on_state)
-                sup.mark_adopted(rec["started_at"])
-                self._entries[node] = sup
-                asyncio.ensure_future(sup.reattach())
-                adopted.append(node)
-                continue
-            ticks = _proc_start_ticks(rec["pid"])
-            if ticks is None or rec["proc_start"] is None \
-                    or ticks != rec["proc_start"]:
-                continue                       # dead, or a recycled pid
-            log = NodeLog(self._cfg.log_dir, node,
-                          self._cfg.ring_lines, self._cfg.keep_runs)
-            log.attach_latest()
+        for node, rec in data.get("nodes", {}).items():
             try:
-                self._entries[node] = pr.AdoptedProcess(
-                    rec["spec"], self._cfg, log, self._on_state,
-                    pid=rec["pid"], started_at=rec["started_at"])
-            except OSError:                    # died between check and pidfd
+                ok = self._adopt(node, rec)
+            except (KeyError, TypeError) as e:  # one bad record, not a dead daemon
+                daemon_log(self._cfg, f"state file: skipping {node!r}: "
+                                      f"{type(e).__name__}: {e}")
                 continue
-            adopted.append(node)
+            if ok:
+                adopted.append(node)
         self._persist()
         return adopted
+
+    def _adopt(self, node: str, rec: dict) -> bool:
+        log = NodeLog(self._cfg.log_dir, node,
+                      self._cfg.ring_lines, self._cfg.keep_runs)
+        if rec.get("detached"):
+            log.attach_latest()
+            sup = pr.DetachedSupervisor(rec["spec"], self._cfg, log,
+                                        self._on_state)
+            sup.mark_adopted(rec["started_at"])
+            self._entries[node] = sup
+            asyncio.ensure_future(sup.reattach())
+            return True
+        ticks = _proc_start_ticks(rec["pid"])
+        if ticks is None or rec["proc_start"] is None \
+                or ticks != rec["proc_start"]:
+            return False                       # dead, or a recycled pid
+        log.attach_latest()
+        try:
+            self._entries[node] = pr.AdoptedProcess(
+                rec["spec"], self._cfg, log, self._on_state,
+                pid=rec["pid"], started_at=rec["started_at"])
+        except OSError:                        # died between check and pidfd
+            return False
+        return True
 
     def _on_state(self, proc) -> None:
         self._persist()
@@ -149,7 +164,7 @@ class ProcessTable:
         try:
             os.makedirs(self._cfg.home, exist_ok=True)
             with open(tmp, "w") as f:
-                json.dump({"nodes": live}, f)
+                json.dump({"format": STATE_FORMAT, "nodes": live}, f)
             os.replace(tmp, path)              # atomic on POSIX
         except OSError as e:
             # Every state transition passes through here; a full disk must

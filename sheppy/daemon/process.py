@@ -105,7 +105,7 @@ class ManagedProcess(Supervised):
         fd = self.log.open_run()
         try:
             proc = await asyncio.create_subprocess_exec(
-                *self.spec["argv"],
+                *self.spec["descriptor"]["start"],
                 stdout=fd, stderr=fd, stdin=asyncio.subprocess.DEVNULL,
                 start_new_session=True,
                 env={**os.environ, **_CHILD_ENV},

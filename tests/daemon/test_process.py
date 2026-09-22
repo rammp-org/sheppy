@@ -21,8 +21,9 @@ def make_mp(tmp_path, code, **cfg_kw):
     log = NodeLog(cfg.log_dir, "n", cfg.ring_lines, cfg.keep_runs)
     states = []
     mp = pr.ManagedProcess(
-        {"node": "n", "alt_id": "a", "argv": [sys.executable, "-c", code],
-         "params": {}},
+        {"node": "n", "alt_id": "a", "params": {},
+         "descriptor": {"supervise": "inherit",
+                        "start": [sys.executable, "-c", code]}},
         cfg, log, on_state=lambda m: states.append(m.state))
     return mp, states, log
 
