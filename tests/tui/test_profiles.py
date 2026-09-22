@@ -284,3 +284,18 @@ async def test_resave_active_profile_in_unwritable_dir_warns(tmp_path):
     finally:
         root.chmod(0o700)
 
+
+
+async def test_load_surfaces_nonfatal_profile_errors(tmp_path):
+    # A discarded section is a warning in the overlay, not silence (#102).
+    (tmp_path / "sloppy.yaml").write_text(
+        "selections: {camera: mock}\noverrides: [1, 2]\n")
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock"
+        assert any("'overrides' is not a mapping" in w
+                   for w in app._runtime_warnings)

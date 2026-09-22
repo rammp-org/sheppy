@@ -651,6 +651,8 @@ class SheppyApp(App):
         if result.profile is None:
             self._append_warnings(result.errors)
             return
+        if result.errors:               # loaded, but with parts dropped (#102)
+            self._append_warnings(result.errors)
         rec = reconcile(result.profile, self.manifest)
         self.state.apply(rec.selections, rec.overrides, name,
                          description=result.profile.description)

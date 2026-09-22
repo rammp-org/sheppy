@@ -324,3 +324,12 @@ def test_ctrl_c_during_verb_exits_130(monkeypatch):
     monkeypatch.setattr(cli, "_dispatch", interrupted)
 
     assert cli.main(["status"]) == 130
+
+
+def test_up_warns_about_nonfatal_profile_errors(site, capsys):
+    # A profile that loads with a discarded section must say so (#102).
+    (site / "profiles" / "sloppy.yaml").write_text(
+        "selections: {camera: fake}\noverrides: [1, 2]\n")
+    rc = cli.main(["up", "sloppy", "--manifest", str(site / "system.yaml")])
+    assert rc == 0
+    assert "'overrides' is not a mapping; ignored" in capsys.readouterr().err
