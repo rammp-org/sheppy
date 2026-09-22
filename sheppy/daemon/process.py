@@ -265,6 +265,10 @@ class DetachedSupervisor(Supervised):
         self._exited = asyncio.Event()
         self.exit_code = None
         self.started_at = time.time()
+        # Launching from here, not after `start` returns: a `docker run`
+        # may pull for minutes, and status and the state file must show
+        # the unit as pending so a daemon death mid-start can re-adopt it.
+        self._set(LAUNCHING)
         # The run log opens before `start` so a failed launch (image
         # missing, port in use) leaves the runtime's error in `sheppy logs`.
         fd = self.log.open_run()
@@ -280,7 +284,6 @@ class DetachedSupervisor(Supervised):
             await self._open_logs(fd)
         finally:
             os.close(fd)
-        self._set(LAUNCHING)
         self._watch_task = asyncio.ensure_future(
             self._watch() if self._watch_cmd else self._poll())
 
