@@ -20,3 +20,14 @@ jobs:
           enable-cache: true
       - name: Run tests
         run: uv run --python ${{ matrix.python-version }} pytest -q
+
+  textual-floor:
+    name: textual-floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Run TUI tests at the textual lower bound
+        run: uv run --with textual==8.0.0 pytest -q tests/tui
