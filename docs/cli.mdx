@@ -38,10 +38,16 @@ It prints a plan (`start`, `restart`, or `stop` per node), then:
   as `<node>: not launched, ...`, leaves that node as it is, and exits 1
   after converging the rest.
 
-All the starts go out at once, with no ordering between nodes. It then waits
-up to 30 seconds for every node to settle and prints each node's final state,
-with the last line of a crashed node's log indented under it.
-Running it twice in a row prints `already converged` the second time.
+All the starts go out at once, with no ordering between nodes. It then prints
+`waiting for N node(s) to settle`, waits for every node to leave `launching`,
+and prints each node's final state, with the last line of a crashed
+node's log indented under it. The wait is bounded by the daemon's grace
+periods: `launch_grace + stop_grace + kill_grace + 10` seconds from
+[`sheppyd.json`](../guides/sheppyd#configuration), 22 seconds with the
+defaults. A [launcher plugin](../guides/launcher-plugins) that sets its own
+`grace["launch"]` on a detached descriptor raises the bound by the same
+amount. Running it twice in a row prints `already converged` the second
+time.
 
 `up` is the only verb that starts `sheppyd` when it isn't running, and the
 daemon keeps this terminal's environment — see
@@ -52,7 +58,7 @@ can't start, if a selected node's launcher fails to resolve, if a selected
 alternative has manifest errors, if `sheppyd` rejects a launch (it prints the
 daemon's error, for example a command that doesn't exist), if any selected
 node isn't `running` once things settle (`crashed`, or `stopped` because it
-never started), or if they don't settle within 30 seconds.
+never started), or if they don't settle within the bound above.
 Recoverable problems, such as a profile selection the manifest no longer has
 or a manifest error in an alternative that isn't selected, print as
 `warning:` on stderr and don't stop the launch.

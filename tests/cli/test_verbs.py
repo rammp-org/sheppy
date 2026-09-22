@@ -367,3 +367,73 @@ def test_up_refuses_an_alternative_with_load_errors(site, capsys):
     assert "camera: running" in captured.out
     cli.main(["status"])
     assert "broken_alt" not in capsys.readouterr().out
+
+
+def test_up_settle_timeout_follows_the_daemon_graces(site, capsys, monkeypatch):
+    # A launch_grace above the old fixed 30 s made healthy nodes "time out"
+    # while still launching (#103): the settle timeout must come from the
+    # daemon config, and `up` must say it is waiting.
+    (site / "home" / "sheppyd.json").write_text(json.dumps(
+        {"launch_grace": 35, "stop_grace": 5, "kill_grace": 5}))
+    seen = {}
+
+    async def fake_wait(client, desired, timeout):
+        seen["timeout"] = timeout
+        return 0
+
+    monkeypatch.setattr(cli, "_wait_stable", fake_wait)
+    rc = cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert seen["timeout"] == 35 + 5 + 5 + 10
+    assert "waiting for 1 node(s) to settle" in out
+
+
+def test_up_settle_timeout_honors_a_descriptor_launch_grace(
+        site, capsys, monkeypatch):
+    # A detached launcher can raise its own launch grace (grace["launch"]),
+    # which sheppyd honors over launch_grace; the settle bound must grow
+    # with it or a healthy unit "times out" while still launching (#103).
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: unit\n"
+        "    alternatives:\n"
+        "      - id: slow\n"
+        "        kind: slow_unit\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "unit": "slow"}))
+
+    class SlowUnitLauncher:
+        kind = "slow_unit"
+
+        def validate(self, raw_alt):
+            return []
+
+        def launch(self, alt, params, ctx):
+            from sheppy.launch.descriptor import LaunchDescriptor
+            return LaunchDescriptor.detached(
+                "unit", (PY, "-c", "pass"), poll=(PY, "-c", "pass"),
+                grace={"launch": 15})
+
+        def summary(self, alt):
+            return []
+
+    import importlib
+    resolve_mod = importlib.import_module("sheppy.launch.resolve")
+    from sheppy.launch.registry import LauncherRegistry, default_registry
+    launchers = list(default_registry()._by_kind.values()) + [SlowUnitLauncher()]
+    monkeypatch.setattr(resolve_mod, "default_registry",
+                        lambda: LauncherRegistry(launchers))
+    monkeypatch.setattr("sheppy.launch.registry.default_registry",
+                        lambda: LauncherRegistry(launchers))
+    seen = {}
+
+    async def fake_wait(client, desired, timeout):
+        seen["timeout"] = timeout
+        return 0
+
+    monkeypatch.setattr(cli, "_wait_stable", fake_wait)
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    assert rc == 0
+    assert seen["timeout"] == 15 + 0.3 + 0.3 + 10      # graces from the fixture
