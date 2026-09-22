@@ -1,5 +1,18 @@
+import re
+
 from sheppy.manifest.models import Machine, Alternative, Node, Manifest
 from sheppy.manifest.errors import ValidationError, LoadResult
+
+# Node names and alternative ids become docker container names and scratch
+# directory paths, so they are restricted to a safe identifier.
+_NAME_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
+_NAME = re.compile(_NAME_PATTERN)
+
+
+def _check_name(value, what: str, loc: str, errors: list) -> None:
+    if not (isinstance(value, str) and _NAME.fullmatch(value)):
+        errors.append(ValidationError(
+            loc, f"{what} {value!r} must be a string matching {_NAME_PATTERN}"))
 
 
 def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) -> Alternative:
@@ -11,6 +24,8 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
     alt_id = raw.get("id")
     if not alt_id:
         errors.append(ValidationError(loc, "alternative is missing 'id'"))
+    else:
+        _check_name(alt_id, "alternative id", f"{loc}.id", errors)
     kind = raw.get("kind")
     registry = default_registry()
     try:
@@ -47,6 +62,8 @@ def _build_node(raw: dict, loc: str, machine_names: set, errors: list) -> Node:
     name = raw.get("name")
     if not name:
         errors.append(ValidationError(loc, "node is missing 'name'"))
+    else:
+        _check_name(name, "node name", f"{loc}.name", errors)
     select = raw.get("select", "single")
     if select != "single":
         errors.append(ValidationError(loc, f"node 'select' must be 'single', got {select!r}"))

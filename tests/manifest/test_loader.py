@@ -283,3 +283,26 @@ def test_malformed_docker_container_bad_environment_does_not_crash():
 def test_malformed_docker_container_bad_volumes_does_not_crash():
     result = parse_manifest(_docker_data({"image": "x", "volumes": 5}))
     assert result.errors
+
+
+def test_node_name_must_be_a_safe_identifier():
+    # Names become docker container names and scratch-dir paths (#66).
+    for bad in ("camera 1", "../escape", "-lead", 123, "a/b"):
+        data = _valid_data()
+        data["nodes"][0]["name"] = bad
+        result = parse_manifest(data)
+        assert any(e.location == "nodes[0].name" for e in result.errors), bad
+        assert result.manifest is not None
+    for good in ("camera", "cam-1", "tf_broadcaster", "v1.2", "0"):
+        data = _valid_data()
+        data["nodes"][0]["name"] = good
+        assert parse_manifest(data).ok, good
+
+
+def test_alternative_id_must_be_a_safe_identifier():
+    for bad in ("real sense", "../x", 7):
+        data = _valid_data()
+        data["nodes"][0]["alternatives"][0]["id"] = bad
+        result = parse_manifest(data)
+        assert any(e.location == "nodes[0].alternatives[0].id"
+                   for e in result.errors), bad
