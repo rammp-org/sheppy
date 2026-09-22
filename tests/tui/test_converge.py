@@ -151,6 +151,34 @@ async def test_converge_all_leaves_unresolved_nodes_alone(monkeypatch):
                    for w in app._runtime_warnings)
 
 
+async def test_space_and_apply_all_refuse_an_alternative_with_load_errors(
+        tmp_path):
+    # An alternative that failed validation is never launched (#61): both
+    # `space` and `L` refuse it, and the load error lands in the overlay.
+    path = tmp_path / "system.yaml"
+    path.write_text(
+        "machines: []\n"
+        "nodes:\n"
+        "  - name: cam\n"
+        "    alternatives:\n"
+        "      - id: nocmd\n"
+        "        kind: process\n")
+    fake = FakeDaemonClient()
+    app = SheppyApp(load_manifest(str(path)), path=str(path), client=fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.select("cam", "nocmd")
+        await pilot.press("space")
+        await pilot.pause()
+        assert not any(op == "launch" for op, _ in fake.requests)
+        assert any("needs 'command'" in w for w in app._runtime_warnings)
+        assert app.show_errors
+        await pilot.press("L")
+        await pilot.pause()
+        assert not isinstance(app.screen, ConvergeModal)
+        assert not any(op == "launch" for op, _ in fake.requests)
+
+
 async def test_converge_all_survives_status_error_reply():
     fake = FakeDaemonClient()
     app = make_app(fake)

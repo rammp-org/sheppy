@@ -77,6 +77,19 @@ def test_missing_kind_fields():
     assert any("executable" in e.message for e in result.errors)
 
 
+def test_errors_for_maps_locations_to_the_alternative():
+    data = _valid_data()
+    del data["nodes"][0]["alternatives"][1]["executable"]
+    result = parse_manifest(data)
+    camera = result.manifest.node("camera")
+    good, bad = camera.alternatives
+    assert result.errors_for(camera, good) == []
+    assert [e.message for e in result.errors_for(camera, bad)] == [
+        "alternative 'mock_camera': executable alternative needs 'executable'"]
+    sim = result.manifest.node("sim_gui")
+    assert result.errors_for(sim, sim.alternatives[0]) == []
+
+
 def test_bad_select_value():
     data = _valid_data()
     data["nodes"][0]["select"] = "multi"

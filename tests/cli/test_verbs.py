@@ -343,3 +343,27 @@ def test_logs_rejects_non_positive_line_count(n, capsys, tmp_path,
         cli.main(["logs", "camera", "-n", n])
     assert exc.value.code == 2
     assert "positive integer" in capsys.readouterr().err
+
+
+def test_up_refuses_an_alternative_with_load_errors(site, capsys):
+    # A selected alternative that failed manifest validation must not be
+    # launched with a half-built command (#61): print the error, leave the
+    # node alone, converge the rest, exit 1.
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: broken_alt\n"
+        "    alternatives:\n"
+        "      - id: nocmd\n"
+        "        kind: process\n"))
+    store = ProfileStore(str(site / "profiles"))
+    store.save(Profile(name="cam-only",
+                       selections={"camera": "fake", "broken_alt": "nocmd"}))
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "start broken_alt" not in captured.out
+    assert "broken_alt" in captured.err and "needs 'command'" in captured.err
+    assert "camera: running" in captured.out
+    cli.main(["status"])
+    assert "broken_alt" not in capsys.readouterr().out

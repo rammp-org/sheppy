@@ -223,6 +223,12 @@ async def _up(args) -> int:
         alt = state.selected_alt(node.name)
         if alt is None:
             continue
+        errs = result.errors_for(node, alt)
+        if errs:                            # never launch a half-built alt (#61)
+            for e in errs:
+                _error(f"{node.name}: not launched, {e.message}")
+            unresolved.add(node.name)
+            continue
         spec, warns = resolve(result.manifest, node.name, alt,
                               state.effective_params(node.name),
                               manifest_dir=os.path.dirname(
