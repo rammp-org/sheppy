@@ -282,3 +282,40 @@ def test_up_leaves_a_node_alone_when_its_launcher_stops_resolving(
     status = capsys.readouterr().out
     assert any(line.startswith("compose") and "running" in line
                for line in status.splitlines())
+
+
+def test_daemon_dying_mid_command_is_reported_not_raised(tmp_path, monkeypatch,
+                                                         capsys):
+    # A fake sheppyd that hangs up after the first request (#99): the CLI
+    # must print one line and exit 1, not traceback.
+    import socket
+    import threading
+
+    from sheppy.daemon.config import socket_path
+
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(socket_path(str(tmp_path)))
+    srv.listen(1)
+
+    def drop_first_request():
+        conn, _ = srv.accept()
+        conn.recv(65536)
+        conn.close()
+        srv.close()
+
+    threading.Thread(target=drop_first_request, daemon=True).start()
+
+    rc = cli.main(["status"])
+
+    assert rc == 1
+    assert "sheppy: sheppyd: sheppyd connection lost" in capsys.readouterr().err
+
+
+def test_ctrl_c_during_verb_exits_130(monkeypatch):
+    async def interrupted(args):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "_dispatch", interrupted)
+
+    assert cli.main(["status"]) == 130

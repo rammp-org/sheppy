@@ -102,7 +102,14 @@ def _run_verb(argv: list[str]) -> int:
     if argv[0] == "woof":                # restart's old name (#21)
         argv = ["restart", *argv[1:]]
     args = _build_parser().parse_args(argv)
-    return asyncio.run(_dispatch(args))
+    from sheppy.daemon.client import DaemonError
+    try:
+        return asyncio.run(_dispatch(args))
+    except DaemonError as e:            # sheppyd died mid-command (#99)
+        _error(f"sheppy: sheppyd: {e}")
+        return 1
+    except KeyboardInterrupt:
+        return 130
 
 
 async def _dispatch(args) -> int:
