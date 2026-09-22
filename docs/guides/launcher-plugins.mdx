@@ -222,8 +222,10 @@ If sheppy was installed with the one-line installer, add your plugin to that
 tool environment instead:
 
 ```bash
-uv tool install --force --with <your-plugin> git+https://github.com/rammp-org/sheppy@main
+uv tool install --force --with <your-plugin> git+https://github.com/rammp-org/sheppy@<ref>
 ```
+
+with `<ref>` the release you run (`sheppy --version`, so `v1.0.0`) or `dev`.
 
 A broken plugin (import error, exception on instantiation) is skipped with a
 warning on stderr — `sheppy: skipping launcher plugin '<name>': <error>` —

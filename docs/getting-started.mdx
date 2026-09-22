@@ -16,13 +16,25 @@ isolated environment:
 curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
 
-Re-run the same line to upgrade. Pin a branch, tag, or commit with
-`SHEPPY_REF=<ref>`; uninstall with `uv tool uninstall sheppy`.
+That installs the **latest release**. Pin one with `SHEPPY_REF=v1.0.0`, or
+install the **development version** from the tip of the `dev` branch, which
+can break between releases:
+
+```bash
+SHEPPY_REF=dev curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
+```
 
 <Callout type="info">
-Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy@main`
-does the same thing.
+Already have uv? `uv tool install git+https://github.com/rammp-org/sheppy@<ref>`
+does the same thing, with `<ref>` a release tag from the
+[releases page](https://github.com/rammp-org/sheppy/releases) or `dev`.
 </Callout>
+
+**Upgrading:** re-run the same install line. If `sheppyd` is already running
+it keeps serving the old version until it is restarted, so follow up with
+`sheppy daemon stop`; the next command starts a fresh daemon on the new code,
+and it re-adopts anything still running. `sheppy --version` shows what you
+have. Uninstall with `uv tool uninstall sheppy`.
 
 ## Run the demo — no ROS required
 
