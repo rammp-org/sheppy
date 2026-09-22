@@ -124,7 +124,8 @@ class Server:
         if writer.is_closing():
             return                        # client left before we finished
         # Per-request tasks (#48) can reply to one client at the same time;
-        # Python 3.10's drain() asserts a single waiter per transport (#95).
+        # drain() asserted a single waiter per transport on 3.10 before
+        # 3.10.8 (#95); serializing is cheap and keeps the invariant.
         lock = self._write_locks.setdefault(writer, asyncio.Lock())
         try:
             async with lock:

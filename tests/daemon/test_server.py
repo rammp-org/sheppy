@@ -226,7 +226,7 @@ async def test_requests_on_one_connection_run_concurrently(tmp_path,
 
 async def test_replies_to_one_connection_never_drain_concurrently(tmp_path):
     # Per-request tasks (#48) can reply to the same client at once. Python
-    # 3.10's StreamWriter.drain() asserts a single waiter, so two concurrent
+    # 3.10 before 3.10.8 asserted a single drain() waiter, so two concurrent
     # drains on a paused (slow-client) socket raise AssertionError out of
     # _handle and the reply is lost (#95). Writes must serialize per writer.
     class SlowWriter:
