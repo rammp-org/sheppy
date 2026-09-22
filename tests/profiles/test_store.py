@@ -117,3 +117,20 @@ def test_delete_ignores_name_that_escapes_profiles_dir(tmp_path):
     store.save(Profile(name="real"))          # so profiles/.. resolves
     store.delete("../secret")
     assert secret.exists()
+
+
+def test_save_failure_leaves_previous_file_intact(tmp_path, monkeypatch):
+    # A crash mid-write must not truncate the profile (#105).
+    import yaml
+
+    store = ProfileStore(str(tmp_path / "profiles"))
+    store.save(Profile(name="keep", selections={"camera": "mock"}))
+
+    def disk_full(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(yaml, "safe_dump", disk_full)
+    with pytest.raises(OSError):
+        store.save(Profile(name="keep", selections={"camera": "real"}))
+    assert store.load("keep").profile.selections == {"camera": "mock"}
+    assert not (tmp_path / "profiles" / "keep.yaml.tmp").exists()

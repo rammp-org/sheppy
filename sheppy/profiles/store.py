@@ -83,8 +83,18 @@ class ProfileStore:
             data["selections"] = dict(profile.selections)
         if profile.overrides:
             data["overrides"] = {k: dict(v) for k, v in profile.overrides.items()}
-        with open(self._path(profile.name), "w") as f:
-            yaml.safe_dump(data, f, sort_keys=True, default_flow_style=False)
+        path = self._path(profile.name)
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w") as f:
+                yaml.safe_dump(data, f, sort_keys=True, default_flow_style=False)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        os.replace(tmp, path)                  # atomic on POSIX (#105)
 
     def delete(self, name: str) -> None:
         if not NAME_RE.match(name):
