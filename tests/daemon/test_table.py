@@ -200,6 +200,20 @@ async def test_adoption_skips_a_malformed_record_and_logs_it(tmp_path):
     assert "broken" in (tmp_path / "logs" / "sheppyd.log").read_text()
 
 
+async def test_adoption_skips_a_null_record_and_a_non_object_file(tmp_path):
+    # rec.get() on None raises AttributeError, not KeyError; and a file whose
+    # top level or "nodes" is not an object must not kill the daemon either.
+    _, cfg = make_table(tmp_path)
+    os.makedirs(cfg.home, exist_ok=True)
+    for data in ({"nodes": {"x": None}}, {"nodes": []}, []):
+        with open(state_path(cfg.home), "w") as f:
+            json.dump(data, f)
+        table, _ = make_table(tmp_path)
+        assert table.adopt_from_state() == [] and table.status() == {}
+    log = (tmp_path / "logs" / "sheppyd.log").read_text()
+    assert "skipping 'x'" in log and log.count("adopting nothing") == 2
+
+
 async def test_adoption_ignores_an_unknown_format(tmp_path):
     table_a, cfg = make_table(tmp_path)
     await table_a.launch(spec("camera"))

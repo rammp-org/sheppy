@@ -93,16 +93,21 @@ class ProcessTable:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             return []
+        if not isinstance(data, dict) or not isinstance(data.get("nodes"), dict):
+            daemon_log(self._cfg, "state file: not a nodes object; "
+                                  "adopting nothing")
+            return []
         fmt = data.get("format", 1)            # pre-1.0 files have no key
         if fmt != STATE_FORMAT:
             daemon_log(self._cfg,
                        f"state file: unknown format {fmt!r}; adopting nothing")
             return []
         adopted = []
-        for node, rec in data.get("nodes", {}).items():
+        for node, rec in data["nodes"].items():
             try:
                 ok = self._adopt(node, rec)
-            except (KeyError, TypeError) as e:  # one bad record, not a dead daemon
+            except (KeyError, TypeError, AttributeError) as e:
+                # one bad record, not a dead daemon
                 daemon_log(self._cfg, f"state file: skipping {node!r}: "
                                       f"{type(e).__name__}: {e}")
                 continue

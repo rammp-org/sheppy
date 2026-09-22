@@ -93,7 +93,8 @@ change. When a daemon starts, it reads that file and re-adopts any child whose
 PID is still alive **and** whose `/proc` start-time still matches the recorded
 value (so a recycled PID is never mistaken for the original process). Adopted
 processes can be stopped, restarted, and queried exactly like ones the current
-daemon launched.
+daemon launched. The file carries `"format": 1`; a daemon that finds a format
+it does not know adopts nothing, and the children keep running unsupervised.
 
 One consequence of re-adoption: because the daemon is no longer the parent of
 an adopted child, it cannot read that child's exit code. Adopted processes
