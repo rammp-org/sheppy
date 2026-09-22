@@ -73,3 +73,20 @@ def test_attach_latest_holds_back_incomplete_last_line(tmp_path):
 
 def test_attach_latest_with_no_runs_returns_false(tmp_path):
     assert make_log(tmp_path).attach_latest() is False
+
+
+def test_read_new_is_bounded_to_the_tail_window(tmp_path):
+    # A chatty node that logged unwatched for hours must not make the
+    # daemon decode the whole file to keep ring_lines of it (#87).
+    log = make_log(tmp_path, ring_lines=3)
+    fd = log.open_run()
+    os.write(fd, b"hal")                    # a fragment from before the burst
+    assert log.read_new() == []
+    os.write(fd, b"".join(b"line %07d\n" % i for i in range(20_000)))  # 260 KB
+    os.close(fd)
+    lines = log.read_new()
+    assert len(lines) < 10_000              # a window, not the whole file
+    assert lines[-1] == "line 0019999"
+    assert not lines[0].startswith("hal")   # stale fragment dropped
+    assert log.tail() == ["line 0019997", "line 0019998", "line 0019999"]
+    assert log.read_new() == []             # offset is at EOF
