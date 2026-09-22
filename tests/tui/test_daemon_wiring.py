@@ -161,6 +161,22 @@ async def test_parallel_node_actions_spawn_sheppyd_once():
         assert launched == ["camera", "lidar"]
 
 
+async def test_x_and_r_offline_warn_instead_of_doing_nothing():
+    # #116: stop_all already says "sheppyd offline"; x and r just returned.
+    fake = FakeDaemonClient(connect_ok=False)
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("x")
+        await pilot.pause()
+        assert "sheppyd offline — nothing to stop" in app._runtime_warnings
+        await pilot.press("r")
+        await pilot.pause()
+        assert "sheppyd offline — nothing to restart" in app._runtime_warnings
+        assert fake.requests == []
+        assert fake.spawn_attempts == [False]   # neither key spawns sheppyd
+
+
 async def test_crash_event_updates_glyph_live():
     fake = FakeDaemonClient({"camera": payload("camera", "running")})
     app = make_app(fake)

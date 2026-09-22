@@ -316,13 +316,15 @@ class SheppyApp(App):
         await self._request_safely("launch", spec=spec.to_wire())
 
     def action_stop_node(self) -> None:
+        if not self.daemon_connected:
+            self._append_warnings(["sheppyd offline — nothing to stop"])
+            return
         if self._current_orphan:
-            if self.daemon_connected:
-                self._node_worker(self._current_orphan, partial(
-                    self._request_safely, "stop", node=self._current_orphan))
+            self._node_worker(self._current_orphan, partial(
+                self._request_safely, "stop", node=self._current_orphan))
             return
         node = self._current_node()
-        if node and self.daemon_connected:
+        if node:
             self._node_worker(node.name, partial(
                 self._request_safely, "stop", node=node.name))
 
@@ -332,8 +334,11 @@ class SheppyApp(App):
                 [f"'{self._current_orphan}': not in this manifest — "
                  f"stop/logs only"])
             return
+        if not self.daemon_connected:
+            self._append_warnings(["sheppyd offline — nothing to restart"])
+            return
         node = self._current_node()
-        if node and self.daemon_connected:
+        if node:
             self._node_worker(node.name, partial(
                 self._request_safely, "restart", node=node.name))
 
