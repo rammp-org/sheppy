@@ -178,6 +178,11 @@ surfaces as a warning when you try to launch the node, and the node is not
 started. The same applies to a `compose` reference whose file or service does
 not exist, or whose service has no `image`.
 
+**Relative host paths** in `volumes` and `env_file` are passed to `docker run`
+unchanged, so they resolve against `sheppyd`'s working directory, not the
+manifest's. Use absolute paths. The `compose` `file` path is the exception: it
+is resolved relative to the manifest.
+
 #### Variable interpolation in compose files
 
 A value in a `compose` file can reference an environment variable as `${VAR}`
@@ -189,11 +194,6 @@ sheppy expands. The rest of compose's grammar (`$VAR`, `${VAR-default}`,
 `${VAR:?error}`, `${VAR:+alt}`, and the `$$` escape) is passed to docker
 literally, with a warning naming the value when the node is launched. Values
 in an inline `container` are not interpolated at all.
-
-**Relative host paths** in `volumes` and `env_file` are passed to `docker run`
-unchanged, so they resolve against `sheppyd`'s working directory, not the
-manifest's. Use absolute paths. The `compose` `file` path is the exception: it
-is resolved relative to the manifest.
 
 
 ## Things that surprise people

@@ -75,11 +75,11 @@ _DOLLAR = re.compile(r"\$(?:\{[^}]*\}|\$|\w+)?")
 def _interpolate(value, env, warnings):
     if isinstance(value, str):
         for m in _DOLLAR.finditer(value):
-            if not _VAR.fullmatch(m.group(0)):
-                warnings.append(
-                    f"compose interpolation {m.group(0)!r} in {value!r} is "
-                    f"passed through literally; sheppy expands only ${{VAR}} "
-                    f"and ${{VAR:-default}}")
+            msg = (f"compose interpolation {m.group(0)!r} in {value!r} is "
+                   f"passed through literally; sheppy expands only ${{VAR}} "
+                   f"and ${{VAR:-default}}")
+            if not _VAR.fullmatch(m.group(0)) and msg not in warnings:
+                warnings.append(msg)
         return _VAR.sub(lambda m: env.get(m.group(1), m.group(2) or ""), value)
     if isinstance(value, dict):
         return {k: _interpolate(v, env, warnings) for k, v in value.items()}

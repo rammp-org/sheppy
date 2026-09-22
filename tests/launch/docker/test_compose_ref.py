@@ -52,6 +52,12 @@ def test_load_service_warns_on_unsupported_interpolation(tmp_path, monkeypatch):
     assert all("${VAR}" in w and "${VAR:-default}" in w for w in warnings)
 
 
+def test_repeated_unsupported_form_in_one_value_warns_once(tmp_path):
+    write(tmp_path, "services: {perception: {image: i, command: '$A and $A'}}")
+    _, warnings = load_service(tmp_path / "demo.compose.yml", "perception", {})
+    assert len(warnings) == 1
+
+
 def test_launcher_surfaces_interpolation_warnings(tmp_path):
     write(tmp_path, "services: {perception: {image: org/perc:$TAG}}")
     a = Alternative(id="real", kind="docker",
