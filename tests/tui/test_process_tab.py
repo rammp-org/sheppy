@@ -105,6 +105,36 @@ async def test_edit_params_on_orphan_row_does_not_crash():
         assert any("stop/logs only" in w for w in app._runtime_warnings)
 
 
+async def test_up_after_orphan_rows_vanish_keeps_the_app_running():
+    # #107: sheppyd restarted with no orphans while the cursor sat on an
+    # orphan row. The rows went away but the ListView index still pointed
+    # past the end, and Up raised IndexError inside Textual.
+    fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
+                                                     "running",
+                                                     alt="bag_v1")})
+    app = make_app(fake)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            for _ in range(13):            # onto the orphan row
+                await pilot.press("down")
+            await pilot.pause()
+            assert app._current_orphan == "old_recorder"
+            app.actual = {}                # a fresh daemon knows nothing
+            app._refresh_runtime()
+            await pilot.pause()
+            assert not app.query(".orphan-row")
+            await pilot.press("up")
+            await pilot.pause()
+            assert app.is_running
+            nodes = app.query_one("#nodes")
+            assert nodes.index == len(app.manifest.nodes) - 2
+            assert app._current_orphan is None
+
+    await asyncio.wait_for(scenario(), 10)
+
+
 async def test_status_burst_with_orphans_keeps_the_app_running():
     # #44: each status event restarts the orphan-rows rebuild. A rebuild
     # cancelled mid-`await item.remove()` cancelled the rows' own tasks, and
