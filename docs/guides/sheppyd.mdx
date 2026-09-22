@@ -150,7 +150,9 @@ are kept and older ones are pruned. The daemon also keeps an in-memory
 tail view over the current file — this is what `sheppy logs` and the TUI's
 PROCESS tab display, including a crashed node's last output.
 
-The daemon's own log lives at `~/.sheppy/logs/sheppyd.log`.
+The daemon's own log lives at `~/.sheppy/logs/sheppyd.log`. It also receives
+the daemon's stderr, so if `sheppyd` dies unexpectedly (or a background task
+raises) the traceback is there.
 
 ## Configuration
 

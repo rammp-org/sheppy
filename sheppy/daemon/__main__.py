@@ -4,33 +4,38 @@ import fcntl
 import os
 import signal
 import sys
-import time
+import traceback
 
 from sheppy.daemon.config import (
-    daemon_log_path, load_config, lock_path, sheppy_home, socket_path_error,
+    daemon_log, load_config, lock_path, sheppy_home, socket_path_error,
 )
 from sheppy.daemon.server import Server
 
 
-def _log(cfg, text: str) -> None:
-    os.makedirs(cfg.log_dir, exist_ok=True)
-    with open(daemon_log_path(cfg), "a") as f:
-        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
+def _log_unhandled(cfg, context: dict) -> None:
+    # Background tasks (_watch, reattach, _usage_loop) have no request to
+    # reply to; without this their tracebacks went to stderr, i.e. nowhere.
+    text = context.get("message") or "unhandled exception"
+    exc = context.get("exception")
+    if exc is not None:
+        text += "\n" + "".join(traceback.format_exception(exc))
+    daemon_log(cfg, text)
 
 
 async def _amain(cfg, warnings) -> None:
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(lambda loop, ctx: _log_unhandled(cfg, ctx))
     server = Server(cfg)
     adopted = server.table.adopt_from_state()
     await server.start()
     for w in warnings:
-        _log(cfg, f"config: {w}")
-    _log(cfg, f"started (adopted: {', '.join(adopted) or 'none'})")
-    loop = asyncio.get_running_loop()
+        daemon_log(cfg, f"config: {w}")
+    daemon_log(cfg, f"started (adopted: {', '.join(adopted) or 'none'})")
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, server._shutdown.set)
     await server.wait_shutdown()
     await server.close()
-    _log(cfg, "shut down (children left running)")
+    daemon_log(cfg, "shut down (children left running)")
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -40,7 +45,7 @@ def main(argv: "list[str] | None" = None) -> int:
     err = socket_path_error(home)
     if err:
         print(f"sheppyd: {err}", file=sys.stderr)
-        _log(cfg, err)
+        daemon_log(cfg, err)
         return 1
     lock = open(lock_path(home), "w")
     try:
@@ -48,7 +53,11 @@ def main(argv: "list[str] | None" = None) -> int:
     except OSError:
         print("sheppyd: already running", file=sys.stderr)
         return 1
-    asyncio.run(_amain(cfg, warnings))
+    try:
+        asyncio.run(_amain(cfg, warnings))
+    except Exception as e:                 # died: say so where it can be read
+        daemon_log(cfg, "died\n" + "".join(traceback.format_exception(e)))
+        return 1
     return 0
 
 

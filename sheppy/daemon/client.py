@@ -5,7 +5,9 @@ import os
 import subprocess
 import sys
 
-from sheppy.daemon.config import sheppy_home, socket_path
+from sheppy.daemon.config import (
+    daemon_log_path, load_config, sheppy_home, socket_path,
+)
 from sheppy.daemon.protocol import Decoder, encode
 
 
@@ -14,10 +16,22 @@ class DaemonError(Exception):
 
 
 def spawn_daemon() -> None:
-    subprocess.Popen(
-        [sys.executable, "-m", "sheppy.daemon"],
-        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL, start_new_session=True)
+    # sheppyd's stderr is appended to its own log: a daemon that dies before
+    # it can log anything would otherwise vanish without a trace (#88).
+    cfg, _ = load_config()
+    try:
+        os.makedirs(cfg.log_dir, exist_ok=True)
+        stderr = open(daemon_log_path(cfg), "a")
+    except OSError:
+        stderr = subprocess.DEVNULL
+    try:
+        subprocess.Popen(
+            [sys.executable, "-m", "sheppy.daemon"],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=stderr, start_new_session=True)
+    finally:
+        if stderr is not subprocess.DEVNULL:
+            stderr.close()                 # the child holds its own copy
 
 
 class DaemonClient:

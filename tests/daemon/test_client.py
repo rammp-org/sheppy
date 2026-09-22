@@ -4,7 +4,7 @@ import sys
 
 import pytest
 
-from sheppy.daemon.client import DaemonClient, DaemonError
+from sheppy.daemon.client import DaemonClient, DaemonError, spawn_daemon
 from sheppy.daemon.config import socket_path
 
 SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
@@ -107,3 +107,20 @@ async def test_cancelled_request_does_not_kill_connection(client):
     # the late reply for `doomed` arrived above; the pump must survive it
     assert (await client.request("status"))["ok"]
     assert client.connected
+
+
+async def test_spawn_daemon_sends_stderr_to_daemon_log(tmp_path, monkeypatch):
+    # A daemon that dies before it can log anything must still leave a
+    # trace (#88): its stderr is appended to logs/sheppyd.log.
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    fake = tmp_path / "fake-python"
+    fake.write_text("#!/bin/sh\necho 'boom from stderr' >&2\n")
+    fake.chmod(0o755)
+    monkeypatch.setattr(sys, "executable", str(fake))
+    spawn_daemon()
+    log = tmp_path / "logs" / "sheppyd.log"
+
+    async def written():
+        while not (log.exists() and "boom from stderr" in log.read_text()):
+            await asyncio.sleep(0.02)
+    await asyncio.wait_for(written(), 5)
