@@ -126,9 +126,12 @@ runtime-specific behavior.
 - **`name`** (required) — a stable identifier for the unit (e.g. a container
   name), used for re-adoption after a `sheppyd` restart.
 - **`start`** (required) — argv that starts the unit and exits (e.g.
-  `docker run -d ...`). A non-zero exit marks the launch as crashed. Its
-  stderr (and `reset`'s) is written to the node's run log, so a failed
-  start's error shows up in `sheppy logs`.
+  `docker run -d ...`). The node shows as *launching* from the moment
+  `start` begins (a `docker run` may pull for minutes) and is recorded in
+  the daemon's state file, so a daemon restart mid-start still re-adopts
+  the unit. A non-zero exit marks the launch as crashed. Its stderr (and
+  `reset`'s) is written to the node's run log, so a failed start's error
+  shows up in `sheppy logs`.
 - **exactly one of `watch` or `poll`** (required) — how the daemon learns
   the unit died:
   - **`watch`** (preferred) — a *blocking* argv that exits when the unit

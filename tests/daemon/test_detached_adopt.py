@@ -71,3 +71,40 @@ async def test_readopt_of_gone_unit_resolves_stopped(tmp_path):
     table_b = make_table(tmp_path)
     table_b.adopt_from_state()
     await wait_state(table_b, "cam", pr.CRASHED)   # watch returns immediately
+
+
+def blocked_spec(node, gate, state):
+    # `start` blocks until `gate` exists (a `docker run` pulling for
+    # minutes); the unit is up only once `state` exists.
+    s = detached_spec(node, state)
+    s["descriptor"]["start"] = sh(
+        f"while [ ! -f {gate} ]; do sleep 0.02; done; echo up > {state}")
+    return s
+
+
+async def test_launching_is_visible_and_persisted_while_start_runs(tmp_path):
+    gate, state = str(tmp_path / "GO"), str(tmp_path / "S")
+    table = make_table(tmp_path)
+    launch = asyncio.ensure_future(table.launch(blocked_spec("cam", gate, state)))
+    await wait_state(table, "cam", pr.LAUNCHING)      # not the stale STOPPED
+    data = json.loads(open(state_path(str(tmp_path))).read())
+    assert data["nodes"]["cam"]["name"] == "unit-cam"  # a daemon death here
+    open(gate, "w").close()                           # ... can still re-adopt
+    await launch
+    await wait_state(table, "cam", pr.RUNNING)
+    await table.stop("cam")
+
+
+async def test_readopt_of_never_completed_start_resolves_crashed(tmp_path):
+    gate, state = str(tmp_path / "GO"), str(tmp_path / "S")
+    table_a = make_table(tmp_path)
+    launch = asyncio.ensure_future(table_a.launch(blocked_spec("cam", gate, state)))
+    await wait_state(table_a, "cam", pr.LAUNCHING)
+    # "daemon dies" mid-start: the unit never came up, so the new daemon's
+    # watch finds nothing and the node must not stay RUNNING
+    table_b = make_table(tmp_path)
+    assert "cam" in table_b.adopt_from_state()
+    await wait_state(table_b, "cam", pr.CRASHED)
+    open(gate, "w").close()                           # let table_a's start finish
+    await launch
+    await table_a.stop("cam")
