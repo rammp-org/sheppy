@@ -198,9 +198,15 @@ mediates side effects a launcher may need:
   needs to write (params files, generated configs, ...).
 - **`ctx.write_params_file(params, ros_node_name=None)`** — writes `params`
   as a ROS `params.yaml` (under the key `ros_node_name` or `/**` if omitted)
-  into `scratch_dir()` and returns the path. This is how the built-in
+  into `scratch_dir()` and returns the path. The file is named after a hash
+  of its contents (`params-<hash>.yaml`) and is never rewritten, so
+  different params give a different path and a file a running process uses
+  doesn't change under it. This is how the built-in
   `docker` launcher mounts ROS params into a container:
   `ctx.write_params_file(params, ...)` then bind-mounts the result read-only.
+  `sheppy up` restarts a node only when its descriptor changes, so params
+  must reach the descriptor (argv, or a path such as the one
+  `write_params_file` returns).
 - **`ctx.warn(msg)`** — record a non-fatal warning (e.g. "params are ignored
   for this kind") to surface to the user; collected via `ctx.warnings` and
   returned alongside the resolved `LaunchSpec` by `resolve()`.

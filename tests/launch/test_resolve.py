@@ -114,6 +114,17 @@ def test_diff_empty_when_converged():
     assert diff(desired, {"a": actual("a", "running")}) == []
 
 
+def test_diff_ignores_params_when_the_descriptor_is_identical():
+    # #71: params are baked into the descriptor, so a params dict that
+    # differs while the command is the same must not restart the node
+    spec = make_spec("a")
+    desired = {"a": LaunchSpec(node="a", alt_id="a",
+                               descriptor=spec.descriptor, params={"x": 1})}
+    live = actual("a", "running")
+    live["spec"]["params"] = {"x": 1.0, "y": "stale"}
+    assert diff(desired, {"a": live}) == []
+
+
 def test_resolve_catches_launcher_raising_and_returns_none_spec():
     class BoomLauncher:
         kind = "boom"

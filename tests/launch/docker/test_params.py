@@ -41,3 +41,11 @@ def test_no_params_no_mount(tmp_path):
     d = DockerLauncher().launch(a, {}, ctx(tmp_path))
     assert not any(":/sheppy/params.yaml:ro" in s for s in d.start)
     assert "--params-file" not in d.start
+
+
+def test_params_change_changes_the_descriptor(tmp_path):
+    # #64: the mounted path carries the params, so descriptor drift sees them
+    a = Alternative(id="real", kind="docker",
+                    raw={"container": {"image": "img", "command": "run"}})
+    assert (DockerLauncher().launch(a, {"x": 1}, ctx(tmp_path))
+            != DockerLauncher().launch(a, {"x": 2}, ctx(tmp_path)))

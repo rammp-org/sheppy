@@ -27,7 +27,7 @@ Bring the system to a [profile](../profiles). `<profile>` is a name:
 It prints a plan (`start`, `restart`, or `stop` per node), then:
 
 - starts selected nodes that aren't running, and restarts ones running a
-  different alternative, command, or params;
+  different alternative or command (params are part of the command);
 - stops nodes in the manifest that the profile doesn't select;
 - leaves nodes from other manifests alone;
 - leaves a selected node as it is, running or not, when its launcher fails

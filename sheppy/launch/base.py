@@ -1,7 +1,9 @@
 """The launcher plugin contract and the context that mediates a launcher's
 side effects. Launchers are client-side; they return data, never run in
 the daemon."""
+import hashlib
 import os
+import threading
 from typing import Protocol
 
 import yaml
@@ -32,10 +34,19 @@ class LaunchContext:
 
     def write_params_file(self, params: dict,
                           ros_node_name: "str | None" = None) -> str:
+        # Content-addressed and never rewritten: a file a running container
+        # mounts can't change under it, and other params get another path,
+        # so the descriptor changes with them (#182, #64).
         key = ros_node_name or "/**"
-        path = os.path.join(self.scratch_dir(), "params.yaml")
-        with open(path, "w") as f:
-            yaml.safe_dump({key: {"ros__parameters": dict(params)}}, f)
+        data = yaml.safe_dump({key: {"ros__parameters": dict(params)}}).encode()
+        path = os.path.join(self.scratch_dir(),
+                            f"params-{hashlib.sha256(data).hexdigest()[:16]}.yaml")
+        if not os.path.exists(path):
+            tmp = f"{path}.{os.getpid()}.{threading.get_ident()}"
+            with open(tmp, "wb") as f:
+                f.write(data)
+            os.chmod(tmp, 0o644)       # readable by a non-root container user
+            os.replace(tmp, path)
         return path
 
 
