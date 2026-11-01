@@ -23,8 +23,16 @@ class Config:
     kill_grace: float = 5.0
 
 
+# f.type is the real class only while this module has no
+# `from __future__ import annotations`; with it, the isinstance check
+# in load_config would get strings.
 _TUNABLE = {f.name: f.type for f in dataclasses.fields(Config)
             if f.name not in ("home",)}
+
+# Lowest value per key, and whether the bound itself is allowed (#174).
+_MINIMUM = {"ring_lines": (1, True), "keep_runs": (1, True),
+            "usage_interval": (0, False), "launch_grace": (0, True),
+            "stop_grace": (0, True), "kill_grace": (0, True)}
 
 
 def sheppy_home() -> str:
@@ -59,6 +67,14 @@ def load_config(home: "str | None" = None) -> "tuple[Config, list[str]]":
             warnings.append(f"{path}: '{key}' expects {typ.__name__}, "
                             f"got {value!r}; using the default")
             continue
+        if key in _MINIMUM:
+            low, inclusive = _MINIMUM[key]
+            # Written as not-in-range so NaN fails too.
+            if not (value >= low if inclusive else value > low):
+                warnings.append(f"{path}: '{key}' must be "
+                                f"{'>=' if inclusive else '>'} {low}, "
+                                f"got {value!r}; using the default")
+                continue
         kwargs[key] = value
     log_dir = os.path.expanduser(
         kwargs.pop("log_dir", None) or os.path.join(home, "logs"))
