@@ -187,9 +187,9 @@ falls back to defaults.
 
 Everything `sheppyd` owns lives under `~/.sheppy` by default. Set the
 `SHEPPY_HOME` environment variable to relocate it (this is also how the test
-suite isolates daemons). The unix socket is placed in `$XDG_RUNTIME_DIR/sheppy/`
-when that is available and `SHEPPY_HOME` is unset; otherwise it sits directly
-under the home directory. The socket is created mode `0600` and its directory
+suite isolates daemons). The unix socket, `sheppyd.sock`, sits directly under
+the home directory next to the lock, so every client finds the same daemon
+whatever its environment. The socket is created mode `0600` and its directory
 `0700`. A unix socket path can be at most 107 bytes, so a deeply nested
 `SHEPPY_HOME` stops `sheppyd` from starting; it prints the reason and exits.
 
