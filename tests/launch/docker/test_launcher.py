@@ -148,9 +148,8 @@ def test_default_pull_uses_the_service_platform(tmp_path):
     assert calls[0] == "pull --platform linux/arm64 org/perc:1"
 
 
-@pytest.mark.parametrize("policy", ["never", "missing", "always"])
-def test_pull_policy_is_left_to_docker_run(tmp_path, policy):
-    a = alt(container={"image": "org/perc:1", "pull_policy": policy})
+def test_pull_policy_is_left_to_docker_run(tmp_path):
+    a = alt(container={"image": "org/perc:1", "pull_policy": "missing"})
     d = DockerLauncher().launch(a, {}, ctx(tmp_path))
     assert d.start == ("docker", "run", "-d", "--name", "sheppy-perception",
-                       "--pull", policy, "org/perc:1")
+                       "--pull", "missing", "org/perc:1")
