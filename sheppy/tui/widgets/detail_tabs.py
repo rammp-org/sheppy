@@ -103,10 +103,9 @@ class DetailTabs(Vertical):
         if payload is None:
             exit_ = (f" (exit {other['exit_code']})"
                      if other["exit_code"] is not None else "")
-            none = st.Status.NONE
             target.update("\n".join([
-                row("state", c(st.color_key(none),
-                               f"{st.glyph(none)} not running")),
+                row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
+                                        "not running")),
                 *drift_rows, "",
                 c("muted", f"{other['spec']['alt_id']} {other['state']}{exit_}"
                            " — highlight it for its params and output")]))

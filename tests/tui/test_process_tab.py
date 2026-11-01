@@ -249,6 +249,8 @@ async def test_process_tab_follows_the_highlighted_alternative():
         text = plain(app.query_one("#detail-process"))
         assert "alternative realsense" in text
         assert "enable_depth: false" in text and "device lost" in text
+        app._proc_timer.pause()        # only the highlight refreshes now
+        await pilot.pause()
         logs = sum(op == "logs" for op, _ in fake.requests)
         await pilot.press("enter", "down")            # highlight mock_camera
         await pilot.pause(0.1)
@@ -276,3 +278,42 @@ async def test_process_tab_on_an_orphan_shows_its_run():
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
         assert "alternative bag_v1" in text and "recording" in text
+
+
+async def test_process_tab_shows_drift_on_the_selected_alternative_only():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("3", "enter", "down", "enter")  # select mock_camera
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "running realsense, selected mock_camera" in text
+        await pilot.press("down")                     # rosbag_replay
+        await pilot.pause(0.1)
+        assert "drift" not in plain(app.query_one("#detail-process"))
+
+
+async def test_process_tab_shows_a_run_of_an_alternative_the_manifest_lacks():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="gone_alt")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "alternative gone_alt" in text and "4242" in text
+        assert "running gone_alt, not in this manifest" in text
+
+
+async def test_alternative_highlight_off_the_process_tab_asks_for_no_logs():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "down", "up")      # DETAIL stays open
+        await pilot.pause(0.1)
+        assert not any(op == "logs" for op, _ in fake.requests)

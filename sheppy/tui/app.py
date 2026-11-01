@@ -7,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.widgets import Static
+from textual.widgets import Static, TabbedContent
 
 from sheppy.launch import diff, resolve
 from sheppy.launch.resolve import changes
@@ -615,7 +615,8 @@ class SheppyApp(App):
         self.query_one(DetailTabs).show(
             event.node, event.alt, summary_rows=self._summary_rows(event.alt),
             params=self._detail_params(event.node, event.alt))
-        self._refresh_process_tab()
+        if self.query_one("#detailtabs", TabbedContent).active == "tab-process":
+            self._refresh_process_tab()
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:
@@ -658,15 +659,17 @@ class SheppyApp(App):
             return
         payload = self.actual.get(name)
         node = None if self._current_orphan else self.manifest.node(name)
-        drift = self._drift(node, payload) if node else None
         # Like DETAIL, PROCESS describes the highlighted alternative (#191):
         # a run of another one is only named, and drift only shows on the
         # alternative that ran or the selected one.
         row = self.query_one(AlternativesPanel).highlighted_row()
         alt = row.alt if node and row and row.node is node else None
         ran = payload["spec"]["alt_id"] if payload else None
-        if alt and alt.id not in (ran, self.state.selected(name)):
-            drift = None
+        if alt and payload and not any(a.id == ran
+                                       for a in node.alternatives):
+            alt = None              # a run this manifest lacks: node view
+        drift = self._drift(node, payload) if node and (
+            alt is None or alt.id in (ran, self.state.selected(name))) else None
         if alt and payload and alt.id != ran:
             tabs.show_process(None, [], True, drift=drift, other=payload)
             return
