@@ -64,6 +64,11 @@ class DetailTabs(Vertical):
             with TabPane("YAML", id="tab-yaml"):
                 yield Static("", id="detail-yaml", markup=False)
 
+    def on_mount(self) -> None:
+        # Anchored, the output stays at the bottom as the facts above it
+        # change height, until the user scrolls up.
+        self.query_one("#process-log", RichLog).anchor()
+
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
 
@@ -166,8 +171,7 @@ class DetailTabs(Vertical):
             log.clear()
             if lines:
                 log.write("\n".join(lines), scroll_end=False)
-        # every time, after the refresh: the facts above may change height
-        log.scroll_end(animate=False, x_axis=False)
+        log.scroll_end(animate=False, x_axis=False)     # re-anchors, too
 
     def _detail_markup(self, node: Node, alt: Alternative,
                         summary_rows: "list | None" = None,

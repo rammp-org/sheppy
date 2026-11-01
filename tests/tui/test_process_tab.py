@@ -420,6 +420,15 @@ async def test_scrolled_up_output_clears_on_another_alternative():
         await pilot.press("enter", "down")            # highlight mock_camera
         await pilot.pause(0.1)
         assert log_text(app) == ""
+        app._proc_timer.pause()                       # refresh by hand
+        await pilot.press("up")                       # back to realsense
+        await pilot.pause(0.1)
+        log = app.query_one("#process-log")
+        assert log.is_vertical_scroll_end             # though facts grew
+        fake.log_lines.append("line 100")
+        app._refresh_process_tab()
+        await pilot.pause()
+        assert log.lines[-1].text == "line 100" and log.is_vertical_scroll_end
 
 
 async def test_output_rewraps_after_a_resize():
