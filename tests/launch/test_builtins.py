@@ -105,3 +105,27 @@ def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
 def test_value_spelling():
     assert [_value(v) for v in (None, "007", {"b": 1}, True, 30, 1.5, "on it")] \
         == ["null", "'007'", "{b: 1}", "true", "30", "1.5", "on it"]
+
+
+ARGS = {"name": "007", "word": "on it", "nothing": None, "flag": True,
+        "gain": 1.5, "m": {"b": 1}}
+
+
+def test_executable_params_are_yaml(tmp_path):
+    desc = ExecutableLauncher().launch(
+        Alternative(id="a", kind="executable", package="p", executable="e"),
+        ARGS, ctx(tmp_path))
+    assert shlex.split(cmd(desc))[6:] == [
+        "-p", "name:='007'", "-p", "word:=on it", "-p", "nothing:=null",
+        "-p", "flag:=true", "-p", "gain:=1.5", "-p", "m:={b: 1}"]
+
+
+def test_launch_file_strings_verbatim_other_values_yaml(tmp_path):
+    # ros2 launch takes launch arguments as raw text (quotes would reach the
+    # launch file), so strings go through as written.
+    desc = LaunchFileLauncher().launch(
+        Alternative(id="a", kind="launch_file", package="p", launch_file="f"),
+        ARGS, ctx(tmp_path))
+    assert shlex.split(cmd(desc))[5:] == [
+        "name:=007", "word:=on it", "nothing:=null", "flag:=true",
+        "gain:=1.5", "m:={b: 1}"]

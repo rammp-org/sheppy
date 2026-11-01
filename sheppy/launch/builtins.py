@@ -1,5 +1,4 @@
-"""The three original kinds, now launchers emitting inherit descriptors.
-Command strings are byte-identical to the pre-plugin resolver."""
+"""The three original kinds, now launchers emitting inherit descriptors."""
 import os
 import shlex
 
@@ -9,14 +8,20 @@ from sheppy.launch.descriptor import LaunchDescriptor
 
 
 def _value(v) -> str:
-    # ROS reads the text after := as YAML, so spell the value as a one-line
+    # ROS reads the text after -p k:= as YAML, so spell the value as a one-line
     # YAML flow scalar: None -> null, "007" -> '007', {"b": 1} -> {b: 1} (#70).
     text = yaml.safe_dump(v, default_flow_style=True, width=float("inf"))
     return text.removesuffix("\n...\n").removesuffix("\n")
 
 
-def _param_token(k, v) -> str:
-    inner = f"{k}:={_value(v)}"
+def _launch_arg(v) -> str:
+    # ros2 launch takes k:=v launch arguments as raw text and the launch file
+    # decides how to type them, so a string goes through as written.
+    return v if isinstance(v, str) else _value(v)
+
+
+def _param_token(k, v, spell=_value) -> str:
+    inner = f"{k}:={spell(v)}"
     return "'" + inner.replace("'", "'\\''") + "'"
 
 
@@ -71,7 +76,7 @@ class LaunchFileLauncher:
         q = shlex.quote
         cmd = f"exec ros2 launch {q(alt.package or '')} {q(alt.launch_file or '')}"
         for k, v in params.items():
-            cmd += f" {_param_token(k, v)}"
+            cmd += f" {_param_token(k, v, _launch_arg)}"
         return _wrap(ctx, alt, cmd)
 
     def summary(self, alt):

@@ -109,7 +109,7 @@ Runs `ros2 launch <package> <launch_file>`.
 |---|---|---|
 | `package` | **yes** | ROS package name. |
 | `launch_file` | **yes** | Launch file name within the package. |
-| `params` | no | Appended as `key:=value` for each entry, with the value written as YAML. These are launch arguments, so the launch file must declare them. |
+| `params` | no | Appended as `key:=value` for each entry. A string value is passed as written; any other value is written as YAML. These are launch arguments, so the launch file must declare them. |
 
 ### `process` (core)
 
