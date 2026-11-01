@@ -93,8 +93,7 @@ def test_relative_ros_setup_with_default_manifest_dir_uses_cwd(tmp_path, monkeyp
 
 @pytest.mark.parametrize("value", [
     None, "007", [1, "two", 3.0], True, False, 30, 1.5, "it's on it", "yes",
-    "", "a\nb", "café", "1e3", "inf", ["08", "09"], ["1e3", "x"],
-    datetime.date(2024, 1, 1)])
+    "", "a\nb", "café", "1e3", "inf", ["08", "09"], ["1e3", "x"]])
 def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
     # #70: ROS parses the value after := as YAML (None, not "None"; "007", not
     # 7). rcl types plain scalars by its own rules (08 and 1e3 are doubles), so
@@ -102,11 +101,9 @@ def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
     (word,) = shlex.split(_param_token("k", param_text(value)))
     name, _, text = word.partition(":=")
     assert name == "k"
-    # YAML loads 2024-01-01 as a date; it goes out as the text "2024-01-01".
-    expected = str(value) if isinstance(value, datetime.date) else value
-    assert yaml.safe_load(text) == expected
+    assert yaml.safe_load(text) == value
     assert "\n" not in text
-    strings = expected if isinstance(expected, list) else [expected]
+    strings = value if isinstance(value, list) else [value]
     for s in strings:
         if isinstance(s, str):
             assert json.dumps(s, ensure_ascii=False) in text
@@ -134,3 +131,9 @@ def test_launch_file_strings_verbatim_other_values_json(tmp_path):
     assert shlex.split(cmd(desc))[5:] == [
         "name:=007", "word:=on it", "nothing:=null", "flag:=true",
         "gain:=1.5", 'ids:=["08", "09"]', 'm:={"b": 1}']
+
+
+def test_param_text_writes_yaml_dates_as_text():
+    # JSON has no date; YAML loads 2024-01-01 as one (#70).
+    assert param_text(datetime.date(2024, 1, 1)) == '"2024-01-01"'
+    param_text(yaml.safe_load("{2024-01-01: x}"))    # no TypeError
