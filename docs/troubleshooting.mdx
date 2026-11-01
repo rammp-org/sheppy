@@ -71,6 +71,14 @@ has to fit in 107 bytes, and the socket lives in the home directory
 (`SHEPPY_HOME`, or `~/.sheppy`), which put it past that. Set a shorter
 `SHEPPY_HOME`.
 
+**After upgrading from 1.0.0, `sheppy up` says `could not start sheppyd`
+while nodes are still running.** sheppy 1.0.0 put the socket in
+`$XDG_RUNTIME_DIR/sheppy/` when that variable was set. Newer versions always
+put it in the home directory, so they can't reach a daemon that 1.0.0 started,
+and `sheppy daemon stop` can't either. Stop the old daemon by hand with
+`pkill -f 'sheppy\.daemon|sheppyd'`. Your nodes keep running, and the next
+launch starts a new daemon that re-adopts them.
+
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the
 foreground), or launch something with `space` or `sheppy up`. Their in-memory
