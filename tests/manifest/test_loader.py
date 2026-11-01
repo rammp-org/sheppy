@@ -93,6 +93,23 @@ def test_errors_for_maps_locations_to_the_alternative():
     assert result.errors_for(sim, sim.alternatives[0]) == []
 
 
+def test_errors_for_includes_node_level_errors():
+    # A bad node name or select blocks every alternative of that node (#170).
+    data = _valid_data()
+    data["nodes"][0]["name"] = "camera 1"
+    data["nodes"][0]["select"] = "multi"
+    del data["nodes"][0]["alternatives"][1]["executable"]
+    result = parse_manifest(data)
+    camera = result.manifest.node("camera 1")
+    good, bad = camera.alternatives
+    node_errs = {"nodes[0].name", "nodes[0]"}
+    assert {e.location for e in result.errors_for(camera, good)} == node_errs
+    assert {e.location for e in result.errors_for(camera, bad)} == (
+        node_errs | {"nodes[0].alternatives[1]"})
+    sim = result.manifest.node("sim_gui")
+    assert result.errors_for(sim, sim.alternatives[0]) == []
+
+
 def test_bad_select_value():
     data = _valid_data()
     data["nodes"][0]["select"] = "multi"
