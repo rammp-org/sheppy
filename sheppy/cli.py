@@ -153,7 +153,10 @@ async def _dispatch(args) -> int:
             if args.node not in nodes:
                 _error(f"{args.node}: not supervised")
                 return 1
-            _print_node(args.node, nodes[args.node])
+            spec = nodes[args.node]["spec"]
+            _print_status_line(args.node, nodes[args.node])
+            _print_spec(spec)
+            _print_field("start", shlex.join(spec["descriptor"]["start"]))
             return 0
         if args.cmd == "logs":
             reply = await client.request("logs", node=args.node, n=args.n)
@@ -209,17 +212,8 @@ def _print_status_line(node: str, p: dict) -> None:
     print(f"{name} {state} {p['spec']['alt_id']:<14} {pid}{extra}")
 
 
-def _print_node(node: str, p: dict) -> None:
-    """`sheppy status <node>`: its status line, then the alternative,
-    params and start command it was launched with."""
-    _print_status_line(node, p)
-    _print_spec(p["spec"])
-    start = (p["spec"].get("descriptor") or {}).get("start") or []
-    _print_field("start", shlex.join(start))
-
-
 def _print_spec(spec: dict) -> None:
-    from sheppy.paramdiff import fmt
+    from sheppy.launch.resolve import fmt
     _print_field("alternative", spec["alt_id"])
     params = spec.get("params") or {}
     rows = [f"{k}: {fmt(v)}" for k, v in params.items()] or ["—"]
@@ -232,16 +226,16 @@ def _print_field(label: str, value: str) -> None:
 
 
 def _restart_reason(payload: dict, spec) -> str:
-    """Why `up` restarts a running node: its alternative, its params
-    (running → desired), or else its launch command changed."""
-    from sheppy.paramdiff import changes
+    """Why `up` restarts a running node: its alternative changed, or else
+    its launch command did, plus any params that differ (running →
+    desired)."""
+    from sheppy.launch.resolve import changes
     running = payload["spec"]
     if running["alt_id"] != spec.alt_id:
         return f"alternative {running['alt_id']} → {spec.alt_id}"
     changed = changes(running.get("params") or {}, spec.params)
-    if changed:
-        return f"params {'; '.join(changed)}"
-    return "launch command changed"
+    return "launch command changed" + (
+        f"; params {'; '.join(changed)}" if changed else "")
 
 
 async def _up(args) -> int:

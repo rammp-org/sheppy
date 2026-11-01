@@ -8,7 +8,7 @@ from textual.markup import escape
 from textual.widgets import Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
-from sheppy.paramdiff import fmt
+from sheppy.launch.resolve import fmt
 from sheppy.tui.widgets import status as st
 from sheppy.tui.widgets.theme import c
 
@@ -174,7 +174,7 @@ def _param_rows(row, params: dict, manifest: "dict | None" = None) -> list:
     out = []
     for i, (k, v) in enumerate(params.items()):
         text = c("orange", f"{k}: {fmt(v)}")
-        if manifest is not None and k in manifest and manifest[k] != v:
+        if manifest is not None and manifest[k] != v:
             text = (c("yellow", f"{k}: {fmt(v)}") + " "
                     + c("muted", f"(manifest {fmt(manifest[k])})"))
         out.append(row("params" if i == 0 else "", text))

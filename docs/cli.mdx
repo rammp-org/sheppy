@@ -25,14 +25,14 @@ Bring the system to a [profile](../profiles). `<profile>` is a name:
 `--manifest` defaults to `./sheppy-manifest.yaml`.
 
 It prints a plan (`start`, `restart`, or `stop` per node). Each `restart`
-line says in parentheses what changed: the alternative, the params that
-differ (the running value, then the new one; `—` for a param set on only
-one side), or `launch command changed` when the command differs for any
-other reason, such as a manifest edit.
+line says in parentheses what changed: `alternative <old> → <new>`, or
+`launch command changed`. When the params differ too, they follow after
+`params`, each with the running value, then the new one (`—` for a param set
+on only one side).
 
 ```
 $ sheppy up fast
-restart camera (params fps: 15 → 30; frame_id: "camera" → "cam_front")
+restart camera (launch command changed; params fps: 15 → 30; frame_id: "camera" → "cam_front")
 restart lidar (alternative velodyne_lo → velodyne_hi)
 start planner
 ```
@@ -119,15 +119,6 @@ running.
 Restart a node, including a crashed one, with the alternative, params, and
 command it was launched with, then print the alternative and params. `restart`
 doesn't pick up manifest or profile edits; use `sheppy up` for that.
-
-```
-$ sheppy restart camera
-restarted camera
-  alternative  realsense
-  params       enable_depth: false
-               fps: 30
-```
-
 Exits 1 if the node is unknown or the daemon isn't running. `sheppy woof`,
 its old name, still works.
 

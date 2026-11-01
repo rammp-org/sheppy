@@ -1,4 +1,4 @@
-from sheppy.paramdiff import changes, fmt
+from sheppy.launch.resolve import changes, fmt
 
 
 def test_fmt_reads_like_yaml_flow_values():

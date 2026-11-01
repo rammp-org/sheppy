@@ -63,7 +63,7 @@ async def test_profile_name_with_bad_pattern_does_not_raise():
 
 
 async def test_params_with_markup_render_literally():
-    from textual.content import Content
+    from tests.tui.widgets._themed import plain
     from sheppy.tui.widgets.detail_tabs import DetailTabs
     alt = Alternative(id="a", kind="process", command="true",
                       params={f"k{BAD}": f"v{BAD}"})
@@ -79,5 +79,5 @@ async def test_params_with_markup_render_literally():
                              "params": {f"k{BAD}": f"v{BAD}"}}},
                         [], True, drift=f"params differ: k{BAD}")
         for sel in ("#detail", "#detail-process"):
-            text = Content.from_markup(str(app.query_one(sel).content)).plain
+            text = plain(app.query_one(sel))
             assert f'k{BAD}: ' in text

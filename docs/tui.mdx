@@ -74,8 +74,7 @@ A `Δ` means what's running differs from what's selected (see
 | `Δ <alt> selected, not running` | the selected alternative isn't running: never launched, stopped, or crashed |
 | `Δ running <alt>, nothing selected` | `sheppyd` is running the node but nothing is selected for it |
 | `Δ running <alt>, selected <other>` | a different alternative is running than the one selected |
-| `Δ params differ: <param>: <running> → <selected>; ...` | the selection now builds a different command because these params changed: each shows the value the process was launched with, then the selected value; `—` marks a param set on only one side |
-| `Δ launch command changed since start` | the selection now builds a different command than the one running, usually because the manifest was edited after launch |
+| `Δ launch command changed since start` | the selection now builds a different command than the one running, usually because the manifest or a param was edited after launch. If the params differ too, `; params differ: <param>: <running> → <selected>; ...` follows: the value the process was launched with, then the selected value (`—` for a param set on only one side) |
 | `Δ running <alt>, not in this manifest` | the running alternative is no longer listed under this node |
 
 `space` on the node closes the gap by launching the selection.

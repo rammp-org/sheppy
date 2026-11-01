@@ -10,8 +10,8 @@ from textual.reactive import reactive
 from textual.widgets import Static
 
 from sheppy.launch import diff, resolve
+from sheppy.launch.resolve import changes
 from sheppy.manifest import LoadResult, Node
-from sheppy.paramdiff import changes
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
 from sheppy.tui.profile_modals import (
@@ -264,14 +264,12 @@ class SheppyApp(App):
                           self.state.effective_params(node.name),
                           manifest_dir=os.path.dirname(
                               os.path.abspath(self.path or "system.yaml")))
-        # Drifted only if the command differs (what restarting would
-        # change); the params name the reason when they differ too.
+        # drift = the selection builds another command (#182)
         if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
         changed = changes(recorded.get("params") or {}, spec.params)
-        if changed:
-            return f"params differ: {'; '.join(changed)}"
-        return "launch command changed since start"
+        return "launch command changed since start" + (
+            f"; params differ: {'; '.join(changed)}" if changed else "")
 
     # ---- daemon actions -------------------------------------------------------
     def _node_worker(self, name: str, work) -> None:
