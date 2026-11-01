@@ -222,12 +222,20 @@ class DetailTabs(Vertical):
         return yaml.safe_dump(data, sort_keys=False).rstrip()
 
 
+def _param_keys(params: dict) -> list:
+    """The keys as their rows start: indented under the params label and
+    padded, so the values line up (#199)."""
+    width = max(map(len, params), default=0) + 2
+    return [f"  {k:<{width}}" for k in params]
+
+
 def _param_rows(row, params: dict) -> list:
-    """One read-only row per param."""
+    """One read-only row per param, laid out as the ParamRows are."""
     if not params:
         return [row("params", c("muted", "—"))]
-    return [row("params" if i == 0 else "", c("fg", f"{k}: {fmt(v)}"))
-            for i, (k, v) in enumerate(params.items())]
+    return [c("muted", "params")] + [
+        c("muted", key) + c("fg", fmt(v))
+        for key, v in zip(_param_keys(params), params.values())]
 
 
 class ParamRow(Horizontal):
@@ -235,11 +243,10 @@ class ParamRow(Horizontal):
     applies it, Esc or leaving the field puts back its value."""
 
     DEFAULT_CSS = """
-    ParamRow { height: 1; padding-left: 2; overflow-x: auto;
-               scrollbar-size-horizontal: 0; }
+    ParamRow { height: 1; overflow-x: auto; scrollbar-size-horizontal: 0; }
     ParamRow:focus-within { background: $sel-bg; }
     ParamRow Static { width: auto; }
-    ParamRow .param-key { color: $text-muted; }
+    ParamRow .param-key { color: $muted; }
     ParamRow .param-note { margin-left: 2; }
     /* capped, so a long value scrolls inside the field as you type;
        underlined, with no block, so it reads as clickable (#199) */
@@ -256,15 +263,14 @@ class ParamRow(Horizontal):
             super().__init__()
             self.node, self.param, self.value = node, param, value
 
-    def __init__(self, node: str, param: str, width: int,
+    def __init__(self, node: str, param: str, key: str,
                  value, manifest) -> None:
         super().__init__()
-        self.node, self.param, self._width = node, param, width
+        self.node, self.param, self._key = node, param, key
         self.value, self.manifest = value, manifest
 
     def compose(self):
-        yield Static(f"{self.param:<{self._width}}", markup=False,
-                     classes="param-key")
+        yield Static(self._key, markup=False, classes="param-key")
         yield Input(param_text(self.value), compact=True)
         yield Static("", classes="param-note")
 
@@ -319,9 +325,8 @@ class ParamFields(Vertical):
             for r in self._rows:        # in place, so a focused field stays
                 r.set(params[r.param], manifest[r.param])
             return
-        width = max(map(len, params), default=0) + 2
-        self._rows = [ParamRow(node, k, width, v, manifest[k])
-                      for k, v in params.items()]
+        self._rows = [ParamRow(node, k, key, v, manifest[k]) for (k, v), key
+                      in zip(params.items(), _param_keys(params))]
         self.refresh(recompose=True)
 
     def compose(self):

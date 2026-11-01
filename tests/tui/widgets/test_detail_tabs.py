@@ -61,7 +61,7 @@ async def test_selected_params_are_fields_yellow_when_edited():
         assert plain(frame.query_one(".param-note")) == ""
         # one column of values, under a params label, with no inline hint
         assert [plain(r.query_one(".param-key")) for r in (rate, frame)] \
-            == ["rate   ", "frame  "]
+            == ["  rate   ", "  frame  "]
         texts = [plain(s) for s in app.query_one(ParamFields).query(Static)]
         assert texts[0] == "params"
         assert not any("Enter applies" in t for t in texts)
@@ -72,6 +72,8 @@ async def test_selected_params_are_fields_yellow_when_edited():
             theme["foreground"])
         assert rate.query_one(".param-key").styles.color == Color.parse(
             theme["warning"])
+        assert frame.query_one(".param-key").styles.color == Color.parse(
+            theme["muted"])                         # as the grid's labels
         assert frame.query_one(Input).styles.text_style.underline
         rate.query_one(Input).focus()
         await pilot.pause()

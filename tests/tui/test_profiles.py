@@ -179,7 +179,9 @@ async def test_params_of_an_alternative_not_selected_are_read_only(tmp_path):
         await pilot.press("down", "enter", "up")      # select real, see mock
         await pilot.pause()
         assert not app.query(ParamRow)
-        assert "fps: 15" in plain(app.query_one("#detail"))
+        # laid out as the fields are, in the grid's colours (#199)
+        assert "machine     —\nparams\n  fps  15" in plain(
+            app.query_one("#detail"))
 
 
 def _dotted_result():

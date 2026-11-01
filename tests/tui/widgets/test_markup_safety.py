@@ -84,12 +84,11 @@ async def test_params_with_markup_render_literally():
                         selected={f"k{BAD}": "w"})    # a changed param
         await pilot.pause()
         row = app.query_one(ParamRow)            # the selected alternative
-        assert str(row.query_one(".param-key").content).rstrip() == f"k{BAD}"
+        assert str(row.query_one(".param-key").content).strip() == f"k{BAD}"
         assert BAD in plain(row.query_one(".param-note"))
         dt.show(Node(name="n", alternatives=[alt]), alt)    # read-only
-        for sel in ("#detail", "#detail-process"):
-            text = plain(app.query_one(sel))
-            assert f'k{BAD}: ' in text
+        assert f'k{BAD}  "v{BAD}"' in plain(app.query_one("#detail"))
+        assert f"k{BAD}: " in plain(app.query_one("#detail-process"))
 
 
 def test_uppercase_tags_render_literally():

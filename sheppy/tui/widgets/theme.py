@@ -51,6 +51,7 @@ SHEPPY_DARK = Theme(
         "chip-bg": "#2c313a",     # machine chip fill
         "chip-border": "#3b4048", # chip outline / header separators
         "divider": "#14171c",     # thin line between panes
+        "muted": PALETTE["muted"],  # c("muted"); $text-muted is lighter
         # Tame Textual's default list cursor (a bright accent block) into the
         # cockpit's subtle selection look, with readable text.
         "block-cursor-background": "#2f3947",
