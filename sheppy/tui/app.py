@@ -595,7 +595,8 @@ class SheppyApp(App):
             "not in this manifest — stop (x) and logs only")
         self.query_one("#detail", Static).update("")     # no stale node
         self.query_one(ParamFields).show(event.name, {}, {})
-        self._refresh_process_tab()
+        if self.query_one("#detailtabs", TabbedContent).active == "tab-process":
+            self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
         # Deliberate descent: move focus into the alternatives pane, and
@@ -696,6 +697,8 @@ class SheppyApp(App):
         self.query_one(NodeList).focus()
 
     def action_show_tab(self, tab_id: str) -> None:
+        if self.focused is self.query_one("#process-log"):
+            self.action_focus_nodes()       # it's about to be hidden
         self.query_one(DetailTabs).activate(tab_id)
 
     def action_save_profile(self) -> None:

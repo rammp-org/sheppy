@@ -6,7 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.markup import escape
 from textual.message import Message
-from textual.widgets import Input, Log, Static, TabbedContent, TabPane
+from textual.widgets import Input, RichLog, Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
 from sheppy.launch.builtins import param_text
@@ -36,6 +36,8 @@ class DetailTabs(Vertical):
     contract), PROCESS (live runtime state) and YAML render live now; the
     TOPICS 'live' column remains a placeholder for phase 4."""
 
+    _log = (None, [])       # (node, lines) the output area holds
+
     DEFAULT_CSS = """
     DetailTabs { width: 1fr; height: 1fr; background: $background; }
     DetailTabs Tabs { background: $subhead-bg; }
@@ -45,7 +47,7 @@ class DetailTabs(Vertical):
     DetailTabs TabbedContent, DetailTabs ContentSwitcher { height: 1fr; }
     DetailTabs TabPane { padding: 1 2; height: 1fr; overflow-y: auto; }
     DetailTabs Static { padding: 0 0; }
-    DetailTabs Log { height: 1fr; background: $background; }
+    DetailTabs RichLog { height: 1fr; min-height: 5; background: $background; }
     """
 
     def compose(self):
@@ -58,11 +60,9 @@ class DetailTabs(Vertical):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
                 yield Static("", id="detail-process")
-                yield Log(id="process-log")
+                yield RichLog(id="process-log", wrap=True, min_width=1)
             with TabPane("YAML", id="tab-yaml"):
                 yield Static("", id="detail-yaml", markup=False)
-
-    _log_node = None        # whose output the Log holds
 
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
@@ -155,18 +155,18 @@ class DetailTabs(Vertical):
         target.update("\n".join(out))
 
     def _show_log(self, node: "str | None", lines: list) -> None:
-        """The output tail scrolls (#196): it follows new lines while at
-        the bottom, and a refresh leaves it where it is once scrolled up."""
-        log = self.query_one("#process-log", Log)
-        if node == self._log_node and lines == log.lines:
+        """The output tail scrolls (#196): at the bottom it follows new
+        lines; scrolled up, it holds still until you scroll back down."""
+        log = self.query_one("#process-log", RichLog)
+        if node == self._log[0] and not log.is_vertical_scroll_end:
             return
-        follow = node != self._log_node or log.is_vertical_scroll_end
-        self._log_node, y = node, log.scroll_y
-        log.clear().write_lines(lines, scroll_end=False)
-        if follow:      # after the refresh, when the Log has its final height
-            log.scroll_end(animate=False)
-        else:
-            log.scroll_to(y=y, animate=False, immediate=True)
+        if (node, lines) != self._log:
+            self._log = (node, lines)
+            log.clear()
+            if lines:
+                log.write("\n".join(lines), scroll_end=False)
+        # every time, after the refresh: the facts above may change height
+        log.scroll_end(animate=False, x_axis=False)
 
     def _detail_markup(self, node: Node, alt: Alternative,
                         summary_rows: "list | None" = None,

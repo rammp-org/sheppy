@@ -15,7 +15,8 @@ def make_app(fake):
 
 
 def log_text(app):
-    return "\n".join(app.query_one("#process-log").lines)
+    """The output area's text, its wrapped rows joined."""
+    return " ".join(row.text.strip() for row in app.query_one("#process-log").lines)
 
 
 async def test_process_tab_renders_live_process():
@@ -25,7 +26,7 @@ async def test_process_tab_renders_live_process():
                                                       "rss_mb": 142.0})})
     fake.log_lines = ["[INFO] frames flowing"]     # see FakeDaemonClient tweak
     app = make_app(fake)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(160, 30)) as pilot:
         await pilot.pause()
         await pilot.press("3")
         await pilot.pause(0.1)
@@ -280,7 +281,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         "camera", "crashed", alt="realsense", params={"enable_depth": False})})
     fake.log_lines = ["[ERROR] device lost"]
     app = make_app(fake)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(160, 30)) as pilot:
         await pilot.pause()
         await pilot.press("3")
         await pilot.pause(0.1)
@@ -308,7 +309,7 @@ async def test_process_tab_on_an_orphan_shows_its_run():
                                                      alt="bag_v1")})
     fake.log_lines = ["[INFO] recording"]
     app = make_app(fake)
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(160, 30)) as pilot:
         await pilot.pause()
         await pilot.press("3")
         for _ in range(13):            # onto the orphan row
@@ -358,7 +359,6 @@ async def test_alternative_highlight_off_the_process_tab_asks_for_no_logs():
         assert not any(op == "logs" for op, _ in fake.requests)
 
 
-
 async def test_space_to_launch_shows_on_the_selected_alternative_only():
     # space launches the selected alternative, not the highlighted one
     app = make_app(FakeDaemonClient())
@@ -373,10 +373,9 @@ async def test_space_to_launch_shows_on_the_selected_alternative_only():
         assert "not running" in text and "space to launch" not in text
 
 
-
-async def test_process_output_scrolls_follows_and_stays_put():
-    # #196: a long tail that follows new output at the bottom and stays
-    # where it is once scrolled up.
+async def test_process_output_scrolls_follows_and_holds_still():
+    # #196: a long tail that follows new output at the bottom and holds
+    # still once scrolled up, even as sheppyd's ring drops its oldest lines.
     fake = FakeDaemonClient({"camera": payload("camera", "running",
                                                alt="realsense")})
     fake.log_lines = [f"line {i}" for i in range(100)]
@@ -388,18 +387,38 @@ async def test_process_output_scrolls_follows_and_stays_put():
         app._proc_timer.pause()                       # refresh by hand
         assert ("logs", {"node": "camera", "n": 300}) in fake.requests
         log = app.query_one("#process-log")
-        assert log.line_count == 100 and log.max_scroll_y > 0
+        assert len(log.lines) == 100 and log.max_scroll_y > 0
         assert log.is_vertical_scroll_end
-        fake.log_lines.append("line 100")
+        fake.log_lines = fake.log_lines[1:] + ["line 100"]      # ring rolls
         app._refresh_process_tab()
         await pilot.pause()
-        assert log.lines[-1] == "line 100" and log.is_vertical_scroll_end
+        assert log.lines[-1].text == "line 100" and log.is_vertical_scroll_end
         log.scroll_to(y=10, animate=False, immediate=True)
-        fake.log_lines.append("line 101")
+        fake.log_lines = fake.log_lines[5:] + [f"new {i}" for i in range(5)]
         app._refresh_process_tab()
         fake.push(payload("camera", "running", alt="realsense"))
         await pilot.pause()
-        assert log.lines[-1] == "line 101" and log.scroll_y == 10
+        assert log.scroll_y == 10 and log.lines[10].text == "line 11"
+        log.scroll_end(animate=False, immediate=True)  # back to the bottom
+        app._refresh_process_tab()
+        await pilot.pause()
+        assert log.lines[-1].text == "new 4" and log.is_vertical_scroll_end
+
+
+async def test_long_and_blank_output_lines_wrap_and_stay():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    fake.log_lines = ["[INFO] [1730000000.1] [camera.realsense_node]: "
+                      "publishing frames at 30 Hz", "", "end"]
+    app = make_app(fake)
+    async with app.run_test(size=(120, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        log = app.query_one("#process-log")
+        rows = [row.text.rstrip() for row in log.lines]
+        assert len(rows) > 3 and rows[-2:] == ["", "end"]   # wrapped
+        assert "30 Hz" in log_text(app)
 
 
 async def test_process_output_keys_scroll_and_app_keys_still_act():
@@ -419,3 +438,6 @@ async def test_process_output_keys_scroll_and_app_keys_still_act():
         await pilot.press("x")                        # read-only: x stops
         await pilot.pause()
         assert ("stop", {"node": "camera"}) in fake.requests
+        await pilot.press("1")                        # hides the output
+        await pilot.pause()
+        assert app.focused is app.query_one("#nodes")

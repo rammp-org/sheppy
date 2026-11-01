@@ -92,7 +92,6 @@ async def test_params_with_markup_render_literally():
             assert f'k{BAD}: ' in text
 
 
-
 def test_uppercase_tags_render_literally():
     # #193: escape() alone left "[ERROR]" to be parsed as a style tag.
     for text in ("[ERROR] boom", "[INFO] [1793.6] [perception.boxer]: 5 Hz",
