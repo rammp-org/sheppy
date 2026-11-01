@@ -413,3 +413,43 @@ async def test_enter_on_the_shown_value_clears_a_parse_error(tmp_path):
         await pilot.press("enter")
         await pilot.pause()
         assert plain(app.query_one(".param-note")) == ""
+
+
+async def test_param_field_accepts_terminal_paste(tmp_path):
+    # The terminal's paste (Ctrl+Shift+V, Cmd+V) arrives as a Paste event (#202).
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
+        await pilot.pause()
+        app.post_message(events.Paste("30"))
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.effective_params("camera") == {"fps": 30}
+
+
+async def test_param_field_ctrl_v_without_clipboard_keeps_value(tmp_path):
+    # Most terminals send Ctrl+V as a key; with nothing copied inside sheppy
+    # it must not replace the selected value with nothing (#202).
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
+        await pilot.pause()
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert _field(app, "fps").value == "15"
+        assert any("Ctrl+Shift+V" in n.message for n in app._notifications)
+
+
+async def test_param_field_ctrl_v_pastes_text_copied_in_sheppy(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
+        await pilot.pause()
+        app.copy_to_clipboard("30")
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert _field(app, "fps").value == "30"

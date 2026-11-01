@@ -239,6 +239,25 @@ def _param_rows(row, params: dict) -> list:
         for key, v in zip(_param_keys(params), params.values())]
 
 
+class ParamInput(Input):
+    """Input whose Ctrl+V never wipes the field.
+
+    Most terminals pass Ctrl+V to the app as a key instead of pasting, and
+    Input then pastes Textual's own clipboard, which is empty unless text was
+    copied inside sheppy, so the selected value was replaced with nothing.
+    The terminal's paste (Ctrl+Shift+V, Cmd+V) arrives as a paste event and
+    goes through Input's paste handling unchanged.
+    """
+
+    def action_paste(self) -> None:
+        if self.app.clipboard:
+            super().action_paste()
+        else:
+            self.notify("Ctrl+V can't read the system clipboard here; "
+                        "paste with your terminal's Ctrl+Shift+V",
+                        severity="warning")
+
+
 class ParamRow(Horizontal):
     """A param of the selected alternative as a field (#194): Enter
     applies it, Esc or leaving the field puts back its value."""
@@ -272,7 +291,7 @@ class ParamRow(Horizontal):
 
     def compose(self):
         yield Static(self._key, markup=False, classes="param-key")
-        yield Input(param_text(self.value), compact=True)
+        yield ParamInput(param_text(self.value), compact=True)
         yield Static("", classes="param-note")
 
     def on_mount(self) -> None:
