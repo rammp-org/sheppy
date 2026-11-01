@@ -67,8 +67,17 @@ the daemon.
 treat this as normal and exit 0; `logs` and `restart` exit 1.
 
 **`could not start sheppyd: socket path is … bytes`.** A unix socket path
-has to fit in 107 bytes, and `SHEPPY_HOME` put it past that. Use a shorter
-`SHEPPY_HOME`, or unset it so the socket goes in `$XDG_RUNTIME_DIR`.
+has to fit in 107 bytes, and the socket lives in the home directory
+(`SHEPPY_HOME`, or `~/.sheppy`), which put it past that. Set a shorter
+`SHEPPY_HOME`.
+
+**After upgrading from 1.0.0, `sheppy up` says `could not start sheppyd`
+while nodes are still running.** sheppy 1.0.0 put the socket in
+`$XDG_RUNTIME_DIR/sheppy/` when that variable was set. Newer versions always
+put it in the home directory, so they can't reach a daemon that 1.0.0 started,
+and `sheppy daemon stop` can't either. Stop the old daemon by hand with
+`pkill -f 'sheppy\.daemon|sheppyd'`. Your nodes keep running, and the next
+launch starts a new daemon that re-adopts them.
 
 **I upgraded, but sheppy still behaves like the old version.** The running
 `sheppyd` was started by the old install and keeps executing that code; the

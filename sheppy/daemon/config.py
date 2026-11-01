@@ -71,11 +71,9 @@ def load_config(home: "str | None" = None) -> "tuple[Config, list[str]]":
 
 
 def socket_path(home: str) -> str:
-    # SHEPPY_HOME pins everything under home (test isolation); otherwise
-    # prefer XDG_RUNTIME_DIR (tmpfs, correct perms, cleared on logout).
-    xdg = os.environ.get("XDG_RUNTIME_DIR")
-    if not os.environ.get("SHEPPY_HOME") and xdg:
-        return os.path.join(xdg, "sheppy", "sheppyd.sock")
+    # Next to the lock, never in XDG_RUNTIME_DIR: clients run from cron,
+    # `docker exec` or `sudo -u` often lack it, and would look for a socket
+    # the running daemon never bound (#92).
     return os.path.join(home, "sheppyd.sock")
 
 
