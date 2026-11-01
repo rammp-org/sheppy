@@ -235,11 +235,18 @@ class ParamRow(Horizontal):
     applies it, Esc or leaving the field puts back its value."""
 
     DEFAULT_CSS = """
-    ParamRow { height: 1; overflow-x: auto; scrollbar-size-horizontal: 0; }
+    ParamRow { height: 1; padding-left: 2; overflow-x: auto;
+               scrollbar-size-horizontal: 0; }
+    ParamRow:focus-within { background: $sel-bg; }
     ParamRow Static { width: auto; }
-    /* capped, so a long value scrolls inside the field as you type */
-    ParamRow Input { width: auto; min-width: 2; max-width: 50%;
-                     color: $foreground; background: $sel-bg; }
+    ParamRow .param-key { color: $text-muted; }
+    ParamRow .param-note { margin-left: 2; }
+    /* capped, so a long value scrolls inside the field as you type;
+       underlined, with no block, so it reads as clickable (#199) */
+    ParamRow Input, ParamRow Input:focus {
+        width: auto; min-width: 2; max-width: 50%; color: $foreground;
+        background: transparent; background-tint: transparent;
+        text-style: underline; }
     ParamRow.-edited Input, ParamRow.-edited .param-key { color: $warning; }
     """
     BINDINGS = [("escape", "leave", "Back")]
@@ -249,15 +256,15 @@ class ParamRow(Horizontal):
             super().__init__()
             self.node, self.param, self.value = node, param, value
 
-    def __init__(self, node: str, param: str, first: bool,
+    def __init__(self, node: str, param: str, width: int,
                  value, manifest) -> None:
         super().__init__()
-        self.node, self.param, self._first = node, param, first
+        self.node, self.param, self._width = node, param, width
         self.value, self.manifest = value, manifest
 
     def compose(self):
-        yield Static(c("muted", f"{'params' if self._first else '':<12}"))
-        yield Static(f"{self.param}: ", markup=False, classes="param-key")
+        yield Static(f"{self.param:<{self._width}}", markup=False,
+                     classes="param-key")
         yield Input(param_text(self.value), compact=True)
         yield Static("", classes="param-note")
 
@@ -275,7 +282,7 @@ class ParamRow(Horizontal):
         self.set_class(edited, "-edited")
         self.query_one(".param-note", Static).update(
             c("red", error) if error else
-            c("muted", f"(manifest {fmt(self.manifest)})") if edited else "")
+            c("muted", f"← {fmt(self.manifest)}") if edited else "")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
@@ -312,15 +319,15 @@ class ParamFields(Vertical):
             for r in self._rows:        # in place, so a focused field stays
                 r.set(params[r.param], manifest[r.param])
             return
-        self._rows = [ParamRow(node, k, i == 0, v, manifest[k])
-                      for i, (k, v) in enumerate(params.items())]
+        width = max(map(len, params), default=0) + 2
+        self._rows = [ParamRow(node, k, width, v, manifest[k])
+                      for k, v in params.items()]
         self.refresh(recompose=True)
 
     def compose(self):
-        yield from self._rows
         if self._rows:
-            yield Static(c("muted", f"{'':<12}p or click to edit · "
-                                    "Enter applies · Esc reverts"))
+            yield Static(c("muted", "params"))
+        yield from self._rows
 
     def focus_first(self) -> None:
         # call_next runs after a recompose show() queued has mounted the rows

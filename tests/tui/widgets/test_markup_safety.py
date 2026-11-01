@@ -84,7 +84,7 @@ async def test_params_with_markup_render_literally():
                         selected={f"k{BAD}": "w"})    # a changed param
         await pilot.pause()
         row = app.query_one(ParamRow)            # the selected alternative
-        assert str(row.query_one(".param-key").content) == f"k{BAD}: "
+        assert str(row.query_one(".param-key").content) .rstrip() == f"k{BAD}"
         assert BAD in plain(row.query_one(".param-note"))
         dt.show(Node(name="n", alternatives=[alt]), alt)    # read-only
         for sel in ("#detail", "#detail-process"):

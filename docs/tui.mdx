@@ -41,11 +41,11 @@ and `worker` crashed, with the PROCESS tab open.
   shows its settings, TOPICS its declared `publishes`/`subscribes`, PROCESS
   its live state and last output, and YAML the raw manifest entry. For the
   selected alternative, DETAIL shows the params as fields you can edit (see
-  `p` below), with your edits applied; an edited param is yellow and shows the
-  manifest value after it, as in `fps: 30 (manifest 15)`. The fields have a
-  shaded background; the params of an alternative that isn't selected are
-  plain text and can't be edited, because edits apply only to the selected
-  one. On the alternative `sheppyd` last launched for the node, PROCESS shows
+  `p` below), with your edits applied. They are listed one per row under
+  `params`, with the values underlined; an edited param is yellow and shows
+  the manifest value after it, as in `fps  30  ← 15`. The params of an
+  alternative that isn't selected are plain text and can't be edited,
+  because edits apply only to the selected one. On the alternative `sheppyd` last launched for the node, PROCESS shows
   its state, pid, exit code, and last output, and under a `params changed`
   drift the params whose running value differs. The last output holds up to
   the node's last 300 lines and scrolls: with the mouse wheel, or with the
@@ -110,7 +110,7 @@ launched:
 | `!` | Copy running: set the selection to what's running. Press `s` to save it |
 | `s` | Save the selection and param overrides as a [profile](../profiles) |
 | `l` | Load a profile (`Enter` loads, `d` deletes) |
-| `p` | Edit the highlighted node's params, the ones its selected alternative lists in the manifest: moves the cursor to the first param field on the DETAIL tab. Type a value and press `Enter` to apply it; the text is read as YAML, so `30` is a number and `"30"` a string. `Esc` puts the value back and returns to the alternatives; leaving the field any other way also puts it back. `Tab` and `Shift+Tab` move between fields. While a field has the cursor, keys type into it and don't run commands |
+| `p` | Edit the highlighted node's params, the ones its selected alternative lists in the manifest: moves the cursor to the first param field on the DETAIL tab. Type a value and press `Enter` to apply it; the text is read as YAML, so `30` is a number and `"30"` a string. `Esc` puts the value back and returns to the alternatives; leaving the field any other way also puts it back. `Tab` and `Shift+Tab` move between fields. While a field has the cursor, keys type into it and don't run commands, and the footer lists the keys for editing instead of the usual ones |
 | `e` | Show or hide the error overlay: manifest errors and launch warnings |
 | `q` or `Ctrl+Q` | Quit. Running nodes keep running |
 
