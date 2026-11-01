@@ -1,4 +1,5 @@
 """The three original kinds, now launchers emitting inherit descriptors."""
+import json
 import os
 import shlex
 
@@ -10,8 +11,18 @@ from sheppy.launch.descriptor import LaunchDescriptor
 def _value(v) -> str:
     # ROS reads the text after -p k:= as YAML, so spell the value as a one-line
     # YAML flow scalar: None -> null, "007" -> '007', {"b": 1} -> {b: 1} (#70).
-    text = yaml.safe_dump(v, default_flow_style=True, width=float("inf"))
-    return text.removesuffix("\n...\n").removesuffix("\n")
+    style = None
+    if isinstance(v, str):
+        try:
+            float(v)    # rcl reads plain 1e3, inf and nan as doubles
+            style = "'"
+        except ValueError:
+            pass
+    text = yaml.safe_dump(v, default_flow_style=True, default_style=style,
+                          width=float("inf"), allow_unicode=True)
+    text = text.removesuffix("\n...\n").removesuffix("\n")
+    # YAML folds a string with a newline over lines; JSON is YAML on one line.
+    return json.dumps(v, ensure_ascii=False) if "\n" in text else text
 
 
 def _launch_arg(v) -> str:

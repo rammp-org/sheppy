@@ -91,7 +91,8 @@ def test_relative_ros_setup_with_default_manifest_dir_uses_cwd(tmp_path, monkeyp
 
 @pytest.mark.parametrize("value", [
     None, "007", {"b": 1, "c": [1, "x"]}, [1, "two", 3.0], True, False, 30,
-    1.5, "it's on it", "yes", ""])
+    1.5, "it's on it", "yes", "", "a\nb", {"k": "a\nb"}, "café", "1e3",
+    "inf"])
 def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
     # #70: the value after := is what ROS parses as YAML, so it must load back
     # to the manifest value (None, not "None"; "007", not 7).
@@ -129,3 +130,10 @@ def test_launch_file_strings_verbatim_other_values_yaml(tmp_path):
     assert shlex.split(cmd(desc))[5:] == [
         "name:=007", "word:=on it", "nothing:=null", "flag:=true",
         "gain:=1.5", "m:={b: 1}"]
+
+
+def test_value_quotes_strings_ros_would_read_as_numbers():
+    # PyYAML leaves these plain, but rcl reads plain text with strtod.
+    assert [_value(v) for v in ("1e3", "inf", "nan")] == ["'1e3'", "'inf'",
+                                                          "'nan'"]
+    assert _value("café") == "café"
