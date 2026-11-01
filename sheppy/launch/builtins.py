@@ -9,7 +9,7 @@ from sheppy.launch.descriptor import LaunchDescriptor
 def param_text(v) -> str:
     # ROS reads the text after -p k:= as YAML; JSON is one-line YAML with every
     # string quoted, so "007" stays a string and None is null (#70).
-    return json.dumps(v, ensure_ascii=False)
+    return json.dumps(v, ensure_ascii=False, default=str)
 
 
 def _param_token(k, text) -> str:
