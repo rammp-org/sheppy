@@ -18,11 +18,18 @@ class LoadResult:
         return not self.errors
 
     def errors_for(self, node, alt) -> list:
-        """The load errors located at this alternative (#61). The loader
-        keeps every node and alternative, valid or not, at its manifest
-        index, so `nodes[i].alternatives[j]` maps straight back."""
+        """The load errors located at this alternative or at its node (#61,
+        #170). The loader keeps every node and alternative, valid or not,
+        at its manifest index, so `nodes[i].alternatives[j]` maps straight
+        back. Errors at `nodes[i]` or `nodes[i].<field>` apply to every
+        alternative of that node."""
         i = next(k for k, n in enumerate(self.manifest.nodes) if n is node)
         j = next(k for k, a in enumerate(node.alternatives) if a is alt)
-        loc = f"nodes[{i}].alternatives[{j}]"
+        node_loc = f"nodes[{i}]"
+        alt_loc = f"{node_loc}.alternatives[{j}]"
+        other_alts = f"{node_loc}.alternatives["
         return [e for e in self.errors
-                if e.location == loc or e.location.startswith(loc + ".")]
+                if e.location in (node_loc, alt_loc)
+                or e.location.startswith(alt_loc + ".")
+                or (e.location.startswith(node_loc + ".")
+                    and not e.location.startswith(other_alts))]
