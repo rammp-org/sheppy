@@ -264,14 +264,14 @@ class SheppyApp(App):
                           self.state.effective_params(node.name),
                           manifest_dir=os.path.dirname(
                               os.path.abspath(self.path or "system.yaml")))
-        if spec is None:
+        # Drifted only if the command differs (what restarting would
+        # change); the params name the reason when they differ too.
+        if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
         changed = changes(recorded.get("params") or {}, spec.params)
         if changed:
             return f"params differ: {'; '.join(changed)}"
-        if recorded.get("descriptor") != spec.descriptor.to_wire():
-            return "launch command changed since start"
-        return None
+        return "launch command changed since start"
 
     # ---- daemon actions -------------------------------------------------------
     def _node_worker(self, name: str, work) -> None:

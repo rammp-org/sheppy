@@ -223,5 +223,5 @@ async def test_process_tab_lists_running_params_and_per_key_drift():
         await pilot.pause(0.1)
         text = _plain(app.query_one("#detail-process"))
         assert "alternative realsense" in text
-        assert "enable_depth: false" in text
+        assert "params      enable_depth: false\n" in text
         assert "params differ: enable_depth: false → true" in text
