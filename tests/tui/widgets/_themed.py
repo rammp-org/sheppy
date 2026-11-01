@@ -1,4 +1,5 @@
 from textual.app import App
+from textual.content import Content
 
 from sheppy.tui.widgets.theme import SHEPPY_DARK
 
@@ -14,3 +15,8 @@ class ThemedApp(App):
         super().__init__(*args, **kwargs)
         self.register_theme(SHEPPY_DARK)
         self.theme = "sheppy-dark"
+
+
+def plain(widget) -> str:
+    """The text a Static shows, without its markup tags."""
+    return Content.from_markup(str(widget.content)).plain

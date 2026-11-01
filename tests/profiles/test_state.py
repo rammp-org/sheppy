@@ -32,6 +32,27 @@ def test_clear_drops_the_nodes_overrides():
     assert st.to_profile("p").overrides == {}
 
 
+def test_select_keeps_only_overrides_the_new_alternative_declares():
+    # Like reconcile(): a key the new alternative lacks would reach its
+    # launcher and the saved profile.
+    st = ProfileState(Manifest(machines=[], nodes=[
+        Node(name="camera", alternatives=[
+            Alternative(id="mock", kind="process", command="true",
+                        params={"fps": 15, "noise": 0.1}),
+            Alternative(id="real", kind="process", command="true",
+                        params={"fps": 30}),
+            Alternative(id="bag", kind="process", command="true"),
+        ]),
+    ]))
+    st.select("camera", "mock")
+    st.override("camera", "fps", 60)
+    st.override("camera", "noise", 0.5)
+    st.select("camera", "real")
+    assert st.effective_params("camera") == {"fps": 60}
+    st.select("camera", "bag")
+    assert st.to_profile("p").overrides == {}
+
+
 def test_override_and_effective_params():
     st = ProfileState(_manifest())
     st.select("camera", "mock")

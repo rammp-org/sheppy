@@ -321,3 +321,32 @@ async def test_reconnecting_registers_the_event_callback_once():
         app._refresh_runtime = lambda: calls.append(1)
         fake.push(payload("camera", "crashed"))
         assert len(calls) == 1
+
+
+async def test_r_with_drift_says_it_restarted_the_running_params():
+    # #34: restart reruns the spec recorded at launch, not the selection.
+    fake = FakeDaemonClient({"camera": payload(
+        "camera", "running", alt="realsense", params={"enable_depth": False})})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.override("camera", "enable_depth", True)
+        await pilot.press("r")
+        await pilot.pause()
+        assert ("restart", {"node": "camera"}) in fake.requests
+        assert ("'camera': restarted with its running params; selection "
+                "differs (launch command changed since start; params "
+                "differ: enable_depth: false → true) — space applies it"
+                ) in app._runtime_warnings
+
+
+async def test_r_without_drift_adds_no_warning():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("r")
+        await pilot.pause()
+        assert ("restart", {"node": "camera"}) in fake.requests
+        assert app._runtime_warnings == []

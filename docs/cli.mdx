@@ -24,7 +24,20 @@ Bring the system to a [profile](../profiles). `<profile>` is a name:
 `sheppy up mock` reads `profiles/mock.yaml` next to the manifest.
 `--manifest` defaults to `./sheppy-manifest.yaml`.
 
-It prints a plan (`start`, `restart`, or `stop` per node), then:
+It prints a plan (`start`, `restart`, or `stop` per node). Each `restart`
+line says in parentheses what changed: `alternative <old> → <new>`, or
+`launch command changed`. When the params differ too, they follow after
+`params`, each with the running value, then the new one (`—` for a param set
+on only one side).
+
+```
+$ sheppy up fast
+restart camera (launch command changed; params fps: 15 → 30; frame_id: "camera" → "cam_front")
+restart lidar (alternative velodyne_lo → velodyne_hi)
+start planner
+```
+
+Then it:
 
 - starts selected nodes that aren't running, and restarts ones running a
   different alternative or command (params are part of the command);
@@ -63,7 +76,7 @@ Recoverable problems, such as a profile selection the manifest no longer has
 or a manifest error in an alternative that isn't selected, print as
 `warning:` on stderr and don't stop the launch.
 
-### `sheppy status`
+### `sheppy status [<node>]`
 
 One line per node `sheppyd` supervises: name, state, alternative, pid, and
 uptime or exit code.
@@ -78,6 +91,22 @@ It exits 0 even when a node has crashed, so read the output rather than the
 exit code. It prints `(nothing supervised)` for an empty table and
 `sheppyd: not running` when there's no daemon.
 
+With a node name it prints that node's line, then the alternative, params,
+and start command the node was launched with. These are the values
+`sheppy restart` reruns, which can differ from the profile if you have
+edited it since.
+
+```
+$ sheppy status camera
+camera               running    realsense      pid=3948253 up 22s
+  alternative  realsense
+  params       enable_depth: false
+               fps: 30
+  start        ros2 launch realsense2_camera rs_launch.py --ros-args ...
+```
+
+Exits 1 if `sheppyd` doesn't supervise that node or isn't running.
+
 ### `sheppy logs <node> [-n N]`
 
 Print the last `N` (default 50, must be at least 1) lines of a node's output. `sheppyd` keeps the
@@ -87,8 +116,9 @@ running.
 
 ### `sheppy restart <node>`
 
-Restart a node, including a crashed one, with the command it was launched
-with. `restart` doesn't pick up manifest edits; use `sheppy up` for that.
+Restart a node, including a crashed one, with the alternative, params, and
+command it was launched with, then print the alternative and params. `restart`
+doesn't pick up manifest or profile edits; use `sheppy up` for that.
 Exits 1 if the node is unknown or the daemon isn't running. `sheppy woof`,
 its old name, still works.
 
@@ -146,8 +176,8 @@ sheppy up mock
 | Success | 0 |
 | TUI: manifest missing, unreadable, or not valid YAML | 1 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
-| Daemon not running — `logs`, `restart` | 1 |
-| Unknown node (`logs`, `restart`) | 1 |
+| Daemon not running — `logs`, `restart`, `status <node>` | 1 |
+| Unknown node (`logs`, `restart`, `status <node>`) | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 | `sheppyd` died mid-command (`sheppy: sheppyd: sheppyd connection lost`) | 1 |
 | Interrupted with Ctrl-C | 130 |

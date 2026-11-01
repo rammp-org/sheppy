@@ -437,3 +437,64 @@ def test_up_settle_timeout_honors_a_descriptor_launch_grace(
     rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
     assert rc == 0
     assert seen["timeout"] == 15 + 0.3 + 0.3 + 10      # graces from the fixture
+
+
+def _spec(alt="fake", params=None, start=("true",)):
+    from sheppy.launch.descriptor import LaunchDescriptor
+    from sheppy.launch.resolve import LaunchSpec
+    return LaunchSpec(node="camera", alt_id=alt, params=params or {},
+                      descriptor=LaunchDescriptor.inherit(start))
+
+
+@pytest.mark.parametrize("running, desired, reason", [
+    (_spec(alt="sim"), _spec(alt="real"), "alternative sim → real"),
+    (_spec(start=("old",)), _spec(start=("new",)), "launch command changed"),
+    (_spec(params={"rate": 10, "old": 1}, start=("old",)),
+     _spec(params={"rate": 30}, start=("new",)),
+     "launch command changed; params old: 1 → —; rate: 10 → 30"),
+])
+def test_restart_reason_names_what_changed(running, desired, reason):
+    assert cli._restart_reason({"state": "running", "spec": running.to_wire()},
+                               desired) == reason
+
+
+def test_up_says_why_it_restarts_a_node(site, capsys):
+    manifest = site / "system.yaml"
+    manifest.write_text(manifest.read_text().replace(
+        "time.sleep(30)'\"",
+        "time.sleep(30)'\"\n        params: {rate: 10}"))
+    ProfileStore(str(site / "profiles")).save(Profile(
+        name="fast", selections={"camera": "fake"},
+        overrides={"camera": {"rate": 30}}))
+    assert cli.main(["up", "cam-only", "--manifest", str(manifest)]) == 0
+    capsys.readouterr()
+    manifest.write_text(manifest.read_text().replace("sleep(30)", "sleep(31)"))
+    assert cli.main(["up", "fast", "--manifest", str(manifest)]) == 0
+    assert ("restart camera (launch command changed; params rate: 10 → 30)"
+            in capsys.readouterr().out)
+    assert cli.main(["restart", "camera"]) == 0
+    out = capsys.readouterr().out
+    assert "restarted camera" in out
+    assert "alternative  fake" in out and "params       rate: 30" in out
+
+
+def test_status_of_one_node(site, capsys):
+    cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
+    capsys.readouterr()
+    assert cli.main(["status", "camera"]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0].startswith("camera               running    fake")
+    assert lines[1:3] == ["  alternative  fake", "  params       —"]
+    assert lines[3].startswith("  start        ") and "sleep(30)" in lines[3]
+
+
+def test_status_of_an_unsupervised_node_fails(site, capsys):
+    cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
+    capsys.readouterr()
+    assert cli.main(["status", "flaky"]) == 1
+    assert "flaky: not supervised" in capsys.readouterr().err
+
+
+def test_status_of_a_node_without_sheppyd_fails(site, capsys):
+    assert cli.main(["status", "camera"]) == 1
+    assert "not running" in capsys.readouterr().out

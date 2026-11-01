@@ -1,5 +1,6 @@
 """Client-side resolution: alternative -> LaunchSpec via a launcher, plus
 the converge diff. The daemon never sees a manifest."""
+import json
 from dataclasses import dataclass
 
 from sheppy.launch.base import LaunchContext
@@ -45,6 +46,19 @@ def resolve(manifest, node_name, alt, params, registry=None, manifest_dir=None):
         return (None, ctx.warnings)
     return (LaunchSpec(node=node_name, alt_id=alt.id, descriptor=descriptor,
                        params=dict(params)), ctx.warnings)
+
+
+def fmt(value) -> str:
+    """A param value as it reads in YAML flow style: true, 3, "base"."""
+    return json.dumps(value, default=str, ensure_ascii=False)
+
+
+def changes(old: dict, new: dict) -> list:
+    """`key: old → new` for each differing key; — for a key on one side only."""
+    side = lambda d, k: fmt(d[k]) if k in d else "—"
+    return [f"{k}: {side(old, k)} → {side(new, k)}"
+            for k in sorted(old.keys() | new.keys())
+            if k not in old or k not in new or old[k] != new[k]]
 
 
 _ALIVE = ("launching", "running")

@@ -32,6 +32,14 @@ def _relaunched_differently():
     return p
 
 
+def _params_differ_same_command():
+    # e.g. a process-kind node, which ignores params: restarting would run
+    # the same command, so it hasn't drifted.
+    p = payload("camera", "running", alt="realsense")
+    p["spec"]["params"] = {**p["spec"]["params"], "enable_depth": False}
+    return p
+
+
 @pytest.mark.parametrize("selected, running, reason", [
     (None, None, None),
     ("realsense", payload("camera", "running", alt="realsense"), None),
@@ -44,7 +52,9 @@ def _relaunched_differently():
      "running mock_camera, selected realsense"),
     ("realsense", payload("camera", "running", alt="realsense",
                           params={"enable_depth": False}),
-     "params differ: enable_depth"),
+     "launch command changed since start; params differ: "
+     "enable_depth: false → true"),
+    ("realsense", _params_differ_same_command(), None),
     ("realsense", _relaunched_differently(),
      "launch command changed since start"),
     ("realsense", payload("camera", "running", alt="bag_v9"),

@@ -39,7 +39,11 @@ and `worker` crashed, with the PROCESS tab open.
   the selected one; a node can also have none selected.
 - **Detail (right):** DETAIL shows the alternative's settings, TOPICS its
   declared `publishes`/`subscribes`, PROCESS its live state and last output,
-  and YAML the raw manifest entry.
+  and YAML the raw manifest entry. For the selected alternative, DETAIL shows
+  the params with your edits applied; an edited param is yellow and shows the
+  manifest value after it, as in `fps: 30 (manifest 15)`. While the node is
+  supervised, PROCESS also shows the alternative and params the running
+  process was launched with.
 - **Footer:** key hints, and whether `sheppyd` is running. On a narrow
   terminal the hints are cut off from the right; the `sheppyd` status stays.
 
@@ -70,8 +74,7 @@ A `Δ` means what's running differs from what's selected (see
 | `Δ <alt> selected, not running` | the selected alternative isn't running: never launched, stopped, or crashed |
 | `Δ running <alt>, nothing selected` | `sheppyd` is running the node but nothing is selected for it |
 | `Δ running <alt>, selected <other>` | a different alternative is running than the one selected |
-| `Δ params differ: <names>` | the running process was launched with different values for these params |
-| `Δ launch command changed since start` | the selection now builds a different command than the one running, usually because the manifest was edited after launch |
+| `Δ launch command changed since start` | the selection now builds a different command than the one running, usually because the manifest or a param was edited after launch. If the params differ too, `; params differ: <param>: <running> → <selected>; ...` follows: the value the process was launched with, then the selected value (`—` for a param set on only one side) |
 | `Δ running <alt>, not in this manifest` | the running alternative is no longer listed under this node |
 
 `space` on the node closes the gap by launching the selection.
@@ -81,12 +84,12 @@ A `Δ` means what's running differs from what's selected (see
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move through the node list, or through the alternatives once you're in them |
-| `Enter` | On a node: move into its alternatives. On an alternative: select it, or de-select it if it's already selected, which leaves the node with nothing to launch and drops its param overrides |
+| `Enter` | On a node: move into its alternatives. On an alternative: select it, or de-select it if it's already selected, which leaves the node with nothing to launch and drops its param overrides. Selecting a different alternative keeps only the overrides for params it also declares |
 | `Esc` | Back to the node list |
 | `1`–`4` | Switch detail tab: DETAIL, TOPICS, PROCESS, YAML |
 | `space` | Apply the selection to the highlighted node: launch the selected alternative, restarting the node if it's already running, or stop the node if nothing is selected |
 | `x` | Stop the highlighted node |
-| `r` | Restart the highlighted node with the command it was launched with. To apply a param edit, use `space` |
+| `r` | Restart the highlighted node with the alternative, params, and command it was launched with. If the selection differs, a warning under `e` says so and shows the difference. To apply a param edit, use `space` |
 | `Shift+L` | Apply the whole selection: shows a plan of starts, restarts, and stops, then asks to confirm. Nodes from other manifests are left alone, and so is a selected node whose launcher fails to resolve (the failure shows under `e`) |
 | `Shift+X` | Stop everything `sheppyd` is running, including nodes from other manifests (asks to confirm) |
 | `!` | Copy running: set the selection to what's running. Press `s` to save it |

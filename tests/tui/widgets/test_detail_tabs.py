@@ -1,5 +1,5 @@
 from textual.app import ComposeResult
-from tests.tui.widgets._themed import ThemedApp
+from tests.tui.widgets._themed import ThemedApp, plain
 from sheppy.manifest import Node, Alternative
 from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail
 
@@ -39,3 +39,16 @@ async def test_show_none_is_defensive():
         dt = app.query_one(DetailTabs)
         dt.show(_node(), None)  # must not raise
         assert str(app.query_one("#detail").content) == ""
+
+
+async def test_detail_shows_effective_params_and_the_manifest_default():
+    app = _Harness()
+    async with app.run_test():
+        dt = app.query_one(DetailTabs)
+        alt = Alternative(id="sim", kind="process", command="true",
+                          params={"rate": 10, "frame": "base"})
+        dt.show(Node(name="camera", alternatives=[alt]), alt,
+                params={"rate": 30, "frame": "base"})
+        text = plain(app.query_one("#detail"))
+        assert "rate: 30 (manifest 10)" in text
+        assert 'frame: "base"' in text and "manifest \"base\"" not in text
