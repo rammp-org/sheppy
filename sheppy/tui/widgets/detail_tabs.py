@@ -171,7 +171,9 @@ class DetailTabs(Vertical):
             log.clear()
             if lines:
                 log.write("\n".join(lines), scroll_end=False)
-        log.scroll_end(animate=False, x_axis=False)     # re-anchors, too
+        # now, not after the refresh: the user may scroll up before then;
+        # the anchor keeps it at the bottom as the facts change height
+        log.scroll_end(animate=False, immediate=True, x_axis=False)
 
     def _detail_markup(self, node: Node, alt: Alternative,
                         summary_rows: "list | None" = None,

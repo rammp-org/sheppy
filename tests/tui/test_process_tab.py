@@ -499,3 +499,22 @@ async def test_a_process_refresh_while_panes_leave_returns(pane):
         app._proc_timer.pause()
         await app.query_one(pane).remove()
         await app._load_process_tab()
+
+
+async def test_scrolling_up_right_after_new_output_holds():
+    # A scroll up in the same frame as new output must not be undone when
+    # that frame paints.
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    fake.log_lines = [f"line {i}" for i in range(100)]
+    app = make_app(fake)
+    async with app.run_test(size=(160, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        app._proc_timer.pause()
+        log = app.query_one("#process-log")
+        app.query_one("DetailTabs")._show_log("camera", fake.log_lines + ["x"])
+        log.scroll_to(y=10, animate=False, immediate=True)
+        await pilot.pause()
+        assert log.scroll_y == 10
