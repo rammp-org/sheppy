@@ -233,3 +233,46 @@ async def test_process_tab_lists_running_params_and_per_key_drift():
         assert "params      enable_depth: false\n" in text
         assert ("launch command changed since start; params differ: "
                 "enable_depth: false → true") in text
+
+
+async def test_process_tab_follows_the_highlighted_alternative():
+    # #191: PROCESS describes the highlighted alternative, as DETAIL does;
+    # another alternative's run is only named, without its params or logs.
+    fake = FakeDaemonClient({"camera": payload(
+        "camera", "crashed", alt="realsense", params={"enable_depth": False})})
+    fake.log_lines = ["[ERROR] device lost"]
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "alternative realsense" in text
+        assert "enable_depth: false" in text and "device lost" in text
+        logs = sum(op == "logs" for op, _ in fake.requests)
+        await pilot.press("enter", "down")            # highlight mock_camera
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "not running" in text
+        assert "realsense crashed (exit 7)" in text
+        assert "enable_depth" not in text and "device lost" not in text
+        assert sum(op == "logs" for op, _ in fake.requests) == logs
+        await pilot.press("up")                       # back to realsense
+        await pilot.pause(0.1)
+        assert "device lost" in plain(app.query_one("#detail-process"))
+
+
+async def test_process_tab_on_an_orphan_shows_its_run():
+    fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
+                                                     "running",
+                                                     alt="bag_v1")})
+    fake.log_lines = ["[INFO] recording"]
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        for _ in range(13):            # onto the orphan row
+            await pilot.press("down")
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "alternative bag_v1" in text and "recording" in text

@@ -615,6 +615,7 @@ class SheppyApp(App):
         self.query_one(DetailTabs).show(
             event.node, event.alt, summary_rows=self._summary_rows(event.alt),
             params=self._detail_params(event.node, event.alt))
+        self._refresh_process_tab()
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:
@@ -656,14 +657,25 @@ class SheppyApp(App):
             tabs.show_process(None, [], self.daemon_connected)
             return
         payload = self.actual.get(name)
+        node = None if self._current_orphan else self.manifest.node(name)
+        drift = self._drift(node, payload) if node else None
+        # Like DETAIL, PROCESS describes the highlighted alternative (#191):
+        # a run of another one is only named, and drift only shows on the
+        # alternative that ran or the selected one.
+        row = self.query_one(AlternativesPanel).highlighted_row()
+        alt = row.alt if node and row and row.node is node else None
+        ran = payload["spec"]["alt_id"] if payload else None
+        if alt and alt.id not in (ran, self.state.selected(name)):
+            drift = None
+        if alt and payload and alt.id != ran:
+            tabs.show_process(None, [], True, drift=drift, other=payload)
+            return
         lines: list = []
         if payload is not None:
             reply = await self._request_safely("logs", node=name, n=15)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
-        node = None if self._current_orphan else self.manifest.node(name)
-        tabs.show_process(payload, lines, True,
-                          drift=self._drift(node, payload) if node else None)
+        tabs.show_process(payload, lines, True, drift=drift)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:
