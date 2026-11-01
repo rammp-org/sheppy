@@ -165,10 +165,20 @@ def _check_entrypoint(value, errors):
     return value if isinstance(value, str) else " ".join(str(v) for v in value)
 
 
+def _check_pull_policy(value, errors):
+    if value == "if_not_present":           # compose's synonym for missing
+        return "missing"
+    if value in ("always", "missing", "never"):
+        return value
+    errors.append(f"compose 'pull_policy: {value}' is not supported; "
+                  "docker run accepts always, missing or never")
+    return None
+
+
 _CHECK = {
     "environment": _check_environment, "volumes": _check_volumes,
     "ports": _check_ports, "gpus": _check_gpus,
-    "entrypoint": _check_entrypoint,
+    "entrypoint": _check_entrypoint, "pull_policy": _check_pull_policy,
 }
 
 

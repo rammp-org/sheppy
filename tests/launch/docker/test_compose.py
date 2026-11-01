@@ -145,3 +145,25 @@ def test_label_file_and_cgroup_translate():
     assert errs == []
     assert flags[flags.index("--label-file") + 1] == "./labels"
     assert flags[flags.index("--cgroupns") + 1] == "host"
+
+
+def test_unsupported_pull_policy_is_an_error_and_not_passed_on():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "pull_policy": "build"})
+    assert any("'pull_policy: build'" in e and "always, missing or never" in e
+               for e in errs)
+    assert "--pull" not in flags
+
+
+def test_pull_policy_if_not_present_maps_to_missing():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "pull_policy": "if_not_present"})
+    assert errs == []
+    assert flags[flags.index("--pull") + 1] == "missing"
+
+
+def test_supported_pull_policy_passes_through():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "pull_policy": "never"})
+    assert errs == []
+    assert flags[flags.index("--pull") + 1] == "never"
