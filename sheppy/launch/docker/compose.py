@@ -186,6 +186,18 @@ def _check_gpus(value, errors):
     return None
 
 
+def _check_pull_policy(value, errors):
+    """docker run --pull takes only always, missing and never; compose's
+    if_not_present is its synonym for missing."""
+    if value == "if_not_present":
+        return "missing"
+    if value in ("always", "missing", "never"):
+        return value
+    errors.append(f"compose pull_policy {value!r} is not supported; "
+                  f"use 'always', 'missing' or 'never'")
+    return None
+
+
 def _entrypoint(value):
     """--entrypoint takes one binary; compose puts the remaining elements in
     front of the command. [] or "" overrides the image's entrypoint with
@@ -199,6 +211,7 @@ def _entrypoint(value):
 _CHECK = {
     "environment": _check_environment, "volumes": _check_volumes,
     "ports": _check_ports, "gpus": _check_gpus,
+    "pull_policy": _check_pull_policy,
 }
 
 

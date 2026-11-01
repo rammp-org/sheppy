@@ -57,6 +57,31 @@ def test_long_form_gpus_is_a_hard_error():
     assert any("gpus" in e for e in errs)
 
 
+def test_pull_policy_docker_accepts_passes_through():
+    for policy in ("always", "missing", "never"):
+        flags, _, _, errs, _ = service_to_docker_args(
+            {"image": "i", "pull_policy": policy})
+        assert errs == []
+        assert flags[flags.index("--pull") + 1] == policy
+
+
+def test_pull_policy_if_not_present_is_missing():
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "pull_policy": "if_not_present"})
+    assert errs == []
+    assert flags[flags.index("--pull") + 1] == "missing"
+
+
+def test_unsupported_pull_policy_is_a_hard_error():
+    for policy in ("build", "daily", "weekly", "every_12h"):
+        flags, _, _, errs, _ = service_to_docker_args(
+            {"image": "i", "pull_policy": policy})
+        assert "--pull" not in flags
+        assert len(errs) == 1
+        assert repr(policy) in errs[0]
+        assert all(p in errs[0] for p in ("always", "missing", "never"))
+
+
 def test_short_form_ports_and_gpus_still_work():
     flags, _, _, errs, _ = service_to_docker_args(
         {"image": "i", "ports": ["8080:80"], "gpus": "all"})
