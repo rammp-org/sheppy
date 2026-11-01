@@ -121,8 +121,8 @@ def test_diff_restarts_when_a_param_change_changes_the_descriptor():
 
 
 def test_diff_ignores_params_when_the_descriptor_is_identical():
-    # #71: params are baked into the descriptor; a type-only difference in
-    # the params dict (1 vs 1.0) with the same command must not restart
+    # #71: params are baked into the descriptor, so a params dict that
+    # differs while the command is the same must not restart the node
     spec = make_spec("a")
     desired = {"a": LaunchSpec(node="a", alt_id="a",
                                descriptor=spec.descriptor, params={"x": 1})}
