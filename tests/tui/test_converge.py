@@ -44,7 +44,7 @@ def _relaunched_differently():
      "running mock_camera, selected realsense"),
     ("realsense", payload("camera", "running", alt="realsense",
                           params={"enable_depth": False}),
-     "params differ: enable_depth"),
+     "params differ: enable_depth: false → true"),
     ("realsense", _relaunched_differently(),
      "launch command changed since start"),
     ("realsense", payload("camera", "running", alt="bag_v9"),

@@ -60,3 +60,24 @@ async def test_profile_name_with_bad_pattern_does_not_raise():
         await pilot.pause()
         bar = str(app.query_one("#profilebar").content)
         assert BAD in bar
+
+
+async def test_params_with_markup_render_literally():
+    from textual.content import Content
+    from sheppy.tui.widgets.detail_tabs import DetailTabs
+    alt = Alternative(id="a", kind="process", command="true",
+                      params={f"k{BAD}": f"v{BAD}"})
+    app = SheppyApp(_result())
+    async with app.run_test() as pilot:
+        await pilot.pause()        # let the app's own first show() land
+        dt = app.query_one(DetailTabs)
+        dt.show(Node(name="n", alternatives=[alt]), alt,
+                params={f"k{BAD}": f"w{BAD}"})
+        dt.show_process({"state": "running", "pid": 1, "started_at": None,
+                         "exit_code": None, "spec": {
+                             "alt_id": f"a{BAD}",
+                             "params": {f"k{BAD}": f"v{BAD}"}}},
+                        [], True, drift=f"params differ: k{BAD}")
+        for sel in ("#detail", "#detail-process"):
+            text = Content.from_markup(str(app.query_one(sel).content)).plain
+            assert f'k{BAD}: ' in text

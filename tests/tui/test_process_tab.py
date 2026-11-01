@@ -1,4 +1,5 @@
 import asyncio
+from textual.content import Content
 
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
@@ -193,3 +194,34 @@ async def test_orphan_rebuild_cancelled_part_way_is_redone():
         await pilot.pause()
         assert len(app.query(".orphan-divider")) == 1
         assert len(app.query(".orphan-row .col-status")) == 1
+
+
+def _plain(widget) -> str:
+    """The text a Static shows, without its markup tags."""
+    return Content.from_markup(str(widget.content)).plain
+
+
+async def test_detail_tab_shows_an_edited_param_with_its_manifest_value():
+    app = make_app(FakeDaemonClient())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter")           # select realsense
+        app._on_params("camera", {"enable_depth": False})   # what `p` does
+        await pilot.pause()
+        text = _plain(app.query_one("#detail"))
+        assert "enable_depth: false (manifest true)" in text
+
+
+async def test_process_tab_lists_running_params_and_per_key_drift():
+    fake = FakeDaemonClient({"camera": payload(
+        "camera", "running", alt="realsense", params={"enable_depth": False})})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.override("camera", "enable_depth", True)  # back to manifest
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        text = _plain(app.query_one("#detail-process"))
+        assert "alternative realsense" in text
+        assert "enable_depth: false" in text
+        assert "params differ: enable_depth: false → true" in text

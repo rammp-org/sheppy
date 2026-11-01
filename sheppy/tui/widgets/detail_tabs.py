@@ -8,6 +8,7 @@ from textual.markup import escape
 from textual.widgets import Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
+from sheppy.paramdiff import fmt
 from sheppy.tui.widgets import status as st
 from sheppy.tui.widgets.theme import c
 
@@ -58,7 +59,10 @@ class DetailTabs(Vertical):
         self.query_one("#detailtabs", TabbedContent).active = tab_id
 
     def show(self, node: Node, alt: "Alternative | None",
-             summary_rows: "list | None" = None) -> None:
+             summary_rows: "list | None" = None,
+             params: "dict | None" = None) -> None:
+        """params: the alternative's effective values (manifest + profile
+        overrides); None shows the manifest's."""
         try:
             detail = self.query_one("#detail", Static)
             topics = self.query_one("#detail-topics", Static)
@@ -73,7 +77,7 @@ class DetailTabs(Vertical):
             topics.update("")
             yaml_s.update("")
             return
-        detail.update(self._detail_markup(node, alt, summary_rows))
+        detail.update(self._detail_markup(node, alt, summary_rows, params))
         topics.update(self._topics(alt))
         yaml_s.update(self._yaml(alt))
 
@@ -97,6 +101,8 @@ class DetailTabs(Vertical):
         out = [row("state", c(st.color_key(status),
                               f"{st.glyph(status)} {payload['state']}")),
                *drift_rows]
+        out.append(row("alternative", c("fg", payload["spec"]["alt_id"])))
+        out.extend(_param_rows(row, payload["spec"].get("params") or {}))
         out.append(row("pid", c("fg", payload["pid"] or "—")))
         if payload["state"] == "running" and payload["started_at"]:
             up = int(time.time() - payload["started_at"])
@@ -114,7 +120,8 @@ class DetailTabs(Vertical):
         target.update("\n".join(out))
 
     def _detail_markup(self, node: Node, alt: Alternative,
-                        summary_rows: "list | None" = None) -> str:
+                        summary_rows: "list | None" = None,
+                        params: "dict | None" = None) -> str:
         """Styled field grid for the DETAIL tab (muted keys, colored values).
         format_detail() remains the plain-text form (YAML-adjacent, tested)."""
         def row(key: str, value: str) -> str:
@@ -128,11 +135,8 @@ class DetailTabs(Vertical):
         for label, value in (summary_rows or []):
             lines.append(row(label, c("fg", str(value))))
         lines.append(row("machine", c("fg", alt.machine or "—")))
-        if alt.params:
-            pairs = ", ".join(f"{k}: {v}" for k, v in alt.params.items())
-            lines.append(row("params", c("orange", "{ " + pairs + " }")))
-        else:
-            lines.append(row("params", c("muted", "—")))
+        lines.extend(_param_rows(row, alt.params if params is None
+                                 else params, alt.params))
         return "\n".join(lines)
 
     def _topics(self, alt: Alternative) -> str:
@@ -160,3 +164,18 @@ class DetailTabs(Vertical):
         if alt.raw:
             data["config"] = alt.raw
         return yaml.safe_dump(data, sort_keys=False).rstrip()
+
+
+def _param_rows(row, params: dict, manifest: "dict | None" = None) -> list:
+    """One row per param; a value that differs from the manifest's is
+    yellow and names the manifest value."""
+    if not params:
+        return [row("params", c("muted", "—"))]
+    out = []
+    for i, (k, v) in enumerate(params.items()):
+        text = c("orange", f"{k}: {fmt(v)}")
+        if manifest is not None and k in manifest and manifest[k] != v:
+            text = (c("yellow", f"{k}: {fmt(v)}") + " "
+                    + c("muted", f"(manifest {fmt(manifest[k])})"))
+        out.append(row("params" if i == 0 else "", text))
+    return out

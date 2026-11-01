@@ -1,4 +1,5 @@
 from textual.app import ComposeResult
+from textual.content import Content
 from tests.tui.widgets._themed import ThemedApp
 from sheppy.manifest import Node, Alternative
 from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail
@@ -39,3 +40,33 @@ async def test_show_none_is_defensive():
         dt = app.query_one(DetailTabs)
         dt.show(_node(), None)  # must not raise
         assert str(app.query_one("#detail").content) == ""
+
+
+def _plain(widget) -> str:
+    """The text a Static shows, without its markup tags."""
+    return Content.from_markup(str(widget.content)).plain
+
+
+async def test_detail_shows_effective_params_and_the_manifest_default():
+    app = _Harness()
+    async with app.run_test():
+        dt = app.query_one(DetailTabs)
+        alt = Alternative(id="sim", kind="process", command="true",
+                          params={"rate": 10, "frame": "base"})
+        dt.show(Node(name="camera", alternatives=[alt]), alt,
+                params={"rate": 30, "frame": "base"})
+        text = _plain(app.query_one("#detail"))
+        assert "rate: 30 (manifest 10)" in text
+        assert 'frame: "base"' in text and "manifest \"base\"" not in text
+
+
+async def test_process_tab_shows_the_running_alternative_and_params():
+    app = _Harness()
+    async with app.run_test():
+        dt = app.query_one(DetailTabs)
+        dt.show_process({"state": "running", "pid": 7, "started_at": None,
+                         "exit_code": None,
+                         "spec": {"alt_id": "sim", "params": {"rate": 30}}},
+                        [], True)
+        text = _plain(app.query_one("#detail-process"))
+        assert "alternative sim" in text and "rate: 30" in text

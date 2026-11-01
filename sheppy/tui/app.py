@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from sheppy.launch import diff, resolve
 from sheppy.manifest import LoadResult, Node
+from sheppy.paramdiff import changes
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
 from sheppy.tui.profile_modals import (
@@ -246,7 +247,13 @@ class SheppyApp(App):
         alt = self.state.selected_alt(node.name) if self.state else None
         if not alive:
             return f"{alt.id} selected, not running" if alt else None
-        running = payload["spec"]["alt_id"]
+        return self._spec_drift(node, payload["spec"])
+
+    def _spec_drift(self, node, recorded: dict) -> "str | None":
+        """How a launch spec the daemon recorded differs from the node's
+        selection, or None when they agree."""
+        alt = self.state.selected_alt(node.name) if self.state else None
+        running = recorded["alt_id"]
         if not any(a.id == running for a in node.alternatives):
             return f"running {running}, not in this manifest"
         if alt is None:
@@ -259,12 +266,10 @@ class SheppyApp(App):
                               os.path.abspath(self.path or "system.yaml")))
         if spec is None:
             return None
-        params = payload["spec"].get("params") or {}
-        changed = sorted(k for k in params.keys() | spec.params.keys()
-                         if params.get(k) != spec.params.get(k))
+        changed = changes(recorded.get("params") or {}, spec.params)
         if changed:
-            return f"params differ: {', '.join(changed)}"
-        if payload["spec"].get("descriptor") != spec.descriptor.to_wire():
+            return f"params differ: {'; '.join(changed)}"
+        if recorded.get("descriptor") != spec.descriptor.to_wire():
             return "launch command changed since start"
         return None
 
@@ -339,8 +344,18 @@ class SheppyApp(App):
             return
         node = self._current_node()
         if node:
-            self._node_worker(node.name, partial(
-                self._request_safely, "restart", node=node.name))
+            self._node_worker(node.name, partial(self._restart_node, node))
+
+    async def _restart_node(self, node: Node) -> None:
+        # The daemon reruns the spec recorded at launch (#34), so say when
+        # that is not what is selected now.
+        payload = self.actual.get(node.name)
+        drift = self._spec_drift(node, payload["spec"]) if payload else None
+        reply = await self._request_safely("restart", node=node.name)
+        if reply and reply.get("ok") and drift:
+            self._append_warnings(
+                [f"'{node.name}': restarted with its running params; "
+                 f"selection differs ({drift}) — space applies it"])
 
     async def action_converge_all(self) -> None:
         if not self.state or not self.manifest:
@@ -520,7 +535,16 @@ class SheppyApp(App):
         row = self.query_one(AlternativesPanel).highlighted_row()
         alt = row.alt if row and row.node is node else None
         rows = self._summary_rows(alt) if alt else None
-        self.query_one(DetailTabs).show(node, alt, summary_rows=rows)
+        self.query_one(DetailTabs).show(node, alt, summary_rows=rows,
+                                        params=self._detail_params(node, alt))
+
+    def _detail_params(self, node: Node, alt) -> "dict | None":
+        """Profile overrides apply to the selected alternative only; any
+        other alternative shows its manifest params."""
+        if alt is None or not self.state \
+                or self.state.selected(node.name) != alt.id:
+            return None
+        return self.state.effective_params(node.name)
 
     def _summary_rows(self, alt) -> list:
         from sheppy.launch.registry import default_registry, UnknownKind
@@ -591,7 +615,8 @@ class SheppyApp(App):
         if event.node is not self._current_node():
             return
         self.query_one(DetailTabs).show(
-            event.node, event.alt, summary_rows=self._summary_rows(event.alt))
+            event.node, event.alt, summary_rows=self._summary_rows(event.alt),
+            params=self._detail_params(event.node, event.alt))
 
     async def on_alternatives_panel_alternative_selected(
             self, event: AlternativesPanel.AlternativeSelected) -> None:
@@ -739,6 +764,9 @@ class SheppyApp(App):
             self.state.override(node_name, param, value)
         self._refresh_header()
         self._refresh_runtime()   # params changed -> drift may too
+        node = self._current_node()
+        if node and node.name == node_name:
+            self._show_detail(node)
 
     # ---- errors / rebuild ------------------------------------------------
     def _append_warnings(self, warnings: list) -> None:

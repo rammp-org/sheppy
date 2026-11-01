@@ -3,6 +3,7 @@ logs/restart/daemon) are headless and never import textual."""
 import argparse
 import asyncio
 import os
+import shlex
 import sys
 import time
 
@@ -97,7 +98,10 @@ def _build_parser() -> argparse.ArgumentParser:
     up.add_argument("profile")
     up.add_argument("--manifest", default=DEFAULT_MANIFEST)
     sub.add_parser("down", help="stop everything, then stop sheppyd")
-    sub.add_parser("status", help="one line per supervised node")
+    stp = sub.add_parser("status", help="one line per supervised node, or "
+                                        "one node's alternative, params "
+                                        "and start command")
+    stp.add_argument("node", nargs="?")
     lg = sub.add_parser("logs", help="tail a node's output")
     lg.add_argument("node")
     lg.add_argument("-n", type=_positive_int, default=50)
@@ -142,7 +146,14 @@ async def _dispatch(args) -> int:
             print("sheppyd stopped")
             return 0
         if args.cmd == "status":
-            _print_status((await client.request("status"))["nodes"])
+            nodes = (await client.request("status"))["nodes"]
+            if args.node is None:
+                _print_status(nodes)
+                return 0
+            if args.node not in nodes:
+                _error(f"{args.node}: not supervised")
+                return 1
+            _print_node(args.node, nodes[args.node])
             return 0
         if args.cmd == "logs":
             reply = await client.request("logs", node=args.node, n=args.n)
@@ -158,6 +169,10 @@ async def _dispatch(args) -> int:
                 _error(reply["error"])
                 return 1
             print(f"{_style('restarted', 'yellow')} {args.node}")
+            # restart reruns the spec recorded at launch (#34); say which
+            p = (await client.request("status"))["nodes"].get(args.node)
+            if p:
+                _print_spec(p["spec"])
             return 0
         # daemon status|stop
         if args.action == "status":
@@ -177,17 +192,56 @@ def _print_status(nodes: dict) -> None:
         print("(nothing supervised)")
         return
     for node, p in sorted(nodes.items()):
-        extra = ""
-        if p["state"] == "crashed" and p["exit_code"] is not None:
-            extra = " " + _style(f"exit={p['exit_code']}", "red")
-        elif p["started_at"] and p["state"] == "running":
-            extra = " " + _style(
-                f"up {int(time.time() - p['started_at'])}s", "dim")
-        # pad before styling so the escape codes don't skew the columns
-        name = _style(f"{node:<20}", "bold")
-        state = _style(f"{p['state']:<10}", _STATE_STYLE.get(p["state"]))
-        pid = _style(f"pid={p['pid']}", "dim")
-        print(f"{name} {state} {p['spec']['alt_id']:<14} {pid}{extra}")
+        _print_status_line(node, p)
+
+
+def _print_status_line(node: str, p: dict) -> None:
+    extra = ""
+    if p["state"] == "crashed" and p["exit_code"] is not None:
+        extra = " " + _style(f"exit={p['exit_code']}", "red")
+    elif p["started_at"] and p["state"] == "running":
+        extra = " " + _style(
+            f"up {int(time.time() - p['started_at'])}s", "dim")
+    # pad before styling so the escape codes don't skew the columns
+    name = _style(f"{node:<20}", "bold")
+    state = _style(f"{p['state']:<10}", _STATE_STYLE.get(p["state"]))
+    pid = _style(f"pid={p['pid']}", "dim")
+    print(f"{name} {state} {p['spec']['alt_id']:<14} {pid}{extra}")
+
+
+def _print_node(node: str, p: dict) -> None:
+    """`sheppy status <node>`: its status line, then the alternative,
+    params and start command it was launched with."""
+    _print_status_line(node, p)
+    _print_spec(p["spec"])
+    start = (p["spec"].get("descriptor") or {}).get("start") or []
+    _print_field("start", shlex.join(start))
+
+
+def _print_spec(spec: dict) -> None:
+    from sheppy.paramdiff import fmt
+    _print_field("alternative", spec["alt_id"])
+    params = spec.get("params") or {}
+    rows = [f"{k}: {fmt(v)}" for k, v in params.items()] or ["—"]
+    for i, text in enumerate(rows):
+        _print_field("params" if i == 0 else "", text)
+
+
+def _print_field(label: str, value: str) -> None:
+    print(f"  {_style(f'{label:<12}', 'dim')} {value}")
+
+
+def _restart_reason(payload: dict, spec) -> str:
+    """Why `up` restarts a running node: its alternative, its params
+    (running → desired), or else its launch command changed."""
+    from sheppy.paramdiff import changes
+    running = payload["spec"]
+    if running["alt_id"] != spec.alt_id:
+        return f"alternative {running['alt_id']} → {spec.alt_id}"
+    changed = changes(running.get("params") or {}, spec.params)
+    if changed:
+        return f"params {'; '.join(changed)}"
+    return "launch command changed"
 
 
 async def _up(args) -> int:
@@ -263,7 +317,9 @@ async def _up(args) -> int:
             print(_style("already converged", "green"))
             return 1 if unresolved else 0
         for verb, node in actions:
-            print(f"{_style(verb, _ACTION_STYLE.get(verb))} {node}")
+            why = (f" ({_restart_reason(actual[node], desired[node])})"
+                   if verb == "restart" else "")
+            print(f"{_style(verb, _ACTION_STYLE.get(verb))} {node}{why}")
         # start and restart both go through launch: the daemon replaces a
         # live process of the same node with the NEW spec. All actions run
         # at once (#48); diff() never yields two for the same node.
