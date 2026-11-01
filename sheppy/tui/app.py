@@ -659,9 +659,7 @@ class SheppyApp(App):
             return
         payload = self.actual.get(name)
         node = None if self._current_orphan else self.manifest.node(name)
-        # Like DETAIL, PROCESS describes the highlighted alternative (#191):
-        # a run of another one is only named, and drift only shows on the
-        # alternative that ran or the selected one.
+        # PROCESS describes the highlighted alternative, as DETAIL does (#191)
         row = self.query_one(AlternativesPanel).highlighted_row()
         alt = row.alt if node and row and row.node is node else None
         ran = payload["spec"]["alt_id"] if payload else None
@@ -670,15 +668,14 @@ class SheppyApp(App):
             alt = None              # a run this manifest lacks: node view
         drift = self._drift(node, payload) if node and (
             alt is None or alt.id in (ran, self.state.selected(name))) else None
-        if alt and payload and alt.id != ran:
-            tabs.show_process(None, [], True, drift=drift, other=payload)
-            return
+        # not the run's alternative or, with no run, not the selected one
+        other = alt is not None and alt.id != (ran or self.state.selected(name))
         lines: list = []
-        if payload is not None:
+        if payload is not None and not other:
             reply = await self._request_safely("logs", node=name, n=15)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
-        tabs.show_process(payload, lines, True, drift=drift)
+        tabs.show_process(payload, lines, True, drift=drift, other=other)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:

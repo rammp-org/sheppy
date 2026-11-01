@@ -83,9 +83,7 @@ class DetailTabs(Vertical):
 
     def show_process(self, payload: "dict | None", lines: list,
                      connected: bool, drift: "str | None" = None,
-                     other: "dict | None" = None) -> None:
-        """payload: the highlighted alternative's run; other: the node's
-        run of another alternative, which is only named."""
+                     other: bool = False) -> None:
         try:
             target = self.query_one("#detail-process", Static)
         except NoMatches:
@@ -96,19 +94,19 @@ class DetailTabs(Vertical):
         def row(key, value):
             return f"{c('muted', f'{key:<12}')}{value}"
         drift_rows = [row("drift", c("yellow", f"Δ {drift}"))] if drift else []
-        if payload is None and other is None:
-            target.update("\n".join(
-                [c("muted", "not supervised — space to launch"), *drift_rows]))
+        if other:       # the highlighted alternative isn't running (#191)
+            out = [row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
+                                           "not running")), *drift_rows]
+            if payload is not None:     # name the run of another one
+                exit_ = (f" (exit {payload['exit_code']})"
+                         if payload["exit_code"] is not None else "")
+                out += ["", c("muted", f"{payload['spec']['alt_id']} "
+                                       f"{payload['state']}{exit_}")]
+            target.update("\n".join(out))
             return
         if payload is None:
-            exit_ = (f" (exit {other['exit_code']})"
-                     if other["exit_code"] is not None else "")
-            target.update("\n".join([
-                row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
-                                        "not running")),
-                *drift_rows, "",
-                c("muted", f"{other['spec']['alt_id']} {other['state']}{exit_}"
-                           " — highlight it for its params and output")]))
+            target.update("\n".join(
+                [c("muted", "not supervised — space to launch"), *drift_rows]))
             return
         status = st.runtime(payload["state"])
         out = [row("state", c(st.color_key(status),

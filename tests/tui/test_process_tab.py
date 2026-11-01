@@ -256,7 +256,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
         assert "not running" in text
-        assert "realsense crashed (exit 7)" in text
+        assert text.endswith("realsense crashed (exit 7)")
         assert "enable_depth" not in text and "device lost" not in text
         assert sum(op == "logs" for op, _ in fake.requests) == logs
         await pilot.press("up")                       # back to realsense
@@ -317,3 +317,18 @@ async def test_alternative_highlight_off_the_process_tab_asks_for_no_logs():
         await pilot.press("enter", "down", "up")      # DETAIL stays open
         await pilot.pause(0.1)
         assert not any(op == "logs" for op, _ in fake.requests)
+
+
+
+async def test_space_to_launch_shows_on_the_selected_alternative_only():
+    # space launches the selected alternative, not the highlighted one
+    app = make_app(FakeDaemonClient())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("3", "enter", "enter")      # select realsense
+        await pilot.pause(0.1)
+        assert "space to launch" in plain(app.query_one("#detail-process"))
+        await pilot.press("down")                     # mock_camera
+        await pilot.pause(0.1)
+        text = plain(app.query_one("#detail-process"))
+        assert "not running" in text and "space to launch" not in text
