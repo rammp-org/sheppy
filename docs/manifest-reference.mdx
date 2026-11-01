@@ -160,7 +160,8 @@ The same table applies to an inline `container` and to a service read from a
 | `mem_limit`, `mem_reservation`, `memswap_limit`, `mem_swappiness`, `oom_kill_disable`, `oom_score_adj` | `--memory`, `--memory-reservation`, `--memory-swap`, `--memory-swappiness`, `--oom-kill-disable`, `--oom-score-adj` |
 | `labels`, `label_file`, `annotations` | `--label`, `--label-file`, `--annotation` |
 | `working_dir`, `init`, `tty`, `stdin_open`, `stop_signal` | `-w`, `--init`, `--tty`, `--interactive`, `--stop-signal` |
-| `runtime`, `platform`, `isolation`, `cgroup_parent`, `storage_opt`, `pull_policy` | `--runtime`, `--platform`, `--isolation`, `--cgroup-parent`, `--storage-opt`, `--pull` |
+| `runtime`, `platform`, `isolation`, `cgroup_parent`, `storage_opt` | `--runtime`, `--platform`, `--isolation`, `--cgroup-parent`, `--storage-opt` |
+| `pull_policy` | `--pull`; see [Image pulls](#image-pulls) for what happens when it is unset. |
 
 `ulimits` accepts both compose forms — `rtprio: 99` becomes `--ulimit rtprio=99`,
 and `nofile: {soft: 1024, hard: 4096}` becomes `--ulimit nofile=1024:4096`.
@@ -197,6 +198,26 @@ resolves them: against the manifest's directory for an inline `container`,
 and against the compose file's directory for a `compose` service. Named
 volumes and absolute paths are passed through unchanged. The `compose` `file`
 path itself is resolved relative to the manifest.
+
+#### Image pulls
+
+By default (no `pull_policy`), every launch of a docker node runs
+`docker pull <image>` before `docker run`, so a moving tag such as `:latest`
+picks up a newly pushed build; only changed layers are downloaded. `sheppy up`
+leaves a running node with an unchanged command alone, so use
+`sheppy restart <node>` to pick up a new build. The pull's
+output is in the node's log, and the node shows as launching while it runs.
+If the pull fails (no network, registry down) and the image is already on the
+machine, the node starts from the cached image and the log says so. If the
+image is not on the machine, the launch fails with docker's error in the log.
+
+`pull_policy` overrides this:
+
+| `pull_policy` | Behaviour |
+|---|---|
+| `always` | Pull on every launch; the launch fails if the pull fails. |
+| `missing` | Pull only if the image is not on the machine. |
+| `never` | Never pull; the launch fails if the image is not on the machine. |
 
 #### Variable interpolation in compose files
 
@@ -237,6 +258,10 @@ in an inline `container` are not interpolated at all.
   column and detail panel — but `sheppyd` itself always runs locally, and
   the `docker` launcher doesn't read `alt.machine`, so container
   alternatives get no `ros_setup` sourcing at all.
+- **A locally built image logs a failed pull on every launch.** An image
+  from `docker build -t my_ws:dev` is not in any registry, so the default
+  pull fails and the node starts from the local copy. Set
+  `pull_policy: never` on it to skip the pull; see [Image pulls](#image-pulls).
 - **Nodes get `sheppyd`'s environment, not your current shell's.** `sheppyd`
   took it from the terminal that first launched something. See
   [ROS integration](../ros-integration#where-your-nodes-get-their-environment).

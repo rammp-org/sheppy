@@ -1,3 +1,6 @@
+import os
+import subprocess
+
 import pytest
 
 from sheppy.launch.docker import DockerLauncher
@@ -19,7 +22,9 @@ def test_inline_container_descriptor(tmp_path):
                        "command": "ros2 launch perc up.py"})
     d = DockerLauncher().launch(a, {}, ctx(tmp_path))
     assert d.supervise == "detached" and d.name == "sheppy-perception"
-    assert d.start[:5] == ("docker", "run", "-d", "--name", "sheppy-perception")
+    run = d.start[d.start.index("docker"):]
+    assert run[:7] == ("docker", "run", "--pull", "never", "-d", "--name",
+                       "sheppy-perception")
     assert d.start[-5:] == ("org/perc:1", "ros2", "launch", "perc", "up.py")
     assert d.watch == ("docker", "wait", "sheppy-perception")
     assert d.stop[:3] == ("docker", "stop", "--time")
@@ -96,3 +101,56 @@ def test_inline_container_paths_resolve_against_manifest_dir(tmp_path):
     d = DockerLauncher().launch(a, {}, c)
     assert "/proj/maps:/maps:ro" in d.start
     assert "/proj/ros.env" in d.start
+
+
+_FAKE_DOCKER = """#!/bin/sh
+echo "$*" >> "$CALLS"
+case "$1" in
+  pull) [ -n "$PULL_OK" ] && echo "Status: Image is up to date" && exit 0
+        echo "Error response from daemon: registry unreachable" >&2; exit 1;;
+  image) [ -n "$CACHED" ];;
+esac
+"""
+
+
+def run_start(tmp_path, container, pull_ok=True, cached=True):
+    """Run the descriptor's start argv against a fake docker; the result
+    and the docker subcommands it ran."""
+    fake = tmp_path / "docker"
+    fake.write_text(_FAKE_DOCKER)
+    fake.chmod(0o755)
+    calls = tmp_path / "calls"
+    d = DockerLauncher().launch(alt(container=container), {}, ctx(tmp_path))
+    p = subprocess.run(d.start, capture_output=True, text=True, env={
+        "PATH": f"{tmp_path}:{os.environ['PATH']}", "CALLS": str(calls),
+        "PULL_OK": "1" if pull_ok else "", "CACHED": "1" if cached else ""})
+    return p, calls.read_text().splitlines()
+
+
+@pytest.mark.parametrize("pull_ok,cached,rc,logged,ran", [
+    (True, True, 0, "Image is up to date", True),
+    (False, True, 0, "could not pull org/perc:1; using the cached image", True),
+    (False, False, 1, "registry unreachable", False),
+])
+def test_default_pulls_before_run(tmp_path, pull_ok, cached, rc, logged, ran):
+    # No pull_policy: pull output and errors reach stderr (the node's log);
+    # offline, a cached image still launches; `docker run` never re-pulls
+    p, calls = run_start(tmp_path, {"image": "org/perc:1"}, pull_ok, cached)
+    assert p.returncode == rc and logged in p.stderr
+    assert [c for c in calls if c.startswith("run")] == (
+        ["run --pull never -d --name sheppy-perception org/perc:1"]
+        if ran else [])
+
+
+def test_default_pull_uses_the_service_platform(tmp_path):
+    _, calls = run_start(tmp_path, {"image": "org/perc:1",
+                                    "platform": "linux/arm64"})
+    assert calls[0] == "pull --platform linux/arm64 org/perc:1"
+
+
+@pytest.mark.parametrize("policy", ["never", "missing", "always"])
+def test_pull_policy_is_left_to_docker_run(tmp_path, policy):
+    a = alt(container={"image": "org/perc:1", "pull_policy": policy})
+    d = DockerLauncher().launch(a, {}, ctx(tmp_path))
+    assert d.start == ("docker", "run", "-d", "--name", "sheppy-perception",
+                       "--pull", policy, "org/perc:1")
