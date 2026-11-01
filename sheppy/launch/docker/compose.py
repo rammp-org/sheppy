@@ -68,8 +68,9 @@ _BESPOKE = frozenset({"image", "command", "entrypoint", "deploy"})
 
 _KNOWN = frozenset(_ALIAS) | _MECHANICAL | frozenset(_NOT_APPLICABLE) | _BESPOKE
 
-# The subset of compose interpolation sheppy expands: ${VAR}, ${VAR:-default}.
-_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
+# The subset of compose interpolation sheppy expands: the $$ escape, ${VAR},
+# ${VAR:-default}.
+_VAR = re.compile(r"\$\$|\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 # Anything compose would treat as interpolation: $VAR, ${...}, the $$ escape.
 _DOLLAR = re.compile(r"\$(?:\{[^}]*\}|\$|\w+)?")
 
@@ -82,7 +83,8 @@ def _interpolate(value, env, warnings):
                    f"and ${{VAR:-default}}")
             if not _VAR.fullmatch(m.group(0)) and msg not in warnings:
                 warnings.append(msg)
-        return _VAR.sub(lambda m: env.get(m.group(1), m.group(2) or ""), value)
+        return _VAR.sub(lambda m: "$" if m.group(0) == "$$"
+                        else env.get(m.group(1)) or m.group(2) or "", value)
     if isinstance(value, dict):
         return {k: _interpolate(v, env, warnings) for k, v in value.items()}
     if isinstance(value, list):
