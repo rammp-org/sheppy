@@ -217,8 +217,7 @@ async def test_enter_in_a_param_field_applies_the_edit():
         assert "*" in str(app.query_one("#profilebar").content)
         await pilot.press("escape", "3")
         await pilot.pause(0.1)
-        assert "params differ: enable_depth: true → false" in plain(
-            app.query_one("#detail-process"))
+        assert "Δ params changed" in plain(app.query_one("#detail-process"))
 
 
 async def test_typing_in_a_param_field_triggers_no_action():
@@ -254,7 +253,7 @@ async def test_detail_tab_renders_after_switching_from_an_edited_alt():
         assert "mock_camera" in plain(app.query_one("#detail"))
 
 
-async def test_process_tab_lists_running_params_and_per_key_drift():
+async def test_process_tab_lists_only_the_changed_params_running_values():
     fake = FakeDaemonClient({"camera": payload(
         "camera", "running", alt="realsense", params={"enable_depth": False})})
     app = make_app(fake)
@@ -264,10 +263,10 @@ async def test_process_tab_lists_running_params_and_per_key_drift():
         await pilot.press("3")
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
-        assert "alternative realsense" in text
-        assert "params      enable_depth: false\n" in text
-        assert ("launch command changed since start; params differ: "
-                "enable_depth: false → true") in text
+        assert ("drift       Δ params changed\n"
+                "            enable_depth: false running\n"
+                "alternative realsense") in text
+        assert "pointcloud.enable" not in text
 
 
 async def test_process_tab_follows_the_highlighted_alternative():
@@ -283,7 +282,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
         assert "alternative realsense" in text
-        assert "enable_depth: false" in text and "device lost" in text
+        assert "device lost" in text
         app._proc_timer.pause()        # only the highlight refreshes now
         await pilot.pause()
         logs = sum(op == "logs" for op, _ in fake.requests)
@@ -292,7 +291,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         text = plain(app.query_one("#detail-process"))
         assert "not running" in text
         assert text.endswith("realsense crashed (exit 7)")
-        assert "enable_depth" not in text and "device lost" not in text
+        assert "device lost" not in text
         assert sum(op == "logs" for op, _ in fake.requests) == logs
         await pilot.press("up")                       # back to realsense
         await pilot.pause(0.1)

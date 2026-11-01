@@ -95,7 +95,10 @@ class DetailTabs(Vertical):
 
     def show_process(self, payload: "dict | None", lines: list,
                      connected: bool, drift: "str | None" = None,
-                     other: bool = False) -> None:
+                     other: bool = False,
+                     selected: "dict | None" = None) -> None:
+        """selected: the selection's params, to list under a params drift
+        the ones that differ, with their running values."""
         try:
             target = self.query_one("#detail-process", Static)
         except NoMatches:
@@ -106,6 +109,13 @@ class DetailTabs(Vertical):
         def row(key, value):
             return f"{c('muted', f'{key:<12}')}{value}"
         drift_rows = [row("drift", c("yellow", f"Δ {drift}"))] if drift else []
+        if selected is not None:
+            ran = payload["spec"].get("params") or {}
+            drift_rows += [
+                row("", c("fg", f"{k}: {fmt(ran[k]) if k in ran else '—'}")
+                    + " " + c("muted", "running"))
+                for k in sorted(ran.keys() | selected.keys())
+                if k not in ran or k not in selected or ran[k] != selected[k]]
         if other:       # the highlighted alternative isn't running (#191)
             out = [row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
                                            "not running")), *drift_rows]
@@ -125,7 +135,6 @@ class DetailTabs(Vertical):
                               f"{st.glyph(status)} {payload['state']}")),
                *drift_rows]
         out.append(row("alternative", c("fg", payload["spec"]["alt_id"])))
-        out.extend(_param_rows(row, payload["spec"].get("params") or {}))
         out.append(row("pid", c("fg", payload["pid"] or "—")))
         if payload["state"] == "running" and payload["started_at"]:
             up = int(time.time() - payload["started_at"])
@@ -206,7 +215,7 @@ class ParamRow(Horizontal):
     ParamRow Static { width: auto; }
     /* capped, so a long value scrolls inside the field as you type */
     ParamRow Input { width: auto; min-width: 2; max-width: 50%;
-                     color: $foreground; }
+                     color: $foreground; background: $sel-bg; }
     ParamRow.-edited Input, ParamRow.-edited .param-key { color: $warning; }
     """
     BINDINGS = [("escape", "leave", "Back")]
@@ -284,6 +293,9 @@ class ParamFields(Vertical):
 
     def compose(self):
         yield from self._rows
+        if self._rows:
+            yield Static(c("muted", f"{'':<12}p or click to edit · "
+                                    "Enter applies · Esc reverts"))
 
     def focus_first(self) -> None:
         # call_next runs after a recompose show() queued has mounted the rows

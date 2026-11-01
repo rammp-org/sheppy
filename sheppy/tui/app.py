@@ -10,7 +10,6 @@ from textual.reactive import reactive
 from textual.widgets import Static, TabbedContent
 
 from sheppy.launch import diff, resolve
-from sheppy.launch.resolve import changes
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
@@ -266,9 +265,9 @@ class SheppyApp(App):
         # drift = the selection builds another command (#182)
         if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
-        changed = changes(recorded.get("params") or {}, spec.params)
-        return "launch command changed since start" + (
-            f"; params differ: {'; '.join(changed)}" if changed else "")
+        if (recorded.get("params") or {}) != spec.params:
+            return "params changed"
+        return "launch command changed"
 
     # ---- daemon actions -------------------------------------------------------
     def _node_worker(self, name: str, work) -> None:
@@ -675,7 +674,9 @@ class SheppyApp(App):
             reply = await self._request_safely("logs", node=name, n=15)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
-        tabs.show_process(payload, lines, True, drift=drift, other=other)
+        tabs.show_process(payload, lines, True, drift=drift, other=other,
+                          selected=self.state.effective_params(name)
+                          if drift == "params changed" else None)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:

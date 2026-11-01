@@ -335,8 +335,7 @@ async def test_r_with_drift_says_it_restarted_the_running_params():
         await pilot.pause()
         assert ("restart", {"node": "camera"}) in fake.requests
         assert ("'camera': restarted with its running params; selection "
-                "differs (launch command changed since start; params "
-                "differ: enable_depth: false → true) — space applies it"
+                "differs (params changed) — space applies it"
                 ) in app._runtime_warnings
 
 

@@ -77,7 +77,8 @@ async def test_params_with_markup_render_literally():
                          "exit_code": None, "spec": {
                              "alt_id": f"a{BAD}",
                              "params": {f"k{BAD}": f"v{BAD}"}}},
-                        [], True, drift=f"x{BAD}")
+                        [], True, drift=f"x{BAD}",
+                        selected={f"k{BAD}": "w"})    # a changed param
         await pilot.pause()
         row = app.query_one(ParamRow)            # the selected alternative
         assert str(row.query_one(".param-key").content) == f"k{BAD}: "
