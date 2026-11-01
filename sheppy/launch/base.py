@@ -3,7 +3,7 @@ side effects. Launchers are client-side; they return data, never run in
 the daemon."""
 import hashlib
 import os
-import tempfile
+import threading
 from typing import Protocol
 
 import yaml
@@ -39,20 +39,14 @@ class LaunchContext:
         # so the descriptor changes with them (#182, #64).
         key = ros_node_name or "/**"
         data = yaml.safe_dump({key: {"ros__parameters": dict(params)}}).encode()
-        d = self.scratch_dir()
-        path = os.path.join(
-            d, f"params-{hashlib.sha256(data).hexdigest()[:16]}.yaml")
-        if os.path.exists(path):
-            return path
-        fd, tmp = tempfile.mkstemp(dir=d, prefix=".params-", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "wb") as f:
+        path = os.path.join(self.scratch_dir(),
+                            f"params-{hashlib.sha256(data).hexdigest()[:16]}.yaml")
+        if not os.path.exists(path):
+            tmp = f"{path}.{os.getpid()}.{threading.get_ident()}"
+            with open(tmp, "wb") as f:
                 f.write(data)
-            os.chmod(tmp, 0o644)               # mkstemp's 0600 hides it from
-            os.replace(tmp, path)              # a non-root container user
-        except BaseException:
-            os.unlink(tmp)
-            raise
+            os.chmod(tmp, 0o644)       # readable by a non-root container user
+            os.replace(tmp, path)
         return path
 
 

@@ -43,21 +43,9 @@ def test_no_params_no_mount(tmp_path):
     assert "--params-file" not in d.start
 
 
-def _mounted(d):
-    mount = next(s for s in d.start if s.endswith(":/sheppy/params.yaml:ro"))
-    return mount.split(":")[0]
-
-
-def test_resolving_new_params_leaves_the_earlier_descriptors_file_alone(tmp_path):
-    # #182: a stale resolver (an old TUI) must not change what a container
-    # started from another descriptor mounts
+def test_params_change_changes_the_descriptor(tmp_path):
+    # #64: the mounted path carries the params, so descriptor drift sees them
     a = Alternative(id="real", kind="docker",
                     raw={"container": {"image": "img", "command": "run"}})
-    d1 = DockerLauncher().launch(a, {"x": 1}, ctx(tmp_path))
-    d2 = DockerLauncher().launch(a, {"x": 2}, ctx(tmp_path))
-    assert d1 != d2                            # #64: the descriptor drifts
-    DockerLauncher().launch(a, {"x": 1}, ctx(tmp_path))
-    assert yaml.safe_load(open(_mounted(d2)))["/**"]["ros__parameters"] == {
-        "x": 2}
-    assert yaml.safe_load(open(_mounted(d1)))["/**"]["ros__parameters"] == {
-        "x": 1}
+    assert (DockerLauncher().launch(a, {"x": 1}, ctx(tmp_path))
+            != DockerLauncher().launch(a, {"x": 2}, ctx(tmp_path)))

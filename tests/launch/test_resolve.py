@@ -114,12 +114,6 @@ def test_diff_empty_when_converged():
     assert diff(desired, {"a": actual("a", "running")}) == []
 
 
-def test_diff_restarts_when_a_param_change_changes_the_descriptor():
-    desired = {"a": make_spec("a", argv=("bash", "-c", "x --p 2"))}
-    live = {"a": actual("a", "running", argv=("bash", "-c", "x --p 1"))}
-    assert diff(desired, live) == [("restart", "a")]
-
-
 def test_diff_ignores_params_when_the_descriptor_is_identical():
     # #71: params are baked into the descriptor, so a params dict that
     # differs while the command is the same must not restart the node

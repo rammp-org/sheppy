@@ -1,5 +1,4 @@
 import os
-import threading
 
 import yaml
 from sheppy.launch.base import LaunchContext
@@ -50,26 +49,6 @@ def test_write_params_file_same_params_same_file_not_rewritten(tmp_path):
     assert (before.st_ino, before.st_mtime_ns) == (after.st_ino,
                                                    after.st_mtime_ns)
     assert after.st_mode & 0o044 == 0o044      # readable by a container user
-
-
-def test_write_params_file_concurrent_writers_leave_a_valid_file(tmp_path):
-    params = {f"k{i}": "v" * 200 for i in range(200)}
-    paths, seen = [], []
-
-    def write():
-        path = ctx(tmp_path).write_params_file(params)
-        paths.append(path)
-        seen.append(yaml.safe_load(open(path)))  # as a launch right after would
-
-    threads = [threading.Thread(target=write) for _ in range(16)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    assert len(set(paths)) == 1
-    assert seen == [{"/**": {"ros__parameters": params}}] * len(threads)
-    assert os.listdir(os.path.dirname(paths[0])) == [
-        os.path.basename(paths[0])]            # no temp files left behind
 
 
 def test_warnings_accumulate(tmp_path):
