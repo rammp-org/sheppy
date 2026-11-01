@@ -655,19 +655,19 @@ class SheppyApp(App):
                         group="proctab")
 
     async def _load_process_tab(self) -> None:
-        name = self._current_orphan or (
-            self._current_node().name if self._current_node() else None)
-        tabs = self.query_one(DetailTabs)
+        try:
+            name = self._current_orphan or (
+                self._current_node().name if self._current_node() else None)
+            tabs = self.query_one(DetailTabs)
+            # PROCESS describes the highlighted alternative, as DETAIL does (#191)
+            row = self.query_one(AlternativesPanel).highlighted_row()
+        except NoMatches:       # the app is shutting down
+            return
         if name is None or not self.daemon_connected:
             tabs.show_process(None, [], self.daemon_connected)
             return
         payload = self.actual.get(name)
         node = None if self._current_orphan else self.manifest.node(name)
-        # PROCESS describes the highlighted alternative, as DETAIL does (#191)
-        try:
-            row = self.query_one(AlternativesPanel).highlighted_row()
-        except NoMatches:       # the app is shutting down
-            return
         alt = row.alt if node and row and row.node is node else None
         ran = payload["spec"]["alt_id"] if payload else None
         if alt and payload and not any(a.id == ran

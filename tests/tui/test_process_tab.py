@@ -1,5 +1,7 @@
 import asyncio
 
+import pytest
+
 from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from tests.tui._fake_daemon import FakeDaemonClient, payload
@@ -483,3 +485,17 @@ async def test_process_output_keys_scroll_and_app_keys_still_act():
         await pilot.press("1")                        # hides the output
         await pilot.pause()
         assert app.focused is app.query_one("#nodes")
+
+
+@pytest.mark.parametrize("pane", ["#nodes", "#alternatives"])
+async def test_a_process_refresh_while_panes_leave_returns(pane):
+    # At quit the panes leave the DOM one by one, and a refresh can run in
+    # between: it must return, not fail the worker with NoMatches.
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._proc_timer.pause()
+        await app.query_one(pane).remove()
+        await app._load_process_tab()
