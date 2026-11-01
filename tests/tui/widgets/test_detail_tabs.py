@@ -4,7 +4,8 @@ from sheppy.manifest import Node, Alternative
 from textual.color import Color
 from textual.widgets import Input, Static
 from sheppy.tui.widgets.detail_tabs import (DetailTabs, ParamFields,
-                                            ParamRow, format_detail)
+                                            ParamRow, _param_keys,
+                                            format_detail)
 from sheppy.tui.widgets.status_footer import StatusFooter
 
 
@@ -80,6 +81,13 @@ async def test_selected_params_are_fields_yellow_when_edited():
         assert rate.styles.background == Color.parse(theme["sel-bg"])
         assert rate.query_one(Input).styles.color == Color.parse(
             theme["warning"])                       # still yellow, focused
+
+
+def test_a_long_key_pushes_only_its_own_value():
+    long = "qos_overrides./tf_static.subscription.durability"
+    short, longer = _param_keys({"use_sim_time": True, long: "x"})
+    assert short == "  " + "use_sim_time".ljust(24) + "  "    # capped column
+    assert longer == f"  {long}  "
 
 
 class _FooterHarness(ThemedApp):

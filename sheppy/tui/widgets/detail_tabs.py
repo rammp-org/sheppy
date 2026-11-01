@@ -224,9 +224,10 @@ class DetailTabs(Vertical):
 
 def _param_keys(params: dict) -> list:
     """The keys as their rows start: indented under the params label and
-    padded, so the values line up (#199)."""
-    width = max(map(len, params), default=0) + 2
-    return [f"  {k:<{width}}" for k in params]
+    padded, so the values line up (#199). The pad is capped, so a long key
+    (a ROS 2 QoS override) pushes only its own value off the pane."""
+    width = min(max(map(len, params), default=0), 24)
+    return [f"  {k:<{width}}  " for k in params]
 
 
 def _param_rows(row, params: dict) -> list:
