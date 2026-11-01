@@ -47,7 +47,8 @@ Then it:
   to resolve (a missing compose file, say): it prints the failure and exits
   1 after converging the rest.
 - never launches a selected alternative that has manifest errors (an
-  `executable` alternative missing `executable`, say): it prints the errors
+  `executable` alternative missing `executable`, say), or whose node has
+  them (a node `name` with a space, say): it prints the errors
   as `<node>: not launched, ...`, leaves that node as it is, and exits 1
   after converging the rest.
 
