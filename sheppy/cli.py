@@ -133,7 +133,8 @@ async def _dispatch(args) -> int:
     client = DaemonClient()
     if not await client.connect(spawn=False):
         print(f"sheppyd: {_style('not running', 'dim')}")
-        return 0 if args.cmd in ("down", "status", "daemon") else 1
+        return 0 if args.cmd in ("down", "daemon") or (
+            args.cmd == "status" and args.node is None) else 1
     _warn_stale_daemon(client)
     try:
         if args.cmd == "down":
@@ -173,9 +174,8 @@ async def _dispatch(args) -> int:
                 return 1
             print(f"{_style('restarted', 'yellow')} {args.node}")
             # restart reruns the spec recorded at launch (#34); say which
-            p = (await client.request("status"))["nodes"].get(args.node)
-            if p:
-                _print_spec(p["spec"])
+            nodes = (await client.request("status"))["nodes"]
+            _print_spec(nodes[args.node]["spec"])
             return 0
         # daemon status|stop
         if args.action == "status":
@@ -215,8 +215,7 @@ def _print_status_line(node: str, p: dict) -> None:
 def _print_spec(spec: dict) -> None:
     from sheppy.launch.resolve import fmt
     _print_field("alternative", spec["alt_id"])
-    params = spec.get("params") or {}
-    rows = [f"{k}: {fmt(v)}" for k, v in params.items()] or ["—"]
+    rows = [f"{k}: {fmt(v)}" for k, v in spec["params"].items()] or ["—"]
     for i, text in enumerate(rows):
         _print_field("params" if i == 0 else "", text)
 
@@ -233,7 +232,7 @@ def _restart_reason(payload: dict, spec) -> str:
     running = payload["spec"]
     if running["alt_id"] != spec.alt_id:
         return f"alternative {running['alt_id']} → {spec.alt_id}"
-    changed = changes(running.get("params") or {}, spec.params)
+    changed = changes(running["params"], spec.params)
     return "launch command changed" + (
         f"; params {'; '.join(changed)}" if changed else "")
 

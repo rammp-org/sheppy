@@ -105,7 +105,7 @@ camera               running    realsense      pid=3948253 up 22s
   start        ros2 launch realsense2_camera rs_launch.py --ros-args ...
 ```
 
-Exits 1 if `sheppyd` doesn't supervise that node.
+Exits 1 if `sheppyd` doesn't supervise that node or isn't running.
 
 ### `sheppy logs <node> [-n N]`
 
@@ -176,7 +176,7 @@ sheppy up mock
 | Success | 0 |
 | TUI: manifest missing, unreadable, or not valid YAML | 1 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
-| Daemon not running — `logs`, `restart` | 1 |
+| Daemon not running — `logs`, `restart`, `status <node>` | 1 |
 | Unknown node (`logs`, `restart`, `status <node>`) | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 | `sheppyd` died mid-command (`sheppy: sheppyd: sheppyd connection lost`) | 1 |

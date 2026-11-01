@@ -15,6 +15,12 @@ class ProfileState:
     # --- selection passthroughs ---
     def select(self, node_name: str, alternative_id: str) -> None:
         self._selection.select(node_name, alternative_id)
+        # keep only overrides the new alternative declares, as reconcile() does
+        declared = self.selected_alt(node_name).params
+        kept = {k: v for k, v in self._overrides.pop(node_name, {}).items()
+                if k in declared}
+        if kept:
+            self._overrides[node_name] = kept
         self.is_dirty = True
 
     def clear(self, node_name: str) -> None:

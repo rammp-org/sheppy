@@ -207,6 +207,18 @@ async def test_detail_tab_shows_an_edited_param_with_its_manifest_value():
         assert "enable_depth: false (manifest true)" in text
 
 
+async def test_detail_tab_renders_after_switching_from_an_edited_alt():
+    app = make_app(FakeDaemonClient())
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "enter")           # select realsense
+        app._on_params("camera", {"enable_depth": False})
+        await pilot.press("down", "enter")            # select mock_camera
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock_camera"
+        assert "mock_camera" in plain(app.query_one("#detail"))
+
+
 async def test_process_tab_lists_running_params_and_per_key_drift():
     fake = FakeDaemonClient({"camera": payload(
         "camera", "running", alt="realsense", params={"enable_depth": False})})

@@ -52,4 +52,3 @@ async def test_detail_shows_effective_params_and_the_manifest_default():
         text = plain(app.query_one("#detail"))
         assert "rate: 30 (manifest 10)" in text
         assert 'frame: "base"' in text and "manifest \"base\"" not in text
-

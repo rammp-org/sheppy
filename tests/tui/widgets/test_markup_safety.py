@@ -6,6 +6,8 @@ an unmatched closing-tag pattern like '[/x]' must render as literal text,
 not raise textual.markup.MarkupError."""
 from sheppy.manifest import Machine, Manifest, Node, Alternative, LoadResult, ValidationError
 from sheppy.tui.app import SheppyApp
+from sheppy.tui.widgets.detail_tabs import DetailTabs
+from tests.tui.widgets._themed import plain
 
 BAD = "[/x]"  # unmatched closing-tag pattern -> MarkupError if not escaped
 
@@ -63,8 +65,6 @@ async def test_profile_name_with_bad_pattern_does_not_raise():
 
 
 async def test_params_with_markup_render_literally():
-    from tests.tui.widgets._themed import plain
-    from sheppy.tui.widgets.detail_tabs import DetailTabs
     alt = Alternative(id="a", kind="process", command="true",
                       params={f"k{BAD}": f"v{BAD}"})
     app = SheppyApp(_result())
@@ -77,7 +77,7 @@ async def test_params_with_markup_render_literally():
                          "exit_code": None, "spec": {
                              "alt_id": f"a{BAD}",
                              "params": {f"k{BAD}": f"v{BAD}"}}},
-                        [], True, drift=f"params differ: k{BAD}")
+                        [], True, drift=f"x{BAD}")
         for sel in ("#detail", "#detail-process"):
             text = plain(app.query_one(sel))
             assert f'k{BAD}: ' in text

@@ -446,10 +446,6 @@ def _spec(alt="fake", params=None, start=("true",)):
                       descriptor=LaunchDescriptor.inherit(start))
 
 
-def _running(spec):
-    return {"state": "running", "spec": spec.to_wire()}
-
-
 @pytest.mark.parametrize("running, desired, reason", [
     (_spec(alt="sim"), _spec(alt="real"), "alternative sim → real"),
     (_spec(start=("old",)), _spec(start=("new",)), "launch command changed"),
@@ -458,7 +454,8 @@ def _running(spec):
      "launch command changed; params old: 1 → —; rate: 10 → 30"),
 ])
 def test_restart_reason_names_what_changed(running, desired, reason):
-    assert cli._restart_reason(_running(running), desired) == reason
+    assert cli._restart_reason({"state": "running", "spec": running.to_wire()},
+                               desired) == reason
 
 
 def test_up_says_why_it_restarts_a_node(site, capsys):
@@ -496,3 +493,8 @@ def test_status_of_an_unsupervised_node_fails(site, capsys):
     capsys.readouterr()
     assert cli.main(["status", "flaky"]) == 1
     assert "flaky: not supervised" in capsys.readouterr().err
+
+
+def test_status_of_a_node_without_sheppyd_fails(site, capsys):
+    assert cli.main(["status", "camera"]) == 1
+    assert "not running" in capsys.readouterr().out
