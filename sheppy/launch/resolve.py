@@ -21,7 +21,7 @@ class LaunchSpec:
 
     def to_wire(self) -> dict:
         return {"node": self.node, "alt_id": self.alt_id,
-                "params": dict(self.params),
+                "params": _wire_params(self.params),
                 "descriptor": self.descriptor.to_wire()}
 
 
