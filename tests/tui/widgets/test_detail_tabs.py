@@ -73,6 +73,11 @@ async def test_selected_params_are_fields_yellow_when_edited():
         assert rate.query_one(".param-key").styles.color == Color.parse(
             theme["warning"])
         assert frame.query_one(Input).styles.text_style.underline
+        rate.query_one(Input).focus()
+        await pilot.pause()
+        assert rate.styles.background == Color.parse(theme["sel-bg"])
+        assert rate.query_one(Input).styles.color == Color.parse(
+            theme["warning"])                       # still yellow, focused
 
 
 class _FooterHarness(ThemedApp):
@@ -92,7 +97,7 @@ async def test_footer_shows_param_keys_while_a_field_has_focus():
         footer = app.query_one(StatusFooter)
         def hints():
             return " ".join(" ".join(plain(s).split()) for s in
-                            footer.query(Static) if s.display and s.id is None)
+                            footer.query(".keys, .param-keys") if s.display)
         assert "save" in hints() and "next param" not in hints()
         rate, frame = app.query(ParamRow)
         rate.query_one(Input).focus()

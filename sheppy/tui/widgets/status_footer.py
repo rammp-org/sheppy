@@ -30,8 +30,8 @@ class StatusFooter(Horizontal):
     DEFAULT_CSS = """
     StatusFooter { height: 1; background: $panel; padding: 0 1; }
     StatusFooter > Static { width: auto; height: 1; margin: 0 1 0 0; }
-    StatusFooter .-param, StatusFooter.-param .-keys { display: none; }
-    StatusFooter.-param .-param { display: block; }
+    StatusFooter .param-keys, StatusFooter.-param .keys { display: none; }
+    StatusFooter.-param .param-keys { display: block; }
     StatusFooter #sf-spring { width: 1fr; margin: 0; }
     /* Docked, so it is placed first and the hints are what gets clipped
        when the row is too narrow for everything (#40). */
@@ -39,7 +39,7 @@ class StatusFooter(Horizontal):
     """
 
     def compose(self):
-        for keys, cls in ((KEYMAP, "-keys"), (PARAM_KEYMAP, "-param")):
+        for keys, cls in ((KEYMAP, "keys"), (PARAM_KEYMAP, "param-keys")):
             for key, label in keys:
                 # Inverse-video key reads as a keycap in a single-row footer
                 # (a bordered box would need 3 rows). Label stays muted.
