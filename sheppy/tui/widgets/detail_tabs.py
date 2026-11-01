@@ -36,7 +36,7 @@ class DetailTabs(Vertical):
     contract), PROCESS (live runtime state) and YAML render live now; the
     TOPICS 'live' column remains a placeholder for phase 4."""
 
-    _log = (None, [])       # (node, lines) the output area holds
+    _log = (None, [], 0)    # (node, lines, width) the output area holds
 
     DEFAULT_CSS = """
     DetailTabs { width: 1fr; height: 1fr; background: $background; }
@@ -105,7 +105,8 @@ class DetailTabs(Vertical):
         the ones that differ, with their running values."""
         try:
             target = self.query_one("#detail-process", Static)
-            self._show_log(payload["node"] if payload else None, lines)
+            self._show_log(payload["node"] if payload and not other
+                           else None, lines)
         except NoMatches:
             return
         if not connected:
@@ -151,7 +152,7 @@ class DetailTabs(Vertical):
             out.append(row("usage", c("orange",
                 f"{usage['cpu_pct']:.0f}% {usage['rss_mb']:.0f}M")))
         if lines:
-            out += ["", c("muted", "last output")]      # the Log below
+            out += ["", c("muted", "last output")]  # the RichLog below
         target.update("\n".join(out))
 
     def _show_log(self, node: "str | None", lines: list) -> None:
@@ -160,8 +161,8 @@ class DetailTabs(Vertical):
         log = self.query_one("#process-log", RichLog)
         if node == self._log[0] and not log.is_vertical_scroll_end:
             return
-        if (node, lines) != self._log:
-            self._log = (node, lines)
+        if (node, lines, log.size.width) != self._log:     # width: re-wrap
+            self._log = (node, lines, log.size.width)
             log.clear()
             if lines:
                 log.write("\n".join(lines), scroll_end=False)

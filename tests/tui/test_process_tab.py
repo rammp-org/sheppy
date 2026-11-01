@@ -405,6 +405,39 @@ async def test_process_output_scrolls_follows_and_holds_still():
         assert log.lines[-1].text == "new 4" and log.is_vertical_scroll_end
 
 
+async def test_scrolled_up_output_clears_on_another_alternative():
+    # #192: only the alternative that ran shows output, scrolled up or not.
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    fake.log_lines = [f"line {i}" for i in range(100)]
+    app = make_app(fake)
+    async with app.run_test(size=(160, 30)) as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        app.query_one("#process-log").scroll_to(y=10, animate=False,
+                                                immediate=True)
+        await pilot.press("enter", "down")            # highlight mock_camera
+        await pilot.pause(0.1)
+        assert log_text(app) == ""
+
+
+async def test_output_rewraps_after_a_resize():
+    fake = FakeDaemonClient({"camera": payload("camera", "crashed",
+                                               alt="realsense")})
+    fake.log_lines = ["[ERROR] " + "x" * 100]
+    app = make_app(fake)
+    async with app.run_test(size=(200, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause(0.1)
+        await pilot.resize_terminal(120, 30)
+        app._refresh_process_tab()            # output unchanged
+        await pilot.pause(0.1)
+        log = app.query_one("#process-log")
+        assert log.max_scroll_x == 0 and log.size.width < 80
+
+
 async def test_long_and_blank_output_lines_wrap_and_stay():
     fake = FakeDaemonClient({"camera": payload("camera", "running",
                                                alt="realsense")})

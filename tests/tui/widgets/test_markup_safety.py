@@ -4,10 +4,10 @@ strings (machine/node/alternative/profile names, commands, validation
 messages) must never be interpreted as Textual markup. A value containing
 an unmatched closing-tag pattern like '[/x]' must render as literal text,
 not raise textual.markup.MarkupError."""
+from textual.content import Content
 from sheppy.manifest import Machine, Manifest, Node, Alternative, LoadResult, ValidationError
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.widgets.detail_tabs import DetailTabs, ParamRow
-from textual.content import Content
 from sheppy.tui.widgets.theme import c
 from tests.tui.widgets._themed import plain
 
