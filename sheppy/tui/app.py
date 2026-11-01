@@ -27,6 +27,9 @@ from sheppy.tui.widgets import status as st
 __all__ = ["SheppyApp", "format_detail"]
 
 MAX_RUNTIME_WARNINGS = 20
+# PROCESS output lines (#196): sheppyd's default ring_lines, all it keeps
+# in memory per node; asking for more returns no more.
+LOG_TAIL = 300
 _RECONNECT_HINT = "space/L reconnects (and restarts sheppyd if it died)"
 
 
@@ -672,7 +675,8 @@ class SheppyApp(App):
         other = alt is not None and alt.id != (ran or self.state.selected(name))
         lines: list = []
         if payload is not None and not other:
-            reply = await self._request_safely("logs", node=name, n=15)
+            reply = await self._request_safely("logs", node=name,
+                                               n=LOG_TAIL)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
         tabs.show_process(payload, lines, True, drift=drift, other=other,

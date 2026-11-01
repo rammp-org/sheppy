@@ -6,7 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.markup import escape
 from textual.message import Message
-from textual.widgets import Input, Static, TabbedContent, TabPane
+from textual.widgets import Input, Log, Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
 from sheppy.launch.builtins import param_text
@@ -45,6 +45,7 @@ class DetailTabs(Vertical):
     DetailTabs TabbedContent, DetailTabs ContentSwitcher { height: 1fr; }
     DetailTabs TabPane { padding: 1 2; height: 1fr; overflow-y: auto; }
     DetailTabs Static { padding: 0 0; }
+    DetailTabs Log { height: 1fr; background: $background; }
     """
 
     def compose(self):
@@ -57,8 +58,11 @@ class DetailTabs(Vertical):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
                 yield Static("", id="detail-process")
+                yield Log(id="process-log")
             with TabPane("YAML", id="tab-yaml"):
                 yield Static("", id="detail-yaml", markup=False)
+
+    _log_node = None        # whose output the Log holds
 
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
@@ -101,6 +105,7 @@ class DetailTabs(Vertical):
         the ones that differ, with their running values."""
         try:
             target = self.query_one("#detail-process", Static)
+            self._show_log(payload["node"] if payload else None, lines)
         except NoMatches:
             return
         if not connected:
@@ -146,10 +151,22 @@ class DetailTabs(Vertical):
             out.append(row("usage", c("orange",
                 f"{usage['cpu_pct']:.0f}% {usage['rss_mb']:.0f}M")))
         if lines:
-            out.append("")
-            out.append(c("muted", "last output"))
-            out.extend(c("fg", line) for line in lines)
+            out += ["", c("muted", "last output")]      # the Log below
         target.update("\n".join(out))
+
+    def _show_log(self, node: "str | None", lines: list) -> None:
+        """The output tail scrolls (#196): it follows new lines while at
+        the bottom, and a refresh leaves it where it is once scrolled up."""
+        log = self.query_one("#process-log", Log)
+        if node == self._log_node and lines == log.lines:
+            return
+        follow = node != self._log_node or log.is_vertical_scroll_end
+        self._log_node, y = node, log.scroll_y
+        log.clear().write_lines(lines, scroll_end=False)
+        if follow:      # after the refresh, when the Log has its final height
+            log.scroll_end(animate=False)
+        else:
+            log.scroll_to(y=y, animate=False, immediate=True)
 
     def _detail_markup(self, node: Node, alt: Alternative,
                         summary_rows: "list | None" = None,

@@ -7,6 +7,8 @@ not raise textual.markup.MarkupError."""
 from sheppy.manifest import Machine, Manifest, Node, Alternative, LoadResult, ValidationError
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.widgets.detail_tabs import DetailTabs, ParamRow
+from textual.content import Content
+from sheppy.tui.widgets.theme import c
 from tests.tui.widgets._themed import plain
 
 BAD = "[/x]"  # unmatched closing-tag pattern -> MarkupError if not escaped
@@ -73,7 +75,8 @@ async def test_params_with_markup_render_literally():
         dt = app.query_one(DetailTabs)
         dt.show(Node(name="n", alternatives=[alt]), alt,
                 params={f"k{BAD}": f"w{BAD}"})
-        dt.show_process({"state": "running", "pid": 1, "started_at": None,
+        dt.show_process({"node": "n", "state": "running", "pid": 1,
+                         "started_at": None,
                          "exit_code": None, "spec": {
                              "alt_id": f"a{BAD}",
                              "params": {f"k{BAD}": f"v{BAD}"}}},
@@ -87,3 +90,11 @@ async def test_params_with_markup_render_literally():
         for sel in ("#detail", "#detail-process"):
             text = plain(app.query_one(sel))
             assert f'k{BAD}: ' in text
+
+
+
+def test_uppercase_tags_render_literally():
+    # #193: escape() alone left "[ERROR]" to be parsed as a style tag.
+    for text in ("[ERROR] boom", "[INFO] [1793.6] [perception.boxer]: 5 Hz",
+                 "[warn]", "a\\[b]", "x[/]"):
+        assert Content.from_markup(c("fg", text)).plain == text
