@@ -220,7 +220,7 @@ async def test_enter_in_a_param_field_applies_the_edit():
         row = next(r for r in app.query(ParamRow) if r.param == "enable_depth")
         assert row.query_one(Input).value == "false"
         assert row.has_class("-edited")
-        assert plain(row.query_one(".param-note")) == "(manifest true)"
+        assert plain(row.query_one(".param-note")) == "← true"
         assert "*" in str(app.query_one("#profilebar").content)
         await pilot.press("escape", "3")
         await pilot.pause(0.1)

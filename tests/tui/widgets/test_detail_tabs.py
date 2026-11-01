@@ -2,8 +2,11 @@ from textual.app import ComposeResult
 from tests.tui.widgets._themed import ThemedApp, plain
 from sheppy.manifest import Node, Alternative
 from textual.color import Color
-from textual.widgets import Input
-from sheppy.tui.widgets.detail_tabs import DetailTabs, ParamRow, format_detail
+from textual.widgets import Input, Static
+from sheppy.tui.widgets.detail_tabs import (DetailTabs, ParamFields,
+                                            ParamRow, _param_keys,
+                                            format_detail)
+from sheppy.tui.widgets.status_footer import StatusFooter
 
 
 def _node():
@@ -55,10 +58,64 @@ async def test_selected_params_are_fields_yellow_when_edited():
         rate, frame = app.query(ParamRow)
         assert rate.query_one(Input).value == "30"
         assert frame.query_one(Input).value == '"base"'
-        assert plain(rate.query_one(".param-note")) == "(manifest 10)"
+        assert plain(rate.query_one(".param-note")) == "← 10"
         assert plain(frame.query_one(".param-note")) == ""
+        # one column of values, under a params label, with no inline hint
+        assert [plain(r.query_one(".param-key")) for r in (rate, frame)] \
+            == ["  rate   ", "  frame  "]
+        texts = [plain(s) for s in app.query_one(ParamFields).query(Static)]
+        assert texts[0] == "params"
+        assert not any("Enter applies" in t for t in texts)
         theme = app.theme_variables
         assert rate.query_one(Input).styles.color == Color.parse(
             theme["warning"])                       # the palette's yellow
         assert frame.query_one(Input).styles.color == Color.parse(
             theme["foreground"])
+        assert rate.query_one(".param-key").styles.color == Color.parse(
+            theme["warning"])
+        assert frame.query_one(".param-key").styles.color == Color.parse(
+            theme["muted"])                         # as the grid's labels
+        assert frame.query_one(Input).styles.text_style.underline
+        rate.query_one(Input).focus()
+        await pilot.pause()
+        assert rate.styles.background == Color.parse(theme["sel-bg"])
+        assert rate.query_one(Input).styles.color == Color.parse(
+            theme["warning"])                       # still yellow, focused
+
+
+def test_a_long_key_pushes_only_its_own_value():
+    long = "qos_overrides./tf_static.subscription.durability"
+    short, longer = _param_keys({"use_sim_time": True, long: "x"})
+    assert short == "  " + "use_sim_time".ljust(24) + "  "    # capped column
+    assert longer == f"  {long}  "
+
+
+class _FooterHarness(ThemedApp):
+    def compose(self) -> ComposeResult:
+        yield DetailTabs()
+        yield StatusFooter()
+
+
+async def test_footer_shows_param_keys_while_a_field_has_focus():
+    app = _FooterHarness()
+    async with app.run_test() as pilot:
+        alt = Alternative(id="sim", kind="process", command="true",
+                          params={"rate": 10, "frame": "base"})
+        app.query_one(DetailTabs).show(Node(name="n", alternatives=[alt]),
+                                       alt, params=alt.params)
+        await pilot.pause()
+        footer = app.query_one(StatusFooter)
+        def hints():
+            return " ".join(" ".join(plain(s).split()) for s in
+                            footer.query(".keys, .param-keys") if s.display)
+        assert "save" in hints() and "next param" not in hints()
+        rate, frame = app.query(ParamRow)
+        rate.query_one(Input).focus()
+        await pilot.pause()
+        assert hints() == "enter apply esc revert tab next param"
+        await pilot.press("tab")                    # the next param
+        assert app.focused is frame.query_one(Input)
+        assert "next param" in hints()
+        app.set_focus(None)
+        await pilot.pause()
+        assert "save" in hints() and "next param" not in hints()

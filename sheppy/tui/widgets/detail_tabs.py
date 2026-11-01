@@ -222,12 +222,21 @@ class DetailTabs(Vertical):
         return yaml.safe_dump(data, sort_keys=False).rstrip()
 
 
+def _param_keys(params: dict) -> list:
+    """The keys as their rows start: indented under the params label and
+    padded, so the values line up (#199). The pad is capped, so a long key
+    (a ROS 2 QoS override) pushes only its own value off the pane."""
+    width = min(max(map(len, params), default=0), 24)
+    return [f"  {k:<{width}}  " for k in params]
+
+
 def _param_rows(row, params: dict) -> list:
-    """One read-only row per param."""
+    """One read-only row per param, laid out as the ParamRows are."""
     if not params:
         return [row("params", c("muted", "—"))]
-    return [row("params" if i == 0 else "", c("fg", f"{k}: {fmt(v)}"))
-            for i, (k, v) in enumerate(params.items())]
+    return [c("muted", "params")] + [
+        c("muted", key) + c("fg", fmt(v))
+        for key, v in zip(_param_keys(params), params.values())]
 
 
 class ParamRow(Horizontal):
@@ -236,10 +245,16 @@ class ParamRow(Horizontal):
 
     DEFAULT_CSS = """
     ParamRow { height: 1; overflow-x: auto; scrollbar-size-horizontal: 0; }
+    ParamRow:focus-within { background: $sel-bg; }
     ParamRow Static { width: auto; }
-    /* capped, so a long value scrolls inside the field as you type */
-    ParamRow Input { width: auto; min-width: 2; max-width: 50%;
-                     color: $foreground; background: $sel-bg; }
+    ParamRow .param-key { color: $muted; }
+    ParamRow .param-note { margin-left: 2; }
+    /* capped, so a long value scrolls inside the field as you type;
+       underlined, with no block, so it reads as clickable (#199) */
+    ParamRow Input, ParamRow Input:focus {
+        width: auto; min-width: 2; max-width: 50%; color: $foreground;
+        background: transparent; background-tint: transparent;
+        text-style: underline; }
     ParamRow.-edited Input, ParamRow.-edited .param-key { color: $warning; }
     """
     BINDINGS = [("escape", "leave", "Back")]
@@ -249,15 +264,14 @@ class ParamRow(Horizontal):
             super().__init__()
             self.node, self.param, self.value = node, param, value
 
-    def __init__(self, node: str, param: str, first: bool,
+    def __init__(self, node: str, param: str, key: str,
                  value, manifest) -> None:
         super().__init__()
-        self.node, self.param, self._first = node, param, first
+        self.node, self.param, self._key = node, param, key
         self.value, self.manifest = value, manifest
 
     def compose(self):
-        yield Static(c("muted", f"{'params' if self._first else '':<12}"))
-        yield Static(f"{self.param}: ", markup=False, classes="param-key")
+        yield Static(self._key, markup=False, classes="param-key")
         yield Input(param_text(self.value), compact=True)
         yield Static("", classes="param-note")
 
@@ -275,7 +289,7 @@ class ParamRow(Horizontal):
         self.set_class(edited, "-edited")
         self.query_one(".param-note", Static).update(
             c("red", error) if error else
-            c("muted", f"(manifest {fmt(self.manifest)})") if edited else "")
+            c("muted", f"← {fmt(self.manifest)}") if edited else "")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
@@ -312,15 +326,14 @@ class ParamFields(Vertical):
             for r in self._rows:        # in place, so a focused field stays
                 r.set(params[r.param], manifest[r.param])
             return
-        self._rows = [ParamRow(node, k, i == 0, v, manifest[k])
-                      for i, (k, v) in enumerate(params.items())]
+        self._rows = [ParamRow(node, k, key, v, manifest[k]) for (k, v), key
+                      in zip(params.items(), _param_keys(params))]
         self.refresh(recompose=True)
 
     def compose(self):
-        yield from self._rows
         if self._rows:
-            yield Static(c("muted", f"{'':<12}p or click to edit · "
-                                    "Enter applies · Esc reverts"))
+            yield Static(c("muted", "params"))
+        yield from self._rows
 
     def focus_first(self) -> None:
         # call_next runs after a recompose show() queued has mounted the rows
