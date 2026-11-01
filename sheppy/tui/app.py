@@ -10,20 +10,18 @@ from textual.reactive import reactive
 from textual.widgets import Static, TabbedContent
 
 from sheppy.launch import diff, resolve
-from sheppy.launch.resolve import changes
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
-from sheppy.tui.profile_modals import (
-    SaveNameModal, LoadModal, ConfirmModal, ParamEditorModal,
-)
+from sheppy.tui.profile_modals import SaveNameModal, LoadModal, ConfirmModal
 from sheppy.tui.widgets.theme import SHEPPY_DARK, c
 from sheppy.tui.widgets.header_bar import HeaderBar
 from sheppy.tui.widgets.machines_strip import MachinesStrip
 from sheppy.tui.widgets.status_footer import StatusFooter
 from sheppy.tui.widgets.node_list import NodeList, NodeListHeader, RuntimeCell
 from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
-from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail  # re-export
+from sheppy.tui.widgets.detail_tabs import (  # format_detail: re-export
+    DetailTabs, ParamFields, ParamRow, format_detail)
 from sheppy.tui.widgets import status as st
 
 __all__ = ["SheppyApp", "format_detail"]
@@ -45,8 +43,8 @@ class SheppyApp(App):
     #alts-head { height: 1; background: $subhead-bg; padding: 0 2; }
     #errors { dock: bottom; height: auto; background: $error; color: $text; padding: 0 1; }
     #dialog { width: 60; height: auto; max-height: 90%; border: thick $accent; background: $surface; padding: 1 2; }
-    /* A long plan or param list scrolls inside the dialog; the key hint
-       is docked so it stays on screen (#113). */
+    /* A long plan scrolls inside the dialog; the key hint is docked so
+       it stays on screen (#113). */
     #dialog .dialog-hint { dock: bottom; }
     """
     BINDINGS = [
@@ -267,9 +265,9 @@ class SheppyApp(App):
         # drift = the selection builds another command (#182)
         if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
-        changed = changes(recorded.get("params") or {}, spec.params)
-        return "launch command changed since start" + (
-            f"; params differ: {'; '.join(changed)}" if changed else "")
+        if (recorded.get("params") or {}) != spec.params:
+            return "params changed"
+        return "launch command changed"
 
     # ---- daemon actions -------------------------------------------------------
     def _node_worker(self, name: str, work) -> None:
@@ -592,6 +590,8 @@ class SheppyApp(App):
             pass
         await self.query_one(AlternativesPanel).show_note(
             "not in this manifest — stop (x) and logs only")
+        self.query_one("#detail", Static).update("")     # no stale node
+        self.query_one(ParamFields).show(event.name, {}, {})
         self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
@@ -675,7 +675,9 @@ class SheppyApp(App):
             reply = await self._request_safely("logs", node=name, n=15)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
-        tabs.show_process(payload, lines, True, drift=drift, other=other)
+        tabs.show_process(payload, lines, True, drift=drift, other=other,
+                          selected=self.state.effective_params(name)
+                          if drift == "params changed" else None)
 
     # ---- actions ---------------------------------------------------------
     def action_toggle_errors(self) -> None:
@@ -754,28 +756,30 @@ class SheppyApp(App):
         node = self._current_node()
         if node is None:
             return
-        if self.state.selected_alt(node.name) is None:
+        alt = self.state.selected_alt(node.name)
+        if alt is None:
             self._append_warnings(
                 [f"'{node.name}': no alternative selected to edit"])
             return
-        params = self.state.effective_params(node.name)
-        if not params:
+        if not self.state.effective_params(node.name):
             self._append_warnings(
                 [f"'{node.name}': selected alternative declares no params"])
             return
-        self.push_screen(
-            ParamEditorModal(params),
-            lambda values: self._on_params(node.name, values))
+        # Edit in DETAIL (#194): show the selected alternative, whose params
+        # are fields, without waiting on the pane (it may be rebuilding).
+        self.query_one(AlternativesPanel).index = \
+            node.alternatives.index(alt)
+        tabs = self.query_one(DetailTabs)
+        tabs.show(node, alt, summary_rows=self._summary_rows(alt),
+                  params=self._detail_params(node, alt))
+        tabs.focus_params()
 
-    def _on_params(self, node_name: str, values: "dict | None") -> None:
-        if values is None or not self.state:
-            return
-        for param, value in values.items():
-            self.state.override(node_name, param, value)
+    def on_param_row_edited(self, event: ParamRow.Edited) -> None:
+        self.state.override(event.node, event.param, event.value)
         self._refresh_header()
         self._refresh_runtime()   # params changed -> drift may too
         node = self._current_node()
-        if node and node.name == node_name:
+        if node and node.name == event.node:
             self._show_detail(node)
 
     # ---- errors / rebuild ------------------------------------------------

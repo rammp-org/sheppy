@@ -2,12 +2,14 @@ import time
 
 import yaml
 
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.markup import escape
-from textual.widgets import Static, TabbedContent, TabPane
+from textual.message import Message
+from textual.widgets import Input, Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
+from sheppy.launch.builtins import param_text
 from sheppy.launch.resolve import fmt
 from sheppy.tui.widgets import status as st
 from sheppy.tui.widgets.theme import c
@@ -39,7 +41,9 @@ class DetailTabs(Vertical):
     DetailTabs Tabs { background: $subhead-bg; }
     DetailTabs Tab { color: $text-muted; margin: 0 1 0 0; }
     DetailTabs Tab.-active { color: $foreground; text-style: bold; }
-    DetailTabs TabPane { padding: 1 2; }
+    /* bounded, so a focused param field below the fold scrolls in */
+    DetailTabs TabbedContent, DetailTabs ContentSwitcher { height: 1fr; }
+    DetailTabs TabPane { padding: 1 2; height: 1fr; overflow-y: auto; }
     DetailTabs Static { padding: 0 0; }
     """
 
@@ -48,6 +52,7 @@ class DetailTabs(Vertical):
             with TabPane("DETAIL", id="tab-detail"):
                 # Styled grid; every user-derived value is escape()d below.
                 yield Static("", id="detail")
+                yield ParamFields()
             with TabPane("TOPICS", id="tab-topics"):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
@@ -62,7 +67,8 @@ class DetailTabs(Vertical):
              summary_rows: "list | None" = None,
              params: "dict | None" = None) -> None:
         """params: the alternative's effective values (manifest + profile
-        overrides); None shows the manifest's."""
+        overrides) for the selected one, shown as fields; None shows the
+        manifest's."""
         try:
             detail = self.query_one("#detail", Static)
             topics = self.query_one("#detail-topics", Static)
@@ -72,6 +78,8 @@ class DetailTabs(Vertical):
             # on a later async pass than the node list's first highlight).
             # The app re-drives detail via call_after_refresh once mounted.
             return
+        self.query_one(ParamFields).show(node.name, params or {},
+                                         alt.params if alt else {})
         if alt is None:
             detail.update("")
             topics.update("")
@@ -81,9 +89,16 @@ class DetailTabs(Vertical):
         topics.update(self._topics(alt))
         yaml_s.update(self._yaml(alt))
 
+    def focus_params(self) -> None:
+        self.activate("tab-detail")
+        self.query_one(ParamFields).focus_first()
+
     def show_process(self, payload: "dict | None", lines: list,
                      connected: bool, drift: "str | None" = None,
-                     other: bool = False) -> None:
+                     other: bool = False,
+                     selected: "dict | None" = None) -> None:
+        """selected: the selection's params, to list under a params drift
+        the ones that differ, with their running values."""
         try:
             target = self.query_one("#detail-process", Static)
         except NoMatches:
@@ -94,6 +109,13 @@ class DetailTabs(Vertical):
         def row(key, value):
             return f"{c('muted', f'{key:<12}')}{value}"
         drift_rows = [row("drift", c("yellow", f"Δ {drift}"))] if drift else []
+        if selected is not None:
+            ran = payload["spec"].get("params") or {}
+            drift_rows += [
+                row("", c("fg", f"{k}: {fmt(ran[k]) if k in ran else '—'}")
+                    + " " + c("muted", "running"))
+                for k in sorted(ran.keys() | selected.keys())
+                if k not in ran or k not in selected or ran[k] != selected[k]]
         if other:       # the highlighted alternative isn't running (#191)
             out = [row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
                                            "not running")), *drift_rows]
@@ -113,7 +135,6 @@ class DetailTabs(Vertical):
                               f"{st.glyph(status)} {payload['state']}")),
                *drift_rows]
         out.append(row("alternative", c("fg", payload["spec"]["alt_id"])))
-        out.extend(_param_rows(row, payload["spec"].get("params") or {}))
         out.append(row("pid", c("fg", payload["pid"] or "—")))
         if payload["state"] == "running" and payload["started_at"]:
             up = int(time.time() - payload["started_at"])
@@ -146,8 +167,8 @@ class DetailTabs(Vertical):
         for label, value in (summary_rows or []):
             lines.append(row(label, c("fg", str(value))))
         lines.append(row("machine", c("fg", alt.machine or "—")))
-        lines.extend(_param_rows(row, alt.params if params is None
-                                 else params, alt.params))
+        if not params:          # else ParamFields shows them
+            lines.extend(_param_rows(row, alt.params))
         return "\n".join(lines)
 
     def _topics(self, alt: Alternative) -> str:
@@ -177,16 +198,107 @@ class DetailTabs(Vertical):
         return yaml.safe_dump(data, sort_keys=False).rstrip()
 
 
-def _param_rows(row, params: dict, manifest: "dict | None" = None) -> list:
-    """One row per param; a value that differs from the manifest's is
-    yellow and names the manifest value."""
+def _param_rows(row, params: dict) -> list:
+    """One read-only row per param."""
     if not params:
         return [row("params", c("muted", "—"))]
-    out = []
-    for i, (k, v) in enumerate(params.items()):
-        text = c("fg", f"{k}: {fmt(v)}")
-        if manifest is not None and manifest[k] != v:
-            text = (c("yellow", f"{k}: {fmt(v)}") + " "
-                    + c("muted", f"(manifest {fmt(manifest[k])})"))
-        out.append(row("params" if i == 0 else "", text))
-    return out
+    return [row("params" if i == 0 else "", c("fg", f"{k}: {fmt(v)}"))
+            for i, (k, v) in enumerate(params.items())]
+
+
+class ParamRow(Horizontal):
+    """A param of the selected alternative as a field (#194): Enter
+    applies it, Esc or leaving the field puts back its value."""
+
+    DEFAULT_CSS = """
+    ParamRow { height: 1; overflow-x: auto; scrollbar-size-horizontal: 0; }
+    ParamRow Static { width: auto; }
+    /* capped, so a long value scrolls inside the field as you type */
+    ParamRow Input { width: auto; min-width: 2; max-width: 50%;
+                     color: $foreground; background: $sel-bg; }
+    ParamRow.-edited Input, ParamRow.-edited .param-key { color: $warning; }
+    """
+    BINDINGS = [("escape", "leave", "Back")]
+
+    class Edited(Message):
+        def __init__(self, node: str, param: str, value) -> None:
+            super().__init__()
+            self.node, self.param, self.value = node, param, value
+
+    def __init__(self, node: str, param: str, first: bool,
+                 value, manifest) -> None:
+        super().__init__()
+        self.node, self.param, self._first = node, param, first
+        self.value, self.manifest = value, manifest
+
+    def compose(self):
+        yield Static(c("muted", f"{'params' if self._first else '':<12}"))
+        yield Static(f"{self.param}: ", markup=False, classes="param-key")
+        yield Input(param_text(self.value), compact=True)
+        yield Static("", classes="param-note")
+
+    def on_mount(self) -> None:
+        self._paint()
+
+    def set(self, value, manifest) -> None:
+        self.value, self.manifest = value, manifest
+        if self.is_mounted:
+            self.query_one(Input).value = param_text(value)
+            self._paint()
+
+    def _paint(self, error: str = "") -> None:
+        edited = self.value != self.manifest
+        self.set_class(edited, "-edited")
+        self.query_one(".param-note", Static).update(
+            c("red", error) if error else
+            c("muted", f"(manifest {fmt(self.manifest)})") if edited else "")
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        if event.value == param_text(self.value):
+            self._paint()   # clears a parse error from an earlier Enter
+            return      # untouched: re-parsing could change its type (#70)
+        try:
+            value = yaml.safe_load(event.value)
+        except yaml.YAMLError:
+            self._paint("not valid YAML, Esc puts it back")
+            return
+        self.post_message(self.Edited(self.node, self.param, value))
+
+    def on_input_blurred(self, event: Input.Blurred) -> None:
+        if self.app.app_focus:      # not when the terminal loses focus
+            self.set(self.value, self.manifest)     # nothing applies
+
+    def action_leave(self) -> None:
+        self.screen.query_one("AlternativesPanel").focus()
+
+
+class ParamFields(Vertical):
+    """The selected alternative's params as ParamRows."""
+
+    DEFAULT_CSS = "ParamFields { height: auto; }"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._rows: list = []
+
+    def show(self, node: str, params: dict, manifest: dict) -> None:
+        if [(r.node, r.param) for r in self._rows] == \
+                [(node, k) for k in params]:
+            for r in self._rows:        # in place, so a focused field stays
+                r.set(params[r.param], manifest[r.param])
+            return
+        self._rows = [ParamRow(node, k, i == 0, v, manifest[k])
+                      for i, (k, v) in enumerate(params.items())]
+        self.refresh(recompose=True)
+
+    def compose(self):
+        yield from self._rows
+        if self._rows:
+            yield Static(c("muted", f"{'':<12}p or click to edit · "
+                                    "Enter applies · Esc reverts"))
+
+    def focus_first(self) -> None:
+        # call_next runs after a recompose show() queued has mounted the rows
+        self.call_next(
+            lambda: self._rows and self._rows[0].query_one(Input).focus())

@@ -6,7 +6,7 @@ an unmatched closing-tag pattern like '[/x]' must render as literal text,
 not raise textual.markup.MarkupError."""
 from sheppy.manifest import Machine, Manifest, Node, Alternative, LoadResult, ValidationError
 from sheppy.tui.app import SheppyApp
-from sheppy.tui.widgets.detail_tabs import DetailTabs
+from sheppy.tui.widgets.detail_tabs import DetailTabs, ParamRow
 from tests.tui.widgets._themed import plain
 
 BAD = "[/x]"  # unmatched closing-tag pattern -> MarkupError if not escaped
@@ -77,7 +77,13 @@ async def test_params_with_markup_render_literally():
                          "exit_code": None, "spec": {
                              "alt_id": f"a{BAD}",
                              "params": {f"k{BAD}": f"v{BAD}"}}},
-                        [], True, drift=f"x{BAD}")
+                        [], True, drift=f"x{BAD}",
+                        selected={f"k{BAD}": "w"})    # a changed param
+        await pilot.pause()
+        row = app.query_one(ParamRow)            # the selected alternative
+        assert str(row.query_one(".param-key").content) == f"k{BAD}: "
+        assert BAD in plain(row.query_one(".param-note"))
+        dt.show(Node(name="n", alternatives=[alt]), alt)    # read-only
         for sel in ("#detail", "#detail-process"):
             text = plain(app.query_one(sel))
             assert f'k{BAD}: ' in text

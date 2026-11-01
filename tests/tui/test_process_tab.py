@@ -4,6 +4,8 @@ from sheppy.manifest import load_manifest
 from sheppy.tui.app import SheppyApp
 from tests.tui._fake_daemon import FakeDaemonClient, payload
 from tests.tui.widgets._themed import plain
+from sheppy.tui.widgets.detail_tabs import ParamRow
+from textual.widgets import Input
 
 MANIFEST = "examples/cockpit-demo.yaml"
 
@@ -196,15 +198,47 @@ async def test_orphan_rebuild_cancelled_part_way_is_redone():
         assert len(app.query(".orphan-row .col-status")) == 1
 
 
-async def test_detail_tab_shows_an_edited_param_with_its_manifest_value():
-    app = make_app(FakeDaemonClient())
+async def test_enter_in_a_param_field_applies_the_edit():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("enter", "enter")           # select realsense
-        app._on_params("camera", {"enable_depth": False})   # what `p` does
+        assert app.state.selected("camera") == "realsense"   # adopted
+        app.state.is_dirty = False
+        await pilot.press("enter")
+        await pilot.press("p", *"false", "enter")
         await pilot.pause()
-        text = plain(app.query_one("#detail"))
-        assert "enable_depth: false (manifest true)" in text
+        assert app.state.effective_params("camera")["enable_depth"] is False
+        row = next(r for r in app.query(ParamRow) if r.param == "enable_depth")
+        assert row.query_one(Input).value == "false"
+        assert row.has_class("-edited")
+        assert plain(row.query_one(".param-note")) == "(manifest true)"
+        assert "*" in str(app.query_one("#profilebar").content)
+        await pilot.press("escape", "3")
+        await pilot.pause(0.1)
+        assert "Δ params changed" in plain(app.query_one("#detail-process"))
+
+
+async def test_typing_in_a_param_field_triggers_no_action():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter", "p")       # realsense, adopted
+        await pilot.pause()
+        field = app.focused
+        keys = ["x", "r", "space", "1", "2", "3", "4", "s", "l", "L", "X",
+                "e", "p", "exclamation_mark", "q"]
+        await pilot.press(*keys)
+        await pilot.pause(0.1)
+        assert app.is_running and len(app.screen_stack) == 1
+        assert field.value == "xr 1234slLXep!q" and app.focused is field
+        assert not any(op in ("stop", "restart", "launch")
+                       for op, _ in fake.requests)
+        assert app.query_one("#detailtabs").active == "tab-detail"
+        assert not app.show_errors
 
 
 async def test_detail_tab_renders_after_switching_from_an_edited_alt():
@@ -212,14 +246,14 @@ async def test_detail_tab_renders_after_switching_from_an_edited_alt():
     async with app.run_test() as pilot:
         await pilot.pause()
         await pilot.press("enter", "enter")           # select realsense
-        app._on_params("camera", {"enable_depth": False})
+        await pilot.press("p", *"false", "enter", "escape")
         await pilot.press("down", "enter")            # select mock_camera
         await pilot.pause()
         assert app.state.selected("camera") == "mock_camera"
         assert "mock_camera" in plain(app.query_one("#detail"))
 
 
-async def test_process_tab_lists_running_params_and_per_key_drift():
+async def test_process_tab_lists_only_the_changed_params_running_values():
     fake = FakeDaemonClient({"camera": payload(
         "camera", "running", alt="realsense", params={"enable_depth": False})})
     app = make_app(fake)
@@ -229,10 +263,10 @@ async def test_process_tab_lists_running_params_and_per_key_drift():
         await pilot.press("3")
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
-        assert "alternative realsense" in text
-        assert "params      enable_depth: false\n" in text
-        assert ("launch command changed since start; params differ: "
-                "enable_depth: false → true") in text
+        assert ("drift       Δ params changed\n"
+                "            enable_depth: false running\n"
+                "alternative realsense") in text
+        assert "pointcloud.enable" not in text
 
 
 async def test_process_tab_follows_the_highlighted_alternative():
@@ -248,7 +282,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         await pilot.pause(0.1)
         text = plain(app.query_one("#detail-process"))
         assert "alternative realsense" in text
-        assert "enable_depth: false" in text and "device lost" in text
+        assert "device lost" in text
         app._proc_timer.pause()        # only the highlight refreshes now
         await pilot.pause()
         logs = sum(op == "logs" for op, _ in fake.requests)
@@ -257,7 +291,7 @@ async def test_process_tab_follows_the_highlighted_alternative():
         text = plain(app.query_one("#detail-process"))
         assert "not running" in text
         assert text.endswith("realsense crashed (exit 7)")
-        assert "enable_depth" not in text and "device lost" not in text
+        assert "device lost" not in text
         assert sum(op == "logs" for op, _ in fake.requests) == logs
         await pilot.press("up")                       # back to realsense
         await pilot.pause(0.1)
