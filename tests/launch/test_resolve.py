@@ -1,3 +1,6 @@
+import datetime
+
+from sheppy.daemon.protocol import encode
 from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.resolve import LaunchSpec, diff, resolve
 from sheppy.manifest import Alternative, Machine, Manifest, Node
@@ -184,3 +187,37 @@ def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
     assert "argv" not in wire
     assert wire["descriptor"]["supervise"] == "inherit"
     assert "ros2 run p e" in wire["descriptor"]["start"][2]
+
+
+def test_a_date_param_reaches_the_daemon():
+    """A date read from YAML is sent as the ISO string the command line spells."""
+    alt = Alternative(id="real", kind="executable", machine="robot",
+                      package="cam_pkg", executable="cam_node")
+    spec, warnings = resolve(manifest([ROBOT]), "camera", alt,
+                             {"stamp": datetime.date(2024, 1, 1)})
+    assert warnings == []
+    assert spec.to_wire()["params"] == {"stamp": "2024-01-01"}
+
+    encoded = encode({"id": 1, "op": "launch", "spec": spec.to_wire()})
+    assert b'"stamp":"2024-01-01"' in encoded
+
+
+def test_a_date_inside_a_nested_param_reaches_the_daemon():
+    alt = Alternative(id="real", kind="executable", machine="robot",
+                      package="cam_pkg", executable="cam_node")
+    spec, _ = resolve(manifest([ROBOT]), "camera", alt,
+                      {"limits": {"since": datetime.date(2024, 1, 1)},
+                       "stamps": [datetime.date(2024, 1, 2)]})
+
+    assert spec.to_wire()["params"] == {"limits": {"since": "2024-01-01"},
+                                       "stamps": ["2024-01-02"]}
+    encode({"id": 1, "op": "launch", "spec": spec.to_wire()})
+
+
+def test_other_param_values_are_sent_unchanged():
+    alt = Alternative(id="real", kind="executable", machine="robot",
+                      package="cam_pkg", executable="cam_node")
+    params = {"fps": 30, "enable": True, "name": "cam", "gain": 1.5, "none": None}
+    spec, _ = resolve(manifest([ROBOT]), "camera", alt, params)
+
+    assert spec.to_wire()["params"] == params
