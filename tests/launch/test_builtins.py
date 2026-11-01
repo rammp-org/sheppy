@@ -1,5 +1,11 @@
+import shlex
+
+import pytest
+import yaml
+
 from sheppy.launch.builtins import (
-    ProcessLauncher, ExecutableLauncher, LaunchFileLauncher)
+    ProcessLauncher, ExecutableLauncher, LaunchFileLauncher, _param_token,
+    _value)
 from sheppy.launch.base import LaunchContext
 from sheppy.manifest import Alternative, Machine, Manifest
 
@@ -81,3 +87,21 @@ def test_relative_ros_setup_with_default_manifest_dir_uses_cwd(tmp_path, monkeyp
     alt = Alternative(id="a", kind="process", machine="ws", command="true")
     text = cmd(ProcessLauncher().launch(alt, {}, ctx(tmp_path, Manifest(machines=[ws], nodes=[]))))
     assert text.startswith(f"source {tmp_path}/install/setup.bash && ")
+
+
+@pytest.mark.parametrize("value", [
+    None, "007", {"b": 1, "c": [1, "x"]}, [1, "two", 3.0], True, False, 30,
+    1.5, "it's on it", "yes", ""])
+def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
+    # #70: the value after := is what ROS parses as YAML, so it must load back
+    # to the manifest value (None, not "None"; "007", not 7).
+    (word,) = shlex.split(_param_token("k", value))
+    name, _, text = word.partition(":=")
+    assert name == "k"
+    assert yaml.safe_load(text) == value
+    assert "\n" not in text
+
+
+def test_value_spelling():
+    assert [_value(v) for v in (None, "007", {"b": 1}, True, 30, 1.5, "on it")] \
+        == ["null", "'007'", "{b: 1}", "true", "30", "1.5", "on it"]

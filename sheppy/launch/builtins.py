@@ -1,14 +1,18 @@
 """The three original kinds, now launchers emitting inherit descriptors.
 Command strings are byte-identical to the pre-plugin resolver."""
-import json
 import os
 import shlex
+
+import yaml
 
 from sheppy.launch.descriptor import LaunchDescriptor
 
 
 def _value(v) -> str:
-    return json.dumps(v) if isinstance(v, (bool, int, float)) else str(v)
+    # ROS reads the text after := as YAML, so spell the value as a one-line
+    # YAML flow scalar: None -> null, "007" -> '007', {"b": 1} -> {b: 1} (#70).
+    text = yaml.safe_dump(v, default_flow_style=True, width=float("inf"))
+    return text.removesuffix("\n...\n").removesuffix("\n")
 
 
 def _param_token(k, v) -> str:
