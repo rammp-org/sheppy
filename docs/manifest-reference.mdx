@@ -211,11 +211,11 @@ node's log, and the node shows as launching while it runs. If the pull fails
 starts from the cached image and the log says so. If the image is not on the
 machine, the launch fails with docker's error in the log.
 
-Each launch waits for the pull. On a machine that cannot reach the registry
-that can take a while before the cached image is used, and a registry that
-accepts connections but never answers can hold the launch, and a `down` or
-`restart` of that node, indefinitely. Set `pull_policy: missing` on machines
-without registry access.
+Each launch waits for the pull. On a machine that cannot reach the registry,
+the pull can take a while to fail before the cached image is used. A registry
+that accepts connections but never answers holds the launch indefinitely, and
+a `down` or `restart` of that node waits for it. Set `pull_policy: missing` on
+machines without registry access.
 
 `pull_policy` overrides this:
 
@@ -267,7 +267,7 @@ in an inline `container` are not interpolated at all.
 - **The default pull overrides a locally built image.** After
   `docker build -t myorg/arm-driver:latest .`, a launch pulls
   `myorg/arm-driver:latest` from the registry, and if that name exists there
-  the registry's copy silently replaces your build. If the name is in no
+  the registry's copy replaces your build. If the name is in no
   registry, the pull fails and the node starts from the local build, with
   the failure in its log on every launch. Set `pull_policy: never` on the
   node to keep and run the local build; see [Image pulls](#image-pulls).
