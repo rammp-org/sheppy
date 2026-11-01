@@ -369,3 +369,19 @@ async def test_enter_on_an_untouched_param_field_records_nothing(tmp_path):
         await pilot.pause()
         assert (app.state.effective_params("camera")
                 == {**params, "name": "008"})
+
+
+async def test_typing_a_long_param_keeps_the_cursor_on_screen(tmp_path):
+    app = SheppyApp(LoadResult(Manifest(machines=[], nodes=[
+        Node(name="camera", alternatives=[
+            Alternative(id="mock", kind="process", command="true",
+                        params={"calibration_file": "/opt/robot/config/"
+                                "cameras/realsense_d435.yaml"})])]), []),
+        profiles_dir=str(tmp_path))
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p", "end", *"_v2_backup")
+        await pilot.pause()
+        x, y = app.focused.cursor_screen_offset
+        assert app.screen.region.contains(x, y)
+        assert x <= app.focused.region.right      # the field scrolls

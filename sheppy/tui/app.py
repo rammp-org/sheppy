@@ -22,7 +22,7 @@ from sheppy.tui.widgets.status_footer import StatusFooter
 from sheppy.tui.widgets.node_list import NodeList, NodeListHeader, RuntimeCell
 from sheppy.tui.widgets.alternatives_panel import AlternativesPanel
 from sheppy.tui.widgets.detail_tabs import (  # format_detail: re-export
-    DetailTabs, ParamRow, format_detail)
+    DetailTabs, ParamFields, ParamRow, format_detail)
 from sheppy.tui.widgets import status as st
 
 __all__ = ["SheppyApp", "format_detail"]
@@ -591,6 +591,7 @@ class SheppyApp(App):
             pass
         await self.query_one(AlternativesPanel).show_note(
             "not in this manifest — stop (x) and logs only")
+        self.query_one(ParamFields).show(event.name, {}, {})  # no edits
         self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:

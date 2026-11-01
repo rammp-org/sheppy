@@ -41,10 +41,9 @@ class DetailTabs(Vertical):
     DetailTabs Tabs { background: $subhead-bg; }
     DetailTabs Tab { color: $text-muted; margin: 0 1 0 0; }
     DetailTabs Tab.-active { color: $foreground; text-style: bold; }
-    DetailTabs TabPane { padding: 1 2; }
     /* bounded, so a focused param field below the fold scrolls in */
     DetailTabs TabbedContent, DetailTabs ContentSwitcher { height: 1fr; }
-    DetailTabs TabPane { height: 1fr; overflow-y: auto; }
+    DetailTabs TabPane { padding: 1 2; height: 1fr; overflow-y: auto; }
     DetailTabs Static { padding: 0 0; }
     """
 
@@ -205,7 +204,9 @@ class ParamRow(Horizontal):
     DEFAULT_CSS = """
     ParamRow { height: 1; overflow-x: auto; scrollbar-size-horizontal: 0; }
     ParamRow Static { width: auto; }
-    ParamRow Input { width: auto; min-width: 2; color: $foreground; }
+    /* capped, so a long value scrolls inside the field as you type */
+    ParamRow Input { width: auto; min-width: 2; max-width: 50%;
+                     color: $foreground; }
     ParamRow.-edited Input, ParamRow.-edited .param-key { color: $warning; }
     """
     BINDINGS = [("escape", "leave", "Back")]
@@ -255,7 +256,8 @@ class ParamRow(Horizontal):
         self.post_message(self.Edited(self.node, self.param, value))
 
     def on_input_blurred(self, event: Input.Blurred) -> None:
-        self.set(self.value, self.manifest)     # nothing applies implicitly
+        if self.app.app_focus:      # not when the terminal loses focus
+            self.set(self.value, self.manifest)     # nothing applies
 
     def action_leave(self) -> None:
         self.screen.query_one("AlternativesPanel").focus()
@@ -285,4 +287,5 @@ class ParamFields(Vertical):
 
     def focus_first(self) -> None:
         # call_next runs after a recompose show() queued has mounted the rows
-        self.call_next(lambda: self._rows[0].query_one(Input).focus())
+        self.call_next(
+            lambda: self._rows and self._rows[0].query_one(Input).focus())
