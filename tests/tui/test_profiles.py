@@ -1,3 +1,4 @@
+from textual import events
 import os
 from sheppy.manifest import Manifest, Node, Alternative, LoadResult
 from sheppy.profiles import Profile, ProfileStore
@@ -224,3 +225,52 @@ async def test_typing_q_in_a_name_does_not_quit(tmp_path):
         await pilot.pause()
         assert app.is_running
         assert app.screen.query_one("#name").value == "q"
+
+
+async def _open_param_editor(pilot, app):
+    app.query_one("#nodes").index = 0
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+    app.query_one("#alternatives").index = 0
+    await pilot.pause()
+    await pilot.press("enter")            # select camera/mock (fps: 15)
+    await pilot.pause()
+    await pilot.press("escape")
+    await pilot.pause()
+    await pilot.press("p")
+    await pilot.pause()
+
+
+async def test_param_editor_accepts_terminal_paste(tmp_path):
+    # The terminal's paste (Ctrl+Shift+V, Cmd+V) arrives as a Paste event.
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _open_param_editor(pilot, app)
+        app.post_message(events.Paste("30"))
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.state.effective_params("camera") == {"fps": 30}
+
+
+async def test_param_editor_ctrl_v_without_clipboard_keeps_value(tmp_path):
+    # Most terminals send Ctrl+V as a key; with nothing copied inside sheppy
+    # it must not replace the selected value with nothing.
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _open_param_editor(pilot, app)
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert app.screen.query_one("#param-0").value == "15"
+        assert any("Ctrl+Shift+V" in n.message for n in app._notifications)
+
+
+async def test_param_editor_ctrl_v_pastes_text_copied_in_sheppy(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _open_param_editor(pilot, app)
+        app.copy_to_clipboard("30")
+        await pilot.press("ctrl+v")
+        await pilot.pause()
+        assert app.screen.query_one("#param-0").value == "30"

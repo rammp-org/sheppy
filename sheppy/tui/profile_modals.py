@@ -99,6 +99,25 @@ class ConfirmModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
+class ParamInput(Input):
+    """Input whose Ctrl+V never wipes the field.
+
+    Most terminals pass Ctrl+V to the app as a key instead of pasting, and
+    Input then pastes Textual's own clipboard, which is empty unless text was
+    copied inside sheppy, so the selected value was replaced with nothing.
+    The terminal's paste (Ctrl+Shift+V, Cmd+V) arrives as a paste event and
+    goes through Input's paste handling unchanged.
+    """
+
+    def action_paste(self) -> None:
+        if self.app.clipboard:
+            super().action_paste()
+        else:
+            self.notify("Ctrl+V can't read the system clipboard here; "
+                        "paste with your terminal's Ctrl+Shift+V",
+                        severity="warning")
+
+
 class ParamEditorModal(ModalScreen["dict | None"]):
     """Edit declared params of the selected alternative. Enter=apply, Esc=cancel.
 
@@ -120,7 +139,8 @@ class ParamEditorModal(ModalScreen["dict | None"]):
             yield Label("Edit params — Enter=apply, Esc=cancel")
             for i, name in enumerate(self._names):
                 yield Label(name, markup=False)
-                yield Input(value=str(self._params[name]), id=f"param-{i}")
+                yield ParamInput(value=str(self._params[name]),
+                                 id=f"param-{i}")
             yield Label("", id="param-error", markup=False)
 
     def on_mount(self) -> None:
