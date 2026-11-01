@@ -70,7 +70,7 @@ def test_param_value_with_single_quote_is_escaped():
     import shlex as _shlex
     tokens = _shlex.split(text)
     assert tokens == ["exec", "ros2", "run", "p", "e", "--ros-args", "-p",
-                      "msg:=x'; touch /tmp/PWNED; echo '"]
+                      "msg:=\"x'; touch /tmp/PWNED; echo '\""]
 
 
 def test_launch_file_param_with_single_quote_is_escaped():

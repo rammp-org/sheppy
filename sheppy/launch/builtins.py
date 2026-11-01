@@ -3,36 +3,17 @@ import json
 import os
 import shlex
 
-import yaml
-
 from sheppy.launch.descriptor import LaunchDescriptor
 
 
-def _value(v) -> str:
-    # ROS reads the text after -p k:= as YAML, so spell the value as a one-line
-    # YAML flow scalar: None -> null, "007" -> '007', {"b": 1} -> {b: 1} (#70).
-    style = None
-    if isinstance(v, str):
-        try:
-            float(v)    # rcl reads plain 1e3, inf and nan as doubles
-            style = "'"
-        except ValueError:
-            pass
-    text = yaml.safe_dump(v, default_flow_style=True, default_style=style,
-                          width=float("inf"), allow_unicode=True)
-    text = text.removesuffix("\n...\n").removesuffix("\n")
-    # YAML folds a string with a newline over lines; JSON is YAML on one line.
-    return json.dumps(v, ensure_ascii=False) if "\n" in text else text
+def param_text(v) -> str:
+    # ROS reads the text after -p k:= as YAML; JSON is one-line YAML with every
+    # string quoted, so "007" stays a string and None is null (#70).
+    return json.dumps(v, ensure_ascii=False)
 
 
-def _launch_arg(v) -> str:
-    # ros2 launch takes k:=v launch arguments as raw text and the launch file
-    # decides how to type them, so a string goes through as written.
-    return v if isinstance(v, str) else _value(v)
-
-
-def _param_token(k, v, spell=_value) -> str:
-    inner = f"{k}:={spell(v)}"
+def _param_token(k, text) -> str:
+    inner = f"{k}:={text}"
     return "'" + inner.replace("'", "'\\''") + "'"
 
 
@@ -67,7 +48,7 @@ class ExecutableLauncher:
         q = shlex.quote
         cmd = f"exec ros2 run {q(alt.package or '')} {q(alt.executable or '')}"
         if params:
-            toks = " ".join(f"-p {_param_token(k, v)}" for k, v in params.items())
+            toks = " ".join(f"-p {_param_token(k, param_text(v))}" for k, v in params.items())
             cmd += f" --ros-args {toks}"
         return _wrap(ctx, alt, cmd)
 
@@ -87,7 +68,8 @@ class LaunchFileLauncher:
         q = shlex.quote
         cmd = f"exec ros2 launch {q(alt.package or '')} {q(alt.launch_file or '')}"
         for k, v in params.items():
-            cmd += f" {_param_token(k, v, _launch_arg)}"
+            # ros2 launch hands launch args to the launch file as raw text (#70).
+            cmd += f" {_param_token(k, v if isinstance(v, str) else param_text(v))}"
         return _wrap(ctx, alt, cmd)
 
     def summary(self, alt):

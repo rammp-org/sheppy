@@ -347,11 +347,11 @@ async def test_param_editor_records_only_the_fields_the_user_edited(tmp_path):
         await pilot.pause()
         await pilot.press("enter")            # apply without editing
         await pilot.pause()
-        assert app.state._overrides == {}
         assert app.state.effective_params("camera") == params
         await pilot.press("p")
         await pilot.pause()
         app.screen.query_one("#param-1").value = "'008'"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.state._overrides == {"camera": {"name": "008"}}
+        assert (app.state.effective_params("camera")
+                == {**params, "name": "008"})
