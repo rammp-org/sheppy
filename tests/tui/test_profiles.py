@@ -4,6 +4,7 @@ from sheppy.manifest import Manifest, Node, Alternative, LoadResult
 from sheppy.profiles import Profile, ProfileStore
 from sheppy.tui.app import SheppyApp
 from sheppy.tui.widgets.detail_tabs import ParamRow
+from textual import events
 from textual.widgets import Input
 from tests.tui.widgets._themed import plain
 
@@ -385,3 +386,28 @@ async def test_typing_a_long_param_keeps_the_cursor_on_screen(tmp_path):
         x, y = app.focused.cursor_screen_offset
         assert app.screen.region.contains(x, y)
         assert x <= app.focused.region.right      # the field scrolls
+
+
+async def test_typed_param_is_kept_when_the_terminal_loses_focus(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p", "9", "9")
+        app.post_message(events.AppBlur())        # e.g. alt-tab away
+        await pilot.pause()
+        assert _field(app, "fps").value == "99"
+
+
+async def test_enter_on_the_shown_value_clears_a_parse_error(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
+        await pilot.pause()
+        field = _field(app, "fps")
+        field.value = "[1"
+        await pilot.press("enter")
+        field.value = "15"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert plain(app.query_one(".param-note")) == ""

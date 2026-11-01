@@ -590,7 +590,8 @@ class SheppyApp(App):
             pass
         await self.query_one(AlternativesPanel).show_note(
             "not in this manifest — stop (x) and logs only")
-        self.query_one(ParamFields).show(event.name, {}, {})  # no edits
+        self.query_one("#detail", Static).update("")     # no stale node
+        self.query_one(ParamFields).show(event.name, {}, {})
         self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
@@ -774,17 +775,11 @@ class SheppyApp(App):
         tabs.focus_params()
 
     def on_param_row_edited(self, event: ParamRow.Edited) -> None:
-        self._on_params(event.node, {event.param: event.value})
-
-    def _on_params(self, node_name: str, values: dict) -> None:
-        if not self.state:
-            return
-        for param, value in values.items():
-            self.state.override(node_name, param, value)
+        self.state.override(event.node, event.param, event.value)
         self._refresh_header()
         self._refresh_runtime()   # params changed -> drift may too
         node = self._current_node()
-        if node and node.name == node_name:
+        if node and node.name == event.node:
             self._show_detail(node)
 
     # ---- errors / rebuild ------------------------------------------------

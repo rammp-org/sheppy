@@ -256,6 +256,7 @@ class ParamRow(Horizontal):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         event.stop()
         if event.value == param_text(self.value):
+            self._paint()   # clears a parse error from an earlier Enter
             return      # untouched: re-parsing could change its type (#70)
         try:
             value = yaml.safe_load(event.value)
