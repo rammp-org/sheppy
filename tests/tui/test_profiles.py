@@ -3,6 +3,9 @@ import pytest
 from sheppy.manifest import Manifest, Node, Alternative, LoadResult
 from sheppy.profiles import Profile, ProfileStore
 from sheppy.tui.app import SheppyApp
+from sheppy.tui.widgets.detail_tabs import ParamRow
+from textual.widgets import Input
+from tests.tui.widgets._themed import plain
 
 
 def _result():
@@ -113,37 +116,69 @@ async def test_load_modal_escape_does_not_steal_focus(tmp_path):
         assert app.query_one("#alternatives").has_focus is True
 
 
-async def test_param_editor_records_override(tmp_path):
+def _field(app, param):
+    return next(r for r in app.query(ParamRow)
+                if r.param == param).query_one(Input)
+
+
+async def _select_first_alt(app, pilot):
+    app.query_one("#nodes").index = 0
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+    app.query_one("#alternatives").index = 0
+    await pilot.pause()
+    await pilot.press("enter")
+    await pilot.pause()
+
+
+async def test_p_focuses_the_first_param_field_on_detail(tmp_path):
     app = SheppyApp(_result(), profiles_dir=str(tmp_path))
     async with app.run_test() as pilot:
-        # select camera/mock (which declares fps: 15)
-        app.query_one("#nodes").index = 0
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        app.query_one("#alternatives").index = 0
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        # return focus to the node list, then open the param editor on camera
-        await pilot.press("escape")
-        await pilot.pause()
+        await _select_first_alt(app, pilot)           # camera/mock
+        await pilot.press("down", "3")                # highlight real; PROCESS
         await pilot.press("p")
         await pilot.pause()
-        # the fps field is pre-filled "15"; clear it and type 30.
-        # Fields are id'd by index ("param-0"), not by param name, so dotted
-        # ROS names never produce an invalid Textual id.
-        # NOTE: App.query_one is pinned to the screen composed at startup
-        # (Textual 8.2.7's App._compose_screen is set once in _on_compose and
-        # never updated), so it cannot see widgets on a screen pushed later via
-        # push_screen. Query through app.screen (the live top-of-stack screen)
-        # to reach the modal's fields instead.
-        field = app.screen.query_one("#param-0")
-        field.value = "30"
+        assert app.query_one("#detailtabs").active == "tab-detail"
+        assert app.focused is _field(app, "fps")
+
+
+async def test_esc_in_a_param_field_puts_its_value_back(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
         await pilot.pause()
+        await pilot.press("9", "9", "escape")
+        await pilot.pause()
+        assert _field(app, "fps").value == "15"
+        assert app.state.effective_params("camera") == {"fps": 15}
+        assert app.query_one("#alternatives").has_focus
+
+
+async def test_a_param_that_is_not_yaml_is_rejected_inline(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
+        await pilot.pause()
+        field = _field(app, "fps")
+        field.value = "[1, 2"
         await pilot.press("enter")
         await pilot.pause()
-        assert app.state.effective_params("camera") == {"fps": 30}
+        assert "not valid YAML" in plain(app.query_one(".param-note"))
+        assert field.value == "[1, 2" and app.focused is field
+        assert app.state.effective_params("camera") == {"fps": 15}
+
+
+async def test_params_of_an_alternative_not_selected_are_read_only(tmp_path):
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)           # camera/mock
+        await pilot.press("down", "enter", "up")      # select real, see mock
+        await pilot.pause()
+        assert not app.query(ParamRow)
+        assert "fps: 15" in plain(app.query_one("#detail"))
 
 
 def _dotted_result():
@@ -156,55 +191,41 @@ def _dotted_result():
     return LoadResult(manifest, [])
 
 
-async def test_param_editor_handles_non_identifier_param_names(tmp_path):
-    # A dotted ROS param name must not be used verbatim as a widget id (Textual
-    # rejects non-identifier ids). The modal must still round-trip the real name.
+async def test_param_fields_handle_non_identifier_param_names(tmp_path):
     app = SheppyApp(_dotted_result(), profiles_dir=str(tmp_path))
     async with app.run_test() as pilot:
-        app.query_one("#nodes").index = 0
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")                        # must not crash
         await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        app.query_one("#alternatives").index = 0
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        await pilot.press("escape")
-        await pilot.pause()
-        await pilot.press("p")            # must not crash (no BadIdentifier)
-        await pilot.pause()
-        # Fields are id'd by index, not by the dotted name.
-        field = app.screen.query_one("#param-0")
-        field.value = "best_effort"
-        await pilot.pause()
+        app.focused.value = "best_effort"
         await pilot.press("enter")
         await pilot.pause()
         assert (app.state.effective_params("camera")["qos.reliability"]
                 == "best_effort")
 
 
-async def test_param_editor_with_many_params_fits_and_scrolls(tmp_path):
-    # #113: 20 params put the last Input at row 80 of a 30-row terminal.
-    from sheppy.tui.profile_modals import ParamEditorModal
-    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
-    results: list = []
+async def test_many_param_fields_stay_reachable(tmp_path):
+    # #113: 20 params put the last field below a 30-row terminal.
+    params = {f"p{i}": i for i in range(20)}
+    app = SheppyApp(LoadResult(Manifest(machines=[], nodes=[
+        Node(name="camera", alternatives=[
+            Alternative(id="mock", kind="process", command="true",
+                        params=params)])]), []),
+        profiles_dir=str(tmp_path))
     async with app.run_test(size=(100, 30)) as pilot:
+        await _select_first_alt(app, pilot)
+        await pilot.press("p")
         await pilot.pause()
-        app.push_screen(ParamEditorModal({f"p{i}": i for i in range(20)}),
-                        results.append)
-        await pilot.pause()
-        screen = app.screen.region
-        assert screen.contains_region(app.screen.query_one("#dialog").region)
         for _ in range(19):
             await pilot.press("tab")
         await pilot.pause()
-        last = app.screen.query_one("#param-19")
+        last = _field(app, "p19")
         assert app.focused is last
-        assert screen.contains_region(last.region)
+        assert app.screen.region.contains_region(last.region)
         last.value = "99"
         await pilot.press("enter")
         await pilot.pause()
-        assert results and results[0]["p19"] == 99
+        assert app.state.effective_params("camera")["p19"] == 99
 
 
 async def test_reload_preserves_description_across_resave(tmp_path):
@@ -325,7 +346,7 @@ async def test_load_surfaces_nonfatal_profile_errors(tmp_path):
                    for w in app._runtime_warnings)
 
 
-async def test_param_editor_records_only_the_fields_the_user_edited(tmp_path):
+async def test_enter_on_an_untouched_param_field_records_nothing(tmp_path):
     # #70: Enter without edits must not turn the string "30" into int 30 or
     # "007" into 7; an edited field becomes exactly one override.
     params = {"rate": "30", "name": "007", "gain": 1.5}
@@ -335,22 +356,15 @@ async def test_param_editor_records_only_the_fields_the_user_edited(tmp_path):
                         params=params)])]), [])
     app = SheppyApp(result, profiles_dir=str(tmp_path))
     async with app.run_test() as pilot:
-        app.query_one("#nodes").index = 0
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        app.query_one("#alternatives").index = 0
-        await pilot.pause()
-        await pilot.press("enter")            # select "mock"
-        await pilot.pause()
+        await _select_first_alt(app, pilot)
         await pilot.press("p")
         await pilot.pause()
         await pilot.press("enter")            # apply without editing
         await pilot.pause()
         assert app.state.effective_params("camera") == params
-        await pilot.press("p")
-        await pilot.pause()
-        app.screen.query_one("#param-1").value = "'008'"
+        assert "camera" not in app.state._overrides
+        await pilot.press("tab")              # on to "name"
+        app.focused.value = "'008'"
         await pilot.press("enter")
         await pilot.pause()
         assert (app.state.effective_params("camera")

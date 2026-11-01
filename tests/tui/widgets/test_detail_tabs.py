@@ -1,9 +1,9 @@
 from textual.app import ComposeResult
 from tests.tui.widgets._themed import ThemedApp, plain
 from sheppy.manifest import Node, Alternative
-from sheppy.tui.widgets.detail_tabs import (DetailTabs, _param_rows,
-                                            format_detail)
-from sheppy.tui.widgets.theme import c
+from textual.color import Color
+from textual.widgets import Input
+from sheppy.tui.widgets.detail_tabs import DetailTabs, ParamRow, format_detail
 
 
 def _node():
@@ -43,22 +43,22 @@ async def test_show_none_is_defensive():
         assert str(app.query_one("#detail").content) == ""
 
 
-async def test_detail_shows_effective_params_and_the_manifest_default():
+async def test_selected_params_are_fields_yellow_when_edited():
     app = _Harness()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         dt = app.query_one(DetailTabs)
         alt = Alternative(id="sim", kind="process", command="true",
                           params={"rate": 10, "frame": "base"})
         dt.show(Node(name="camera", alternatives=[alt]), alt,
                 params={"rate": 30, "frame": "base"})
-        text = plain(app.query_one("#detail"))
-        assert "rate: 30 (manifest 10)" in text
-        assert 'frame: "base"' in text and "manifest \"base\"" not in text
-
-
-def test_an_edited_param_is_yellow_and_an_untouched_one_neutral():
-    rate, frame = _param_rows(lambda key, value: value,
-                              {"rate": 30, "frame": "base"},
-                              {"rate": 10, "frame": "base"})
-    assert rate.startswith(c("yellow", "rate: 30"))
-    assert frame == c("fg", 'frame: "base"')
+        await pilot.pause()
+        rate, frame = app.query(ParamRow)
+        assert rate.query_one(Input).value == "30"
+        assert frame.query_one(Input).value == '"base"'
+        assert plain(rate.query_one(".param-note")) == "(manifest 10)"
+        assert plain(frame.query_one(".param-note")) == ""
+        theme = app.theme_variables
+        assert rate.query_one(Input).styles.color == Color.parse(
+            theme["warning"])                       # the palette's yellow
+        assert frame.query_one(Input).styles.color == Color.parse(
+            theme["foreground"])

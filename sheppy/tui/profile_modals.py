@@ -1,12 +1,9 @@
 # sheppy/tui/profile_modals.py
-import yaml
-
 from textual.app import ComposeResult
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListView, ListItem
 
-from sheppy.launch.builtins import param_text
 from sheppy.profiles import NAME_RE
 
 
@@ -98,61 +95,3 @@ class ConfirmModal(ModalScreen[bool]):
         elif event.key in ("n", "escape"):
             event.stop()
             self.dismiss(False)
-
-
-class ParamEditorModal(ModalScreen["dict | None"]):
-    """Edit declared params of the selected alternative. Enter=apply, Esc=cancel.
-
-    Each field shows the value as YAML and is parsed back as YAML; only fields
-    whose text changed are returned. A field that fails to parse is rejected
-    inline.
-    """
-
-    def __init__(self, params: dict) -> None:
-        super().__init__()
-        self._params = params
-        # Widget ids are index-based, not name-based: ROS param names are
-        # idiomatically dotted (e.g. "qos.reliability") and Textual rejects
-        # ids that are not valid identifiers. The index->name map lets us map
-        # each field back to its real param name on submit.
-        self._names = list(self._params.keys())
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(id="dialog"):
-            yield Label("Edit params — Enter=apply, Esc=cancel")
-            for i, name in enumerate(self._names):
-                yield Label(name, markup=False)
-                yield Input(value=param_text(self._params[name]),
-                            id=f"param-{i}")
-            yield Label("", id="param-error", markup=False,
-                        classes="dialog-hint")
-
-    def on_mount(self) -> None:
-        # Focus the first param field so pilot key presses land and Enter submits.
-        if self._names:
-            self.query_one("#param-0", Input).focus()
-
-    def on_key(self, event) -> None:
-        if event.key == "escape":
-            event.stop()
-            self.dismiss(None)
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        # A focused Input consumes Enter and emits Submitted (Enter never reaches
-        # on_key), so submit here. Any field submitting applies the whole form.
-        self._submit()
-
-    def _submit(self) -> None:
-        parsed: dict = {}
-        for i, name in enumerate(self._names):
-            raw = self.query_one(f"#param-{i}", Input).value
-            if raw == param_text(self._params[name]):
-                continue    # untouched: re-parsing could change its type (#70)
-            try:
-                # Key by the REAL param name, not the widget index.
-                parsed[name] = yaml.safe_load(raw)
-            except yaml.YAMLError:
-                self.query_one("#param-error", Label).update(
-                    f"invalid value for '{name}'")
-                return
-        self.dismiss(parsed)
