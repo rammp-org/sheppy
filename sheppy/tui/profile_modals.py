@@ -6,6 +6,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListView, ListItem
 
+from sheppy.launch.builtins import param_text
 from sheppy.profiles import NAME_RE
 
 
@@ -102,8 +103,9 @@ class ConfirmModal(ModalScreen[bool]):
 class ParamEditorModal(ModalScreen["dict | None"]):
     """Edit declared params of the selected alternative. Enter=apply, Esc=cancel.
 
-    Each field is parsed as a YAML scalar so 30, 1.5, true, and plain strings
-    round-trip naturally. A field that fails to parse is rejected inline.
+    Each field shows the value as YAML and is parsed back as YAML; only fields
+    whose text changed are returned. A field that fails to parse is rejected
+    inline.
     """
 
     def __init__(self, params: dict) -> None:
@@ -120,7 +122,8 @@ class ParamEditorModal(ModalScreen["dict | None"]):
             yield Label("Edit params — Enter=apply, Esc=cancel")
             for i, name in enumerate(self._names):
                 yield Label(name, markup=False)
-                yield Input(value=str(self._params[name]), id=f"param-{i}")
+                yield Input(value=param_text(self._params[name]),
+                            id=f"param-{i}")
             yield Label("", id="param-error", markup=False,
                         classes="dialog-hint")
 
@@ -143,6 +146,8 @@ class ParamEditorModal(ModalScreen["dict | None"]):
         parsed: dict = {}
         for i, name in enumerate(self._names):
             raw = self.query_one(f"#param-{i}", Input).value
+            if raw == param_text(self._params[name]):
+                continue    # untouched: re-parsing could change its type (#70)
             try:
                 # Key by the REAL param name, not the widget index.
                 parsed[name] = yaml.safe_load(raw)

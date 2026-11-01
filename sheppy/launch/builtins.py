@@ -1,5 +1,4 @@
-"""The three original kinds, now launchers emitting inherit descriptors.
-Command strings are byte-identical to the pre-plugin resolver."""
+"""The three original kinds, now launchers emitting inherit descriptors."""
 import json
 import os
 import shlex
@@ -7,12 +6,17 @@ import shlex
 from sheppy.launch.descriptor import LaunchDescriptor
 
 
-def _value(v) -> str:
-    return json.dumps(v) if isinstance(v, (bool, int, float)) else str(v)
+def param_text(v) -> str:
+    # ROS reads the text after -p k:= as YAML; JSON is one-line YAML with every
+    # string quoted, so "007" stays a string and None is null (#70).
+    try:
+        return json.dumps(v, ensure_ascii=False)
+    except TypeError:    # e.g. a YAML date: ROS gets it as a string
+        return json.dumps(str(v), ensure_ascii=False)
 
 
-def _param_token(k, v) -> str:
-    inner = f"{k}:={_value(v)}"
+def _param_token(k, text) -> str:
+    inner = f"{k}:={text}"
     return "'" + inner.replace("'", "'\\''") + "'"
 
 
@@ -47,7 +51,7 @@ class ExecutableLauncher:
         q = shlex.quote
         cmd = f"exec ros2 run {q(alt.package or '')} {q(alt.executable or '')}"
         if params:
-            toks = " ".join(f"-p {_param_token(k, v)}" for k, v in params.items())
+            toks = " ".join(f"-p {_param_token(k, param_text(v))}" for k, v in params.items())
             cmd += f" --ros-args {toks}"
         return _wrap(ctx, alt, cmd)
 
@@ -67,7 +71,8 @@ class LaunchFileLauncher:
         q = shlex.quote
         cmd = f"exec ros2 launch {q(alt.package or '')} {q(alt.launch_file or '')}"
         for k, v in params.items():
-            cmd += f" {_param_token(k, v)}"
+            # ros2 launch hands launch args to the launch file as raw text (#70).
+            cmd += f" {_param_token(k, v if isinstance(v, str) else param_text(v))}"
         return _wrap(ctx, alt, cmd)
 
     def summary(self, alt):

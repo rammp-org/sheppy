@@ -1,5 +1,13 @@
+import datetime
+import json
+import shlex
+
+import pytest
+import yaml
+
 from sheppy.launch.builtins import (
-    ProcessLauncher, ExecutableLauncher, LaunchFileLauncher)
+    ProcessLauncher, ExecutableLauncher, LaunchFileLauncher, _param_token,
+    param_text)
 from sheppy.launch.base import LaunchContext
 from sheppy.manifest import Alternative, Machine, Manifest
 
@@ -81,3 +89,51 @@ def test_relative_ros_setup_with_default_manifest_dir_uses_cwd(tmp_path, monkeyp
     alt = Alternative(id="a", kind="process", machine="ws", command="true")
     text = cmd(ProcessLauncher().launch(alt, {}, ctx(tmp_path, Manifest(machines=[ws], nodes=[]))))
     assert text.startswith(f"source {tmp_path}/install/setup.bash && ")
+
+
+@pytest.mark.parametrize("value", [
+    None, "007", [1, "two", 3.0], True, False, 30, 1.5, "it's on it", "yes",
+    "", "a\nb", "café", "1e3", "inf", ["08", "09"], ["1e3", "x"]])
+def test_param_token_is_one_shell_word_holding_the_yaml_value(value):
+    # #70: ROS parses the value after := as YAML (None, not "None"; "007", not
+    # 7). rcl types plain scalars by its own rules (08 and 1e3 are doubles), so
+    # every string, nested or not, must be quoted.
+    (word,) = shlex.split(_param_token("k", param_text(value)))
+    name, _, text = word.partition(":=")
+    assert name == "k"
+    assert yaml.safe_load(text) == value
+    assert "\n" not in text
+    strings = value if isinstance(value, list) else [value]
+    for s in strings:
+        if isinstance(s, str):
+            assert json.dumps(s, ensure_ascii=False) in text
+
+
+ARGS = {"name": "007", "word": "on it", "nothing": None, "flag": True,
+        "gain": 1.5, "ids": ["08", "09"]}
+
+
+def test_executable_params_are_json(tmp_path):
+    desc = ExecutableLauncher().launch(
+        Alternative(id="a", kind="executable", package="p", executable="e"),
+        ARGS, ctx(tmp_path))
+    assert shlex.split(cmd(desc))[6:] == [
+        "-p", 'name:="007"', "-p", 'word:="on it"', "-p", "nothing:=null",
+        "-p", "flag:=true", "-p", "gain:=1.5", "-p", 'ids:=["08", "09"]']
+
+
+def test_launch_file_strings_verbatim_other_values_json(tmp_path):
+    # ros2 launch takes launch arguments as raw text (quotes would reach the
+    # launch file), so strings go through as written.
+    desc = LaunchFileLauncher().launch(
+        Alternative(id="a", kind="launch_file", package="p", launch_file="f"),
+        {**ARGS, "m": {"b": 1}}, ctx(tmp_path))
+    assert shlex.split(cmd(desc))[5:] == [
+        "name:=007", "word:=on it", "nothing:=null", "flag:=true",
+        "gain:=1.5", 'ids:=["08", "09"]', 'm:={"b": 1}']
+
+
+def test_param_text_writes_yaml_dates_as_text():
+    # JSON has no date; YAML loads 2024-01-01 as one (#70).
+    assert param_text(datetime.date(2024, 1, 1)) == '"2024-01-01"'
+    param_text(yaml.safe_load("{2024-01-01: x}"))    # no TypeError

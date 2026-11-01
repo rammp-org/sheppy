@@ -323,3 +323,35 @@ async def test_load_surfaces_nonfatal_profile_errors(tmp_path):
         assert app.state.selected("camera") == "mock"
         assert any("'overrides' is not a mapping" in w
                    for w in app._runtime_warnings)
+
+
+async def test_param_editor_records_only_the_fields_the_user_edited(tmp_path):
+    # #70: Enter without edits must not turn the string "30" into int 30 or
+    # "007" into 7; an edited field becomes exactly one override.
+    params = {"rate": "30", "name": "007", "gain": 1.5}
+    result = LoadResult(Manifest(machines=[], nodes=[
+        Node(name="camera", alternatives=[
+            Alternative(id="mock", kind="process", command="true",
+                        params=params)])]), [])
+    app = SheppyApp(result, profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        app.query_one("#nodes").index = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        app.query_one("#alternatives").index = 0
+        await pilot.pause()
+        await pilot.press("enter")            # select "mock"
+        await pilot.pause()
+        await pilot.press("p")
+        await pilot.pause()
+        await pilot.press("enter")            # apply without editing
+        await pilot.pause()
+        assert app.state.effective_params("camera") == params
+        await pilot.press("p")
+        await pilot.pause()
+        app.screen.query_one("#param-1").value = "'008'"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert (app.state.effective_params("camera")
+                == {**params, "name": "008"})
