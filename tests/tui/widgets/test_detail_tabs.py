@@ -1,7 +1,9 @@
 from textual.app import ComposeResult
 from tests.tui.widgets._themed import ThemedApp, plain
 from sheppy.manifest import Node, Alternative
-from sheppy.tui.widgets.detail_tabs import DetailTabs, format_detail
+from sheppy.tui.widgets.detail_tabs import (DetailTabs, _param_rows,
+                                            format_detail)
+from sheppy.tui.widgets.theme import c
 
 
 def _node():
@@ -52,3 +54,11 @@ async def test_detail_shows_effective_params_and_the_manifest_default():
         text = plain(app.query_one("#detail"))
         assert "rate: 30 (manifest 10)" in text
         assert 'frame: "base"' in text and "manifest \"base\"" not in text
+
+
+def test_an_edited_param_is_yellow_and_an_untouched_one_neutral():
+    rate, frame = _param_rows(lambda key, value: value,
+                              {"rate": 30, "frame": "base"},
+                              {"rate": 10, "frame": "base"})
+    assert rate.startswith(c("yellow", "rate: 30"))
+    assert frame == c("fg", 'frame: "base"')

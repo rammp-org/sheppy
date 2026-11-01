@@ -37,13 +37,18 @@ and `worker` crashed, with the PROCESS tab open.
   [drifted](#drift), the selected alternative, its machine, and CPU and memory.
 - **Alternatives (middle):** the highlighted node's alternatives. `◉` marks
   the selected one; a node can also have none selected.
-- **Detail (right):** DETAIL shows the alternative's settings, TOPICS its
-  declared `publishes`/`subscribes`, PROCESS its live state and last output,
-  and YAML the raw manifest entry. For the selected alternative, DETAIL shows
-  the params with your edits applied; an edited param is yellow and shows the
-  manifest value after it, as in `fps: 30 (manifest 15)`. While the node is
-  supervised, PROCESS also shows the alternative and params the running
-  process was launched with.
+- **Detail (right):** the tabs describe the highlighted alternative. DETAIL
+  shows its settings, TOPICS its declared `publishes`/`subscribes`, PROCESS
+  its live state and last output, and YAML the raw manifest entry. For the
+  selected alternative, DETAIL shows the params with your edits applied; an
+  edited param is yellow and shows the manifest value after it, as in
+  `fps: 30 (manifest 15)`. On the alternative `sheppyd` last launched for the
+  node, PROCESS shows its state, the params it was launched with, its pid,
+  exit code, and last output. On the node's other alternatives, PROCESS shows
+  `not running` and names the alternative that was launched and its state,
+  as in `realsense crashed (exit 1)`. While the node isn't supervised,
+  PROCESS on the selected alternative says `space to launch`, and on any other
+  alternative just `not running`.
 - **Footer:** key hints, and whether `sheppyd` is running. On a narrow
   terminal the hints are cut off from the right; the `sheppyd` status stays.
 
@@ -58,7 +63,7 @@ pane is squeezed first.
 | `◐` | launching | started, and still inside the launch grace period (2 s by default) |
 | `●` | running | alive past the launch grace period |
 | `◑` | stopping | a stop was requested; sheppy is escalating signals |
-| `✕` | crashed | exited on its own; the exit code is on the PROCESS tab |
+| `✕` | crashed | exited on its own; the exit code is on the PROCESS tab of the alternative that crashed |
 | `?` | unknown | `sheppyd` isn't running, so sheppy can't tell |
 
 Sheppy never restarts a crashed node by itself.
@@ -67,7 +72,8 @@ Sheppy never restarts a crashed node by itself.
 
 A `Δ` means what's running differs from what's selected (see
 [desired vs actual](../concepts#desired-vs-actual)). The PROCESS tab adds a
-`drift` line saying why:
+`drift` line saying why, on the selected alternative and on the one that was
+launched:
 
 | `drift` line | Meaning |
 |--------------|---------|
