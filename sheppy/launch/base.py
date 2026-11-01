@@ -1,7 +1,9 @@
 """The launcher plugin contract and the context that mediates a launcher's
 side effects. Launchers are client-side; they return data, never run in
 the daemon."""
+import hashlib
 import os
+import tempfile
 from typing import Protocol
 
 import yaml
@@ -32,10 +34,25 @@ class LaunchContext:
 
     def write_params_file(self, params: dict,
                           ros_node_name: "str | None" = None) -> str:
+        # Content-addressed and never rewritten: a file a running container
+        # mounts can't change under it, and other params get another path,
+        # so the descriptor changes with them (#182, #64).
         key = ros_node_name or "/**"
-        path = os.path.join(self.scratch_dir(), "params.yaml")
-        with open(path, "w") as f:
-            yaml.safe_dump({key: {"ros__parameters": dict(params)}}, f)
+        data = yaml.safe_dump({key: {"ros__parameters": dict(params)}}).encode()
+        d = self.scratch_dir()
+        path = os.path.join(
+            d, f"params-{hashlib.sha256(data).hexdigest()[:16]}.yaml")
+        if os.path.exists(path):
+            return path
+        fd, tmp = tempfile.mkstemp(dir=d, prefix=".params-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            os.chmod(tmp, 0o644)               # mkstemp's 0600 hides it from
+            os.replace(tmp, path)              # a non-root container user
+        except BaseException:
+            os.unlink(tmp)
+            raise
         return path
 
 

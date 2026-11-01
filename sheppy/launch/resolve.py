@@ -60,7 +60,6 @@ def diff(desired, actual):
         alive = payload is not None and payload["state"] in _ALIVE
         if not alive:
             starts.append(("start", node))
-        elif (payload["spec"].get("descriptor") != spec.descriptor.to_wire()
-              or payload["spec"].get("params") != spec.params):
+        elif payload["spec"].get("descriptor") != spec.descriptor.to_wire():
             restarts.append(("restart", node))
     return stops + restarts + starts
