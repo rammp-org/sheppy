@@ -1,4 +1,5 @@
 import json
+import os
 from sheppy.daemon.config import (
     Config, daemon_log, load_config, sheppy_home, socket_path, state_path,
     lock_path,
@@ -76,12 +77,16 @@ def test_paths_derive_from_home(monkeypatch, tmp_path):
     assert lock_path(home) == str(tmp_path / "sheppyd.lock")
 
 
-def test_socket_uses_xdg_when_no_sheppy_home(monkeypatch, tmp_path):
+def test_socket_sits_next_to_the_lock_whatever_the_environment(monkeypatch, tmp_path):
+    # Clients with and without XDG_RUNTIME_DIR (a desktop TUI and a cron
+    # job) must find the same socket, as they find the same lock (#92).
     monkeypatch.delenv("SHEPPY_HOME", raising=False)
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    import os
-    assert socket_path(os.path.expanduser("~/.sheppy")) == \
-        str(tmp_path / "sheppy" / "sheppyd.sock")
+    home = str(tmp_path / ".sheppy")
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
+    with_xdg = socket_path(home)
+    monkeypatch.delenv("XDG_RUNTIME_DIR")
+    assert socket_path(home) == with_xdg == os.path.join(home, "sheppyd.sock")
+    assert os.path.dirname(with_xdg) == os.path.dirname(lock_path(home))
 
 
 def test_daemon_log_survives_a_lone_surrogate(tmp_path):
