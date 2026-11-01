@@ -51,6 +51,29 @@ def test_int_is_accepted_for_a_float_key(tmp_path):
     assert warnings == []
 
 
+def test_out_of_range_falls_back_to_default_with_warning(tmp_path):
+    # ring_lines: -1 loaded silently and every launch then died in deque();
+    # usage_interval: 0 busy-looped the sampler (#174). NaN is no better.
+    (tmp_path / "sheppyd.json").write_text(json.dumps(
+        {"ring_lines": -1, "keep_runs": 0, "usage_interval": 0,
+         "launch_grace": -1, "stop_grace": float("nan"),
+         "kill_grace": -0.5}))
+    cfg, warnings = load_config(str(tmp_path))
+    assert cfg == Config(home=str(tmp_path), log_dir=str(tmp_path / "logs"))
+    assert len(warnings) == 6
+    assert all("must be" in w and "default" in w for w in warnings)
+
+
+def test_range_bounds_are_accepted(tmp_path):
+    (tmp_path / "sheppyd.json").write_text(json.dumps(
+        {"ring_lines": 1, "keep_runs": 1, "usage_interval": 0.01,
+         "launch_grace": 0, "stop_grace": 0, "kill_grace": 0}))
+    cfg, warnings = load_config(str(tmp_path))
+    assert (cfg.ring_lines, cfg.keep_runs, cfg.usage_interval) == (1, 1, 0.01)
+    assert cfg.launch_grace == cfg.stop_grace == cfg.kill_grace == 0.0
+    assert warnings == []
+
+
 def test_log_dir_expands_tilde(tmp_path, monkeypatch):
     # The docs' own example is "~/.sheppy/logs"; unexpanded it created a
     # literal ./~ directory in the daemon's cwd (#91).
