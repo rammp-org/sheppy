@@ -225,6 +225,11 @@ machines without registry access.
 | `missing` | Pull only if the image is not on the machine. |
 | `never` | Never pull; the launch fails if the image is not on the machine. |
 
+`if_not_present` is accepted as a synonym for `missing`. Compose's other
+values (`build`, `daily`, `weekly`, `every_<duration>`) are errors, reported
+when the manifest is checked for an inline `container` and at launch for a
+`compose` file.
+
 #### Variable interpolation in compose files
 
 A value in a `compose` file can reference an environment variable as `${VAR}`

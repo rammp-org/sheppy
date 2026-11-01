@@ -1,5 +1,6 @@
 import os
 import textwrap
+import pytest
 from sheppy.launch.docker.compose import load_service
 from sheppy.launch.docker import DockerLauncher
 from sheppy.launch.base import LaunchContext
@@ -135,3 +136,21 @@ def test_compose_service_paths_resolve_against_compose_file_dir(tmp_path):
     d = DockerLauncher().launch(a, {}, ctx)
     assert f"{tmp_path}/deploy/maps:/maps" in d.start
     assert f"{tmp_path}/deploy/ros.env" in d.start
+
+
+def test_compose_reference_with_unsupported_pull_policy_fails_at_launch(tmp_path):
+    # A compose file is read only at launch, so validate() cannot see this;
+    # launch must name the value rather than let `docker run` fail (#190)
+    write(tmp_path, """
+        services:
+          perception:
+            image: org/perc:1
+            pull_policy: build
+    """)
+    a = Alternative(id="real", kind="docker",
+                    raw={"compose": {"file": "demo.compose.yml",
+                                        "service": "perception"}})
+    ctx = LaunchContext("perception", Manifest(machines=[], nodes=[]),
+                        home=str(tmp_path), manifest_dir=str(tmp_path))
+    with pytest.raises(ValueError, match="pull_policy 'build'"):
+        DockerLauncher().launch(a, {}, ctx)
