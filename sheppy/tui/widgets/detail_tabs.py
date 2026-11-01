@@ -6,7 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.markup import escape
 from textual.message import Message
-from textual.widgets import Input, Static, TabbedContent, TabPane
+from textual.widgets import Input, RichLog, Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node
 from sheppy.launch.builtins import param_text
@@ -36,6 +36,8 @@ class DetailTabs(Vertical):
     contract), PROCESS (live runtime state) and YAML render live now; the
     TOPICS 'live' column remains a placeholder for phase 4."""
 
+    _log = (None, [], 0)    # (node, lines, width) the output area holds
+
     DEFAULT_CSS = """
     DetailTabs { width: 1fr; height: 1fr; background: $background; }
     DetailTabs Tabs { background: $subhead-bg; }
@@ -45,6 +47,7 @@ class DetailTabs(Vertical):
     DetailTabs TabbedContent, DetailTabs ContentSwitcher { height: 1fr; }
     DetailTabs TabPane { padding: 1 2; height: 1fr; overflow-y: auto; }
     DetailTabs Static { padding: 0 0; }
+    DetailTabs RichLog { height: 1fr; min-height: 5; background: $background; }
     """
 
     def compose(self):
@@ -57,8 +60,14 @@ class DetailTabs(Vertical):
                 yield Static("", id="detail-topics")
             with TabPane("PROCESS", id="tab-process"):
                 yield Static("", id="detail-process")
+                yield RichLog(id="process-log", wrap=True, min_width=1)
             with TabPane("YAML", id="tab-yaml"):
                 yield Static("", id="detail-yaml", markup=False)
+
+    def on_mount(self) -> None:
+        # Anchored, the output stays at the bottom as the facts above it
+        # change height, until the user scrolls up.
+        self.query_one("#process-log", RichLog).anchor()
 
     def activate(self, tab_id: str) -> None:
         self.query_one("#detailtabs", TabbedContent).active = tab_id
@@ -101,6 +110,8 @@ class DetailTabs(Vertical):
         the ones that differ, with their running values."""
         try:
             target = self.query_one("#detail-process", Static)
+            self._show_log(payload["node"] if payload and not other
+                           else None, lines)
         except NoMatches:
             return
         if not connected:
@@ -146,10 +157,23 @@ class DetailTabs(Vertical):
             out.append(row("usage", c("orange",
                 f"{usage['cpu_pct']:.0f}% {usage['rss_mb']:.0f}M")))
         if lines:
-            out.append("")
-            out.append(c("muted", "last output"))
-            out.extend(c("fg", line) for line in lines)
+            out += ["", c("muted", "last output")]  # the RichLog below
         target.update("\n".join(out))
+
+    def _show_log(self, node: "str | None", lines: list) -> None:
+        """The output tail scrolls (#196): at the bottom it follows new
+        lines; scrolled up, it holds still until you scroll back down."""
+        log = self.query_one("#process-log", RichLog)
+        if node == self._log[0] and not log.is_vertical_scroll_end:
+            return
+        if (node, lines, log.size.width) != self._log:     # width: re-wrap
+            self._log = (node, lines, log.size.width)
+            log.clear()
+            if lines:
+                log.write("\n".join(lines), scroll_end=False)
+        # now, not after the refresh: the user may scroll up before then;
+        # the anchor keeps it at the bottom as the facts change height
+        log.scroll_end(animate=False, immediate=True, x_axis=False)
 
     def _detail_markup(self, node: Node, alt: Alternative,
                         summary_rows: "list | None" = None,

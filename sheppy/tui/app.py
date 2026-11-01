@@ -27,6 +27,9 @@ from sheppy.tui.widgets import status as st
 __all__ = ["SheppyApp", "format_detail"]
 
 MAX_RUNTIME_WARNINGS = 20
+# PROCESS output lines (#196): sheppyd's default ring_lines, all it keeps
+# in memory per node; asking for more returns no more.
+LOG_TAIL = 300
 _RECONNECT_HINT = "space/L reconnects (and restarts sheppyd if it died)"
 
 
@@ -592,7 +595,8 @@ class SheppyApp(App):
             "not in this manifest — stop (x) and logs only")
         self.query_one("#detail", Static).update("")     # no stale node
         self.query_one(ParamFields).show(event.name, {}, {})
-        self._refresh_process_tab()
+        if self.query_one("#detailtabs", TabbedContent).active == "tab-process":
+            self._refresh_process_tab()
 
     def on_node_list_node_selected(self, event: NodeList.NodeSelected) -> None:
         # Deliberate descent: move focus into the alternatives pane, and
@@ -651,16 +655,19 @@ class SheppyApp(App):
                         group="proctab")
 
     async def _load_process_tab(self) -> None:
-        name = self._current_orphan or (
-            self._current_node().name if self._current_node() else None)
-        tabs = self.query_one(DetailTabs)
+        try:
+            name = self._current_orphan or (
+                self._current_node().name if self._current_node() else None)
+            tabs = self.query_one(DetailTabs)
+            # PROCESS describes the highlighted alternative, as DETAIL does (#191)
+            row = self.query_one(AlternativesPanel).highlighted_row()
+        except NoMatches:       # the app is shutting down
+            return
         if name is None or not self.daemon_connected:
             tabs.show_process(None, [], self.daemon_connected)
             return
         payload = self.actual.get(name)
         node = None if self._current_orphan else self.manifest.node(name)
-        # PROCESS describes the highlighted alternative, as DETAIL does (#191)
-        row = self.query_one(AlternativesPanel).highlighted_row()
         alt = row.alt if node and row and row.node is node else None
         ran = payload["spec"]["alt_id"] if payload else None
         if alt and payload and not any(a.id == ran
@@ -672,7 +679,8 @@ class SheppyApp(App):
         other = alt is not None and alt.id != (ran or self.state.selected(name))
         lines: list = []
         if payload is not None and not other:
-            reply = await self._request_safely("logs", node=name, n=15)
+            reply = await self._request_safely("logs", node=name,
+                                               n=LOG_TAIL)
             if reply and reply.get("ok"):
                 lines = reply["lines"]
         tabs.show_process(payload, lines, True, drift=drift, other=other,
@@ -692,6 +700,8 @@ class SheppyApp(App):
         self.query_one(NodeList).focus()
 
     def action_show_tab(self, tab_id: str) -> None:
+        if self.focused is self.query_one("#process-log"):
+            self.action_focus_nodes()       # it's about to be hidden
         self.query_one(DetailTabs).activate(tab_id)
 
     def action_save_profile(self) -> None:
