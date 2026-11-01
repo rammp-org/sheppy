@@ -29,7 +29,7 @@ def test_load_service_with_interpolation(tmp_path, monkeypatch):
 
 
 def test_load_service_warns_on_unsupported_interpolation(tmp_path, monkeypatch):
-    # only ${VAR} and ${VAR:-default} are expanded; the other compose forms
+    # only ${VAR}, ${VAR:-default} and $$ are handled; the other compose forms
     # pass through literally, which must not happen silently (#72)
     monkeypatch.setenv("TAG", "1.2")
     path = write(tmp_path, """
@@ -39,17 +39,37 @@ def test_load_service_warns_on_unsupported_interpolation(tmp_path, monkeypatch):
             environment:
               A: ${NET-host}
               B: ${TAG:?need it}
-              C: costs $$5
               D: ${TAG}-ok
     """)
     svc, warnings = load_service(path, "perception", os.environ)
     assert svc["image"] == "org/perc:$TAG"
     assert svc["environment"]["A"] == "${NET-host}"
     assert svc["environment"]["D"] == "1.2-ok"
-    for form in ("$TAG", "${NET-host}", "${TAG:?need it}", "$$"):
+    for form in ("$TAG", "${NET-host}", "${TAG:?need it}"):
         assert any(repr(form) in w for w in warnings), form
-    assert len(warnings) == 4
+    assert len(warnings) == 3
     assert all("${VAR}" in w and "${VAR:-default}" in w for w in warnings)
+
+
+def test_default_applies_when_var_is_empty(tmp_path):
+    # compose's ${VAR:-default} uses the default for unset *or empty* VAR (#158)
+    write(tmp_path, "services: {p: {image: 'i:${TAG:-latest}', "
+                    "network_mode: '${NET}'}}")
+    svc, warnings = load_service(tmp_path / "demo.compose.yml", "p",
+                                 {"TAG": "", "NET": ""})
+    assert svc["image"] == "i:latest"
+    assert svc["network_mode"] == ""
+    assert warnings == []
+
+
+def test_double_dollar_is_a_literal_dollar(tmp_path):
+    # $$ is compose's escape for a literal $; what follows it is not expanded
+    write(tmp_path, "services: {p: {image: i, "
+                    "command: 'echo $$HOME $${TAG} costs $$5'}}")
+    svc, warnings = load_service(tmp_path / "demo.compose.yml", "p",
+                                 {"TAG": "1.2", "HOME": "/h"})
+    assert svc["command"] == "echo $HOME ${TAG} costs $5"
+    assert warnings == []
 
 
 def test_repeated_unsupported_form_in_one_value_warns_once(tmp_path):
