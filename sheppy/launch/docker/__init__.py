@@ -6,8 +6,9 @@ from sheppy.launch.docker.compose import load_service, service_to_docker_args
 
 __all__ = ["DockerLauncher"]
 
-# With no pull_policy: refresh the image ($2, for platform $1), fall back to
-# a cached copy if the pull fails, then exec the `docker run` argv.
+# With no pull_policy or `always`: refresh the image ($2, for platform $1),
+# fall back to a cached copy if the pull fails, then exec the `docker run`
+# argv.
 _PULL = ('docker pull ${1:+--platform "$1"} "$2" >&2 || {'
          ' docker image inspect "$2" >/dev/null 2>&1 || exit 1;'
          ' echo "sheppy: could not pull $2; using the cached image" >&2; };'
@@ -83,7 +84,7 @@ class DockerLauncher:
             command += ["--ros-args", "--params-file", "/sheppy/params.yaml"]
         start = (["docker", "run", "-d", "--name", name] + flags
                  + [image] + command)
-        if not service.get("pull_policy"):
+        if service.get("pull_policy") in (None, "always"):
             start = (["sh", "-c", _PULL, "sh", service.get("platform") or "",
                       image, "docker", "run", "--pull", "never"] + start[2:])
         return LaunchDescriptor.detached(

@@ -58,11 +58,19 @@ def test_long_form_gpus_is_a_hard_error():
 
 
 def test_pull_policy_docker_accepts_passes_through():
-    for policy in ("always", "missing", "never"):
+    for policy in ("missing", "never"):
         flags, _, _, errs, _ = service_to_docker_args(
             {"image": "i", "pull_policy": policy})
         assert errs == []
         assert flags[flags.index("--pull") + 1] == policy
+
+
+def test_pull_policy_always_is_left_to_the_launcher():
+    # The launcher's own pull falls back to a cached image offline (#211);
+    # docker run --pull always would not
+    flags, _, _, errs, _ = service_to_docker_args(
+        {"image": "i", "pull_policy": "always"})
+    assert errs == [] and "--pull" not in flags
 
 
 def test_pull_policy_if_not_present_is_missing():

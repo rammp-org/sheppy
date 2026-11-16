@@ -221,9 +221,13 @@ machines without registry access.
 
 | `pull_policy` | Behaviour |
 |---|---|
-| `always` | Pull on every launch; the launch fails if the pull fails. |
+| `always` | The same as no `pull_policy`: pull on every launch, and start from the cached image if the pull fails. |
 | `missing` | Pull only if the image is not on the machine. |
 | `never` | Never pull; the launch fails if the image is not on the machine. |
+
+Unlike `docker run --pull always`, sheppy's `always` does not fail a launch
+when the registry is unreachable and the image is on the machine, so a robot
+without network access still starts its nodes.
 
 `if_not_present` is accepted as a synonym for `missing`. Compose's other
 values (`build`, `daily`, `weekly`, `every_<duration>`) are errors, reported
