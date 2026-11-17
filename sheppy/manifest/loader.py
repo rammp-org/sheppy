@@ -9,6 +9,18 @@ _NAME_PATTERN = r"[A-Za-z0-9][A-Za-z0-9_.-]*"
 _NAME = re.compile(_NAME_PATTERN)
 
 
+def json_safe(value):
+    """value as it reads back from JSON. Params go to sheppyd as JSON, which
+    has no date, so a YAML date such as 2024-01-01 becomes its text (#188)."""
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [json_safe(v) for v in value]
+    if value is None or isinstance(value, (str, int, float)):
+        return value
+    return str(value)
+
+
 def _check_name(value, what: str, loc: str, errors: list) -> None:
     if not (isinstance(value, str) and _NAME.fullmatch(value)):
         errors.append(ValidationError(
@@ -66,7 +78,7 @@ def _build_alternative(raw: dict, loc: str, machine_names: set, errors: list) ->
         id=alt_id or "", kind=kind or "", machine=machine,
         package=raw.get("package"), executable=raw.get("executable"),
         launch_file=raw.get("launch_file"), command=raw.get("command"),
-        params=params or {},
+        params=json_safe(params or {}),
         publishes=topics["publishes"], subscribes=topics["subscribes"],
         raw=dict(raw))
 

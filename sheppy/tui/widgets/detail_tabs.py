@@ -8,7 +8,7 @@ from textual.markup import escape
 from textual.message import Message
 from textual.widgets import Input, RichLog, Static, TabbedContent, TabPane
 
-from sheppy.manifest import Alternative, Node
+from sheppy.manifest import Alternative, Node, json_safe
 from sheppy.launch.builtins import param_text
 from sheppy.launch.resolve import fmt
 from sheppy.tui.widgets import status as st
@@ -316,7 +316,7 @@ class ParamRow(Horizontal):
             self._paint()   # clears a parse error from an earlier Enter
             return      # untouched: re-parsing could change its type (#70)
         try:
-            value = yaml.safe_load(event.value)
+            value = json_safe(yaml.safe_load(event.value))
         except yaml.YAMLError:
             self._paint("not valid YAML, Esc puts it back")
             return

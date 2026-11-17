@@ -134,3 +134,12 @@ def test_save_failure_leaves_previous_file_intact(tmp_path, monkeypatch):
         store.save(Profile(name="keep", selections={"camera": "real"}))
     assert store.load("keep").profile.selections == {"camera": "mock"}
     assert not (tmp_path / "profiles" / "keep.yaml.tmp").exists()
+
+
+def test_a_yaml_date_override_loads_as_its_text(tmp_path):
+    # JSON has no date, so a date param could not be sent to sheppyd (#188).
+    d = tmp_path / "profiles"
+    d.mkdir()
+    (d / "p.yaml").write_text("overrides:\n  camera: {stamp: 2024-01-01}\n")
+    res = ProfileStore(str(d)).load("p")
+    assert res.profile.overrides == {"camera": {"stamp": "2024-01-01"}}
