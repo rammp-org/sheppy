@@ -239,6 +239,7 @@ async def test_a_date_typed_into_a_param_field_is_kept_as_text():
         await pilot.pause()
         assert app.state.effective_params("camera")["enable_depth"] == "2024-01-01"
 
+
 async def test_typing_in_a_param_field_triggers_no_action():
     fake = FakeDaemonClient({"camera": payload("camera", "running",
                                                alt="realsense")})
