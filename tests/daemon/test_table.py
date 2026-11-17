@@ -81,6 +81,45 @@ async def test_restart_relaunches_same_spec(tmp_path):
     assert table.status()["flaky"]["spec"]["descriptor"]["start"] == list(CRASH)
 
 
+@pytest.mark.parametrize("relaunch", ["launch", "restart"])
+async def test_relaunch_after_crash_stops_surviving_helper(tmp_path, relaunch):
+    # The leader crashes but a helper it spawned (same process group)
+    # ignores SIGINT and lives on. A relaunch must clear it out first, or
+    # the new instance fights it for the hardware (#163).
+    pid_file = tmp_path / "helper.pid"
+    helper = ("import os, signal, time\n"
+              "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+              f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+              "time.sleep(30)\n")
+    leader = [sys.executable, "-c",
+              "import os, subprocess, sys\n"
+              f"if not os.path.exists({str(pid_file)!r}):\n"   # once
+              f"    subprocess.Popen([sys.executable, '-c', {helper!r}])\n"
+              "sys.exit(3)\n"]
+    table, _ = make_table(tmp_path)
+    await table.launch(spec("arm", leader))
+    await wait_state(table, "arm", pr.CRASHED)
+    crashed = table._entries["arm"]
+    await asyncio.wait_for(_wait_file(pid_file), 5)
+    helper_pid = int(pid_file.read_text())
+    try:
+        if relaunch == "launch":
+            await table.launch(spec("arm"))
+        else:
+            await table.restart("arm")
+        with pytest.raises(ProcessLookupError):
+            os.kill(helper_pid, 0)
+        assert crashed.state == pr.CRASHED      # the old run still crashed
+    finally:
+        subprocess.run(["kill", "-9", str(helper_pid)], capture_output=True)
+        await table.stop_all()
+
+
+async def _wait_file(path):
+    while not path.exists() or not path.read_text():
+        await asyncio.sleep(0.01)
+
+
 async def test_unknown_node_raises(tmp_path):
     table, _ = make_table(tmp_path)
     with pytest.raises(KeyError):

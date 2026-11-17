@@ -66,10 +66,17 @@ class Supervised:
         self._on_state(self)
 
     async def stop(self) -> None:
-        if self.pid is None or self._exited.is_set():
+        if self.pid is None:
             return
-        self._stop_requested = True
-        self._set(STOPPING)
+        if self._exited.is_set():
+            # The leader is gone, but a helper in its group may have
+            # outlived a crash and still hold the hardware (#163). Clear it
+            # out with the same escalation; the run's state stays as it is.
+            if not self._group_alive():
+                return
+        else:
+            self._stop_requested = True
+            self._set(STOPPING)
         escalation = ((signal.SIGINT, self._cfg.stop_grace),
                       (signal.SIGTERM, self._cfg.kill_grace))
         for sig, grace in escalation:
