@@ -286,6 +286,7 @@ async def test_stop_cancels_a_detached_start_that_never_returns(tmp_path):
     # its group, run reset, and leave the node stopped (#189).
     marker = f"sheppy-test-{tmp_path.name}"
     order = tmp_path / "ORDER"
+    order.touch()                 # polled below before reset writes it
     hang = f"{sys.executable} -c 'import time; time.sleep(30)  # {marker}'"
     table, _ = make_table(tmp_path)
     launch = asyncio.ensure_future(table.launch(detached(
