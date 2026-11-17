@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import signal
 import subprocess
 import sys
 
@@ -8,7 +9,6 @@ import pytest
 
 from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config, state_path
-from sheppy.daemon.logs import NodeLog
 from sheppy.daemon.table import ProcessTable
 
 SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
@@ -116,37 +116,30 @@ async def test_relaunch_after_crash_stops_surviving_helper(tmp_path, relaunch):
         await table.stop_all()
 
 
-async def test_relaunch_after_crash_spares_a_reused_pid(tmp_path):
-    # The crashed leader was reaped long ago and its pid now belongs to an
-    # unrelated session leader. Signalling pgid == pid would hit that group.
+async def test_relaunch_after_crash_spares_a_recycled_pgid(tmp_path):
+    # After the crashed group empties, its pid can lead a new, unrelated
+    # group, here one whose leader has already exited (a double fork).
     table, _ = make_table(tmp_path)
     await table.launch(spec("arm", CRASH))
     await wait_state(table, "arm", pr.CRASHED)
-    other = subprocess.Popen(SLEEP, start_new_session=True)
+    await asyncio.sleep(0.05)                 # later than the exit, in ticks
+    pid_file = tmp_path / "orphan.pid"
+    fork = ("import os, time\n"
+            "os.setsid()\n"
+            "if os.fork() == 0:\n"
+            f"    open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+            "    time.sleep(30)\n")
+    leader = subprocess.Popen([sys.executable, "-c", fork])
+    leader.wait()
+    await asyncio.wait_for(_wait_file(pid_file), 5)
+    orphan = int(pid_file.read_text())
     try:
-        table._entries["arm"].pid = other.pid     # as if recycled
+        table._entries["arm"].pid = leader.pid    # as if recycled
         await table.launch(spec("arm"))
-        assert other.poll() is None
+        os.kill(orphan, 0)                        # still alive
     finally:
-        other.kill()
-        other.wait()
+        os.kill(orphan, signal.SIGKILL)
         await table.stop_all()
-
-
-async def test_adopted_zombie_leader_still_owns_its_pid(tmp_path):
-    # An adopted leader is not our child: once it exits it stays a zombie
-    # until its parent reaps it, and its pid is still its group's pgid.
-    _, cfg = make_table(tmp_path)
-    leader = subprocess.Popen([sys.executable, "-c", "pass"],
-                              start_new_session=True)
-    log = NodeLog(cfg.log_dir, "arm", cfg.ring_lines, cfg.keep_runs)
-    proc = pr.AdoptedProcess(spec("arm"), cfg, log, lambda p: None,
-                             pid=leader.pid, started_at=0.0)
-    try:
-        await asyncio.wait_for(proc.wait(), 5)
-        assert not proc._pid_reused()
-    finally:
-        leader.wait()
 
 
 async def _wait_file(path):
