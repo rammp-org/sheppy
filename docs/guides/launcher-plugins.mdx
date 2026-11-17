@@ -145,8 +145,8 @@ runtime-specific behavior.
     `grace["poll"]` below) whose exit code indicates liveness (0 = still
     alive). Use this only when your runtime has no blocking-wait primitive.
 - **`alive`** (optional, used with `watch`) — a one-shot argv that exits 0
-  while the unit is running (the docker launcher checks
-  `docker inspect -f '{{.State.Running}}'`). When `watch` exits and no stop
+  while the unit is running (the docker launcher runs
+  `docker top <name>`). When `watch` exits and no stop
   was requested, the daemon runs it once. If it exits 0, the unit was
   restarted outside sheppy (for example with `docker restart`): the daemon
   keeps the node running, starts a new run log with a fresh `logs`

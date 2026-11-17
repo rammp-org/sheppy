@@ -159,9 +159,8 @@ node: there is no pipe to break.)
 ~/.sheppy/logs/<node>/<YYYYmmdd-HHMMSS>-<id>.log
 ```
 
-Each launch gets its own file, and so does each restart of a docker container
-outside sheppy; the last `keep_runs` (default 5) files per node are kept and
-older ones are pruned. The daemon also keeps an in-memory
+Each launch gets its own file; the last `keep_runs` (default 5) files per node
+are kept and older ones are pruned. The daemon also keeps an in-memory
 **ring buffer** of the last `ring_lines` (default 300) lines per node as a
 tail view over the current file — this is what `sheppy logs` and the TUI's
 PROCESS tab display, including a crashed node's last output.

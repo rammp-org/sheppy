@@ -1,4 +1,5 @@
 # tests/test_docker_e2e.py
+import asyncio
 import shutil
 import subprocess
 import sys
@@ -8,6 +9,9 @@ import pytest
 from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config
 from sheppy.daemon.table import ProcessTable
+from sheppy.launch.base import LaunchContext
+from sheppy.launch.docker import DockerLauncher
+from sheppy.manifest import Alternative, Manifest
 
 
 def _docker_ok():
@@ -65,9 +69,6 @@ async def test_real_container_runs_and_stops(tmp_path):
 async def test_container_restarted_outside_sheppy_stays_running(tmp_path):
     # `docker restart` ends `docker wait`; the node must not show crashed
     # while its container is up again (#220).
-    from sheppy.launch.base import LaunchContext
-    from sheppy.launch.docker import DockerLauncher
-    from sheppy.manifest import Alternative, Manifest
     name = "sheppy-e2e-restart"
     alt = Alternative(id="alpine", kind="docker", raw={"container": {
         "image": "alpine:3", "command": "sleep 3600", "pull_policy": "missing"}})
@@ -83,7 +84,6 @@ async def test_container_restarted_outside_sheppy_stays_running(tmp_path):
         before = _container_id(name)
         subprocess.run(["docker", "restart", "-t", "0", name], check=True,
                        stdout=subprocess.DEVNULL)
-        import asyncio
         await asyncio.sleep(1.0)
         assert table.status()["sleeper"]["state"] == pr.RUNNING
         assert _container_id(name) == before

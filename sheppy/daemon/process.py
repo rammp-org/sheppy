@@ -309,9 +309,7 @@ class DetachedSupervisor(Supervised):
                 self._set(RUNNING)
             out, _ = await comm
         if await self._up_again():
-            # Restarted outside sheppy (`docker restart`, #220): the watch
-            # and the logs follower ended with the old run, but the unit is
-            # up again. Follow it instead of reporting a crash.
+            # Restarted outside sheppy (`docker restart`, #220): follow it.
             self.log.read_new()
             self._reap_logs()
             await self.reattach()

@@ -12,8 +12,6 @@ _PULL = ('docker pull ${1:+--platform "$1"} "$2" >&2 || {'
          ' docker image inspect "$2" >/dev/null 2>&1 || exit 1;'
          ' echo "sheppy: could not pull $2; using the cached image" >&2; };'
          ' shift 2; exec "$@"')
-# Exit 0 while container $1 is running.
-_RUNNING = '[ "$(docker inspect -f "{{.State.Running}}" "$1" 2>/dev/null)" = true ]'
 
 
 class DockerLauncher:
@@ -91,7 +89,7 @@ class DockerLauncher:
         return LaunchDescriptor.detached(
             name, start=start,
             watch=["docker", "wait", name],
-            alive=["sh", "-c", _RUNNING, "sh", name],
+            alive=["docker", "top", name],
             stop=["docker", "stop", "--time", "10", name],
             logs=["docker", "logs", "-f", "--tail", "300", name],
             reset=["docker", "rm", "-f", name])
