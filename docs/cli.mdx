@@ -181,7 +181,7 @@ sheppy up mock
 | Unknown node (`logs`, `restart`, `status <node>`) | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 | `sheppyd` died mid-command (`sheppy: sheppyd: sheppyd connection lost`) | 1 |
-| Usage error: a missing or unexpected argument, or `-n` below 1 (argparse prints the usage) | 2 |
+| Usage error: a missing or unexpected argument, an invalid `-n` (not a positive integer), or an unknown `daemon` action (argparse prints the usage) | 2 |
 | Interrupted with Ctrl-C | 130 |
 
 ## `sheppyd`
