@@ -8,6 +8,7 @@ import pytest
 
 from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config, state_path
+from sheppy.daemon.logs import NodeLog
 from sheppy.daemon.table import ProcessTable
 
 SLEEP = [sys.executable, "-c", "import time; time.sleep(30)"]
@@ -113,6 +114,39 @@ async def test_relaunch_after_crash_stops_surviving_helper(tmp_path, relaunch):
     finally:
         subprocess.run(["kill", "-9", str(helper_pid)], capture_output=True)
         await table.stop_all()
+
+
+async def test_relaunch_after_crash_spares_a_reused_pid(tmp_path):
+    # The crashed leader was reaped long ago and its pid now belongs to an
+    # unrelated session leader. Signalling pgid == pid would hit that group.
+    table, _ = make_table(tmp_path)
+    await table.launch(spec("arm", CRASH))
+    await wait_state(table, "arm", pr.CRASHED)
+    other = subprocess.Popen(SLEEP, start_new_session=True)
+    try:
+        table._entries["arm"].pid = other.pid     # as if recycled
+        await table.launch(spec("arm"))
+        assert other.poll() is None
+    finally:
+        other.kill()
+        other.wait()
+        await table.stop_all()
+
+
+async def test_adopted_zombie_leader_still_owns_its_pid(tmp_path):
+    # An adopted leader is not our child: once it exits it stays a zombie
+    # until its parent reaps it, and its pid is still its group's pgid.
+    _, cfg = make_table(tmp_path)
+    leader = subprocess.Popen([sys.executable, "-c", "pass"],
+                              start_new_session=True)
+    log = NodeLog(cfg.log_dir, "arm", cfg.ring_lines, cfg.keep_runs)
+    proc = pr.AdoptedProcess(spec("arm"), cfg, log, lambda p: None,
+                             pid=leader.pid, started_at=0.0)
+    try:
+        await asyncio.wait_for(proc.wait(), 5)
+        assert not proc._pid_reused()
+    finally:
+        leader.wait()
 
 
 async def _wait_file(path):

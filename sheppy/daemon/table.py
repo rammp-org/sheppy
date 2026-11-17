@@ -65,9 +65,7 @@ class ProcessTable:
 
     async def restart(self, node: str) -> None:
         async with self._lock(node):
-            entry = self._entries[node]
-            await entry.stop()
-            await self._launch(entry.spec)
+            await self._launch(self._entries[node].spec)   # stops it first
 
     async def stop_all(self) -> None:
         for node in list(self._entries):

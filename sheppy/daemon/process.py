@@ -72,7 +72,7 @@ class Supervised:
             # The leader is gone, but a helper in its group may have
             # outlived a crash and still hold the hardware (#163). Clear it
             # out with the same escalation; the run's state stays as it is.
-            if not self._group_alive():
+            if self._pid_reused() or not self._group_alive():
                 return
         else:
             self._stop_requested = True
@@ -116,6 +116,20 @@ class Supervised:
             # started via sudo). It exists but we can't signal it; treat it
             # as alive and let the escalation run out its grace.
             return True
+
+    def _pid_reused(self) -> bool:
+        """The leader has exited, maybe long ago. The kernel won't hand its
+        pid to a new process while anything still has it as pgid, so a live
+        process at that pid means the old group is gone and pgid self.pid
+        now belongs to someone else: don't signal it (#163)."""
+        try:
+            with open(f"/proc/{self.pid}/stat") as f:
+                state = f.read().rsplit(")", 1)[1].split()[0]
+        except (OSError, IndexError):
+            return False
+        # Our own leader was reaped when its exit was seen. An adopted one
+        # is not our child and stays a zombie until its parent reaps it.
+        return not (self.adopted and state == "Z")
 
     async def _group_gone_within(self, grace: float) -> bool:
         """True once the leader has exited *and* its process group is
