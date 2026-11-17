@@ -227,6 +227,18 @@ async def test_enter_in_a_param_field_applies_the_edit():
         assert "Δ params changed" in plain(app.query_one("#detail-process"))
 
 
+async def test_a_date_typed_into_a_param_field_is_kept_as_text():
+    fake = FakeDaemonClient({"camera": payload("camera", "running",
+                                               alt="realsense")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.press("p", *"2024-01-01", "enter")
+        await pilot.pause()
+        assert app.state.effective_params("camera")["enable_depth"] == "2024-01-01"
+
+
 async def test_typing_in_a_param_field_triggers_no_action():
     fake = FakeDaemonClient({"camera": payload("camera", "running",
                                                alt="realsense")})

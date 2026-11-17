@@ -1,6 +1,7 @@
 """The daemon's heart: node -> supervised process, mirrored to a state
 file so a restarted daemon re-adopts still-live children. stdlib only."""
 import asyncio
+import errno
 import json
 import os
 
@@ -140,7 +141,11 @@ class ProcessTable:
             self._entries[node] = pr.AdoptedProcess(
                 rec["spec"], self._cfg, log, self._on_state,
                 pid=rec["pid"], started_at=rec["started_at"])
-        except OSError:                        # died between check and pidfd
+        except OSError as e:                   # died between check and pidfd
+            if e.errno == errno.ENOSYS:
+                daemon_log(self._cfg, f"cannot adopt {node!r} (pid "
+                           f"{rec['pid']}, still running): kernel lacks "
+                           "pidfd_open (Linux >= 5.3 required)")
             return False
         return True
 

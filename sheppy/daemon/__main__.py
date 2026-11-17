@@ -47,7 +47,10 @@ def main(argv: "list[str] | None" = None) -> int:
     home = sheppy_home()
     os.makedirs(home, mode=0o700, exist_ok=True)
     cfg, warnings = load_config(home)
-    err = socket_path_error(home)
+    if sys.platform != "linux":            # pidfd_open, /proc (#79)
+        err = f"sheppyd runs on Linux only (this is {sys.platform})"
+    else:
+        err = socket_path_error(home)
     if err:
         print(f"sheppyd: {err}", file=sys.stderr)
         daemon_log(cfg, err)
