@@ -129,10 +129,14 @@ A manifest with errors in some entries still opens: the errors are listed in
 the overlay (`e`) and the rest stays browsable. An alternative with errors,
 or any alternative of a node with errors (an invalid `name`, a bad
 `select`), can be selected but not launched: `space` and `Shift+L` refuse it, leave the
-node as it is, and put the error in the overlay. If the file is missing or
-isn't valid YAML, `sheppy` prints the error and exits instead. The same holds for profiles: a corrupt
-profile file or one that has drifted from the manifest surfaces warnings in the
-overlay and the applicable remainder still loads.
+node as it is, and put the error in the overlay. If the file is missing,
+unreadable, isn't valid YAML, or isn't a YAML mapping, `sheppy` prints the
+error and exits instead.
+
+Profile problems also go to the overlay. A profile that can't be loaded at
+all (invalid YAML, not a mapping) leaves the selection unchanged. A profile
+with a bad section, or one that has drifted from the manifest, loads what
+still applies and lists what it dropped.
 
 ## Colors washed out over SSH?
 

@@ -47,7 +47,8 @@ if your nodes need longer to shut down.
 ## The TUI
 
 **`sheppy` prints a manifest error and exits.** The file is missing,
-unreadable (or a directory), or isn't valid YAML. With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
+unreadable (or a directory), isn't valid YAML, or isn't a YAML mapping (an
+empty file, say). With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
 the current directory.
 
 **Nodes or alternatives are missing in the TUI.** Their manifest entries have
@@ -61,6 +62,13 @@ the daemon.
 [the TUI](../tui#colors-washed-out-over-ssh).
 
 ## The daemon
+
+**Where is the daemon's own log?** `~/.sheppy/logs/sheppyd.log` (under
+`log_dir` if you set one in
+[`sheppyd.json`](../guides/sheppyd#configuration)). It records startup,
+re-adoption, config warnings, and the traceback if `sheppyd` dies. The
+[home directory](../guides/sheppyd#home-directory) section lists the other
+files sheppy keeps under `~/.sheppy`.
 
 **`sheppyd: not running` from a command.** The daemon isn't up, and only
 `sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
