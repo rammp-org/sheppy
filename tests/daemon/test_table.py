@@ -136,9 +136,10 @@ async def test_relaunch_after_crash_spares_a_recycled_pgid(tmp_path):
     try:
         table._entries["arm"].pid = leader.pid    # as if recycled
         await table.launch(spec("arm"))
-        os.kill(orphan, 0)                        # still alive
+        with open(f"/proc/{orphan}/stat") as f:
+            assert f.read().rsplit(")", 1)[1].split()[0] != "Z"   # not killed
     finally:
-        os.kill(orphan, signal.SIGKILL)
+        subprocess.run(["kill", "-9", str(orphan)], capture_output=True)
         await table.stop_all()
 
 

@@ -48,8 +48,8 @@ except AttributeError:
 def _boot_ticks() -> int:
     """Now, in the units of a process's start time (/proc/<pid>/stat
     field 22): clock ticks since boot."""
-    return int(time.clock_gettime(time.CLOCK_BOOTTIME)
-               * os.sysconf("SC_CLK_TCK"))
+    return (time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+            // (10**9 // os.sysconf("SC_CLK_TCK")))
 
 
 class Supervised:
@@ -129,7 +129,9 @@ class Supervised:
         """A process in the exited leader's group started before that exit.
         Once the group empties, the kernel may give its pid to a new process
         whose own group has the same pgid; everything in that group started
-        after our leader exited, so it is never signalled (#163)."""
+        after our leader exited, so it is never signalled (#163). A group
+        whose pre-exit members are all gone is left alone, even if a process
+        they forked later is still in it."""
         for entry in os.listdir("/proc"):
             if not entry.isdigit():
                 continue

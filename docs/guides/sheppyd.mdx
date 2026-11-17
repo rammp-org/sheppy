@@ -138,7 +138,8 @@ or relaunch of a running node waits for this.
 A crashed node can leave helpers behind in the same way: the child exits on
 its own, but a helper it spawned is still running. A stop, restart, or
 relaunch of a crashed node first runs the same escalation against whatever
-is left of its process group. Clearing them out does not change the node's
+is left of its process group, as long as a helper that was running when the
+node crashed is still alive. Clearing them out does not change the node's
 state: the run is still reported as **crashed**.
 
 ### Crashes are flagged, never auto-restarted
