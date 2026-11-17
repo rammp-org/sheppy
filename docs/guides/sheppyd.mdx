@@ -213,6 +213,16 @@ whatever its environment. The socket is created mode `0600` and its directory
 `0700`. A unix socket path can be at most 107 bytes, so a deeply nested
 `SHEPPY_HOME` stops `sheppyd` from starting; it prints the reason and exits.
 
+```
+~/.sheppy/
+  sheppyd.json         optional config (see Configuration above)
+  sheppyd.sock         the socket clients connect to
+  sheppyd.lock         the single-instance lock
+  sheppyd.state.json   what the daemon supervises, read back for re-adoption
+  logs/                per-node run logs and sheppyd.log (or log_dir, if set)
+  scratch/<node>/      files launchers write for a node, such as docker params files
+```
+
 ## Launch resolution
 
 Clients turn a manifest alternative into a `LaunchSpec` before handing it to

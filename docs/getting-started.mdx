@@ -8,6 +8,9 @@ import { Callout, Steps } from 'nextra/components'
 
 ## Install
 
+sheppy runs on Linux only. Re-adopting running nodes after a daemon
+restart needs Linux 5.3 or newer.
+
 One line — installs [uv](https://docs.astral.sh/uv/) if you don't have it,
 then puts `sheppy` and `sheppyd` on your `PATH` (`~/.local/bin`) in an
 isolated environment:
@@ -102,13 +105,8 @@ clock                running    ticker         pid=3948253 up 22s
 worker               crashed    flaky          pid=3948421 exit=1
 ```
 
-`flaky` exits without printing anything, so `sheppy logs worker` comes back
-empty; the exit code in `sheppy status` is what tells you it failed:
-
-```
-$ sheppy logs worker
-(no output)
-```
+`flaky` exits without printing anything, so `sheppy logs worker` prints
+nothing; the exit code in `sheppy status` is what tells you it failed.
 
 ### Save the selection as a profile — `s`
 

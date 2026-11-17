@@ -1,4 +1,5 @@
 import asyncio
+import errno
 import json
 import os
 import subprocess
@@ -144,6 +145,25 @@ async def test_adoption_survives_pid_dying_mid_adopt(tmp_path, monkeypatch):
     # clean up the never-adopted survivor via the still-live first table
     skipped = [n for n in ("camera", "lidar") if n not in adopted][0]
     await table_a.stop(skipped)
+
+
+async def test_adoption_logs_kernel_without_pidfd_open(tmp_path, monkeypatch):
+    # (#79)
+    table_a, cfg = make_table(tmp_path)
+    await table_a.launch(spec("camera"))
+    await wait_state(table_a, "camera", pr.RUNNING)
+    pid = table_a.status()["camera"]["pid"]
+
+    def enosys(pid, flags=0):
+        raise OSError(errno.ENOSYS, os.strerror(errno.ENOSYS))
+
+    monkeypatch.setattr(pr, "_pidfd_open", enosys)
+    table_b, _ = make_table(tmp_path)
+    assert table_b.adopt_from_state() == []
+    text = (tmp_path / "logs" / "sheppyd.log").read_text()
+    assert "kernel lacks pidfd_open (Linux >= 5.3 required)" in text
+    assert f"pid {pid}" in text and "'camera'" in text
+    await table_a.stop("camera")
 
 
 async def test_persist_skips_entry_with_no_proc_start(tmp_path):

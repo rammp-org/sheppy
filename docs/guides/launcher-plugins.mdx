@@ -74,7 +74,9 @@ class Launcher(Protocol):
   straight out of the YAML — not yet parsed into typed fields. Return a list
   of human-readable error strings (empty list = valid). These become
   `ValidationError`s attached to the alternative's location in the manifest,
-  so a bad `kind: docker` entry fails at `sheppy up`/manifest-load time, not
+  so a bad `kind: docker` entry is reported when the manifest loads (in the
+  TUI's error overlay, or as a `warning:` from `sheppy up`), and `sheppy up`
+  and the TUI refuse to launch that alternative instead of failing
   mid-launch.
 - **`launch(alt, params, ctx)`** — called at resolve time
   (`sheppy/launch/resolve.py::resolve`), once the manifest is valid. `alt` is
@@ -134,7 +136,10 @@ runtime-specific behavior.
   launch's `reset` cleans up whatever the orphaned start produced (see
   #165). A non-zero exit marks the launch as crashed. Its stderr (and
   `reset`'s) is written to the node's run log, so a failed start's error
-  shows up in `sheppy logs`.
+  shows up in `sheppy logs`. `start` runs in its own process group; a stop
+  of the node while `start` is still running kills that group, runs
+  `reset` (or `stop` if there is no `reset`), and marks the node stopped. A restart does the same and then
+  launches again.
 - **exactly one of `watch` or `poll`** (required) — how the daemon learns
   the unit died:
   - **`watch`** (preferred) — a *blocking* argv that exits when the unit

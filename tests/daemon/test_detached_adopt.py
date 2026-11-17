@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import subprocess
 
 from sheppy.daemon import process as pr
 from sheppy.daemon.config import Config, state_path
@@ -108,3 +110,71 @@ async def test_readopt_of_never_completed_start_resolves_crashed(tmp_path):
     open(gate, "w").close()                           # let table_a's start finish
     await launch
     await table_a.stop("cam")
+
+
+def running(pattern):
+    return subprocess.run(["pgrep", "-f", pattern],
+                          capture_output=True).stdout != b""
+
+
+async def launch_hung(table, spec, gate):
+    launch = asyncio.ensure_future(table.launch(spec))
+    while not running(gate):                  # `start` is up and blocked
+        await asyncio.sleep(0.01)
+    return launch
+
+
+async def test_stop_kills_a_start_that_never_returns(tmp_path):
+    # A pull from a registry that never answers holds the lock (#189).
+    gate, state, resets = (str(tmp_path / n) for n in ("GO", "S", "R"))
+    spec = blocked_spec("cam", gate, state)
+    spec["descriptor"]["reset"] = sh(f"echo x >> {resets}")
+    table = make_table(tmp_path)
+    launch = await launch_hung(table, spec, gate)
+    await asyncio.wait_for(table.stop("cam"), 5)
+    await asyncio.wait_for(launch, 1)
+    assert table.status()["cam"]["state"] == pr.STOPPED
+    assert open(resets).read().split() == ["x", "x"]  # before and after
+    assert not running(gate)
+
+
+async def test_a_stopped_start_without_reset_runs_stop(tmp_path):
+    gate, state, stopped = (str(tmp_path / n) for n in ("GO", "S", "X"))
+    spec = blocked_spec("cam", gate, state)
+    spec["descriptor"]["stop"] = sh(f"touch {stopped}")
+    table = make_table(tmp_path)
+    launch = await launch_hung(table, spec, gate)
+    await asyncio.wait_for(table.stop("cam"), 5)
+    await asyncio.wait_for(launch, 1)
+    assert os.path.exists(stopped)
+
+
+async def test_stop_while_start_spawns_still_kills_it(tmp_path, monkeypatch):
+    gate, state = str(tmp_path / "GO"), str(tmp_path / "S")
+    table = make_table(tmp_path)
+    spawn, stops = asyncio.create_subprocess_exec, []
+
+    async def stop_then_spawn(*argv, **kw):
+        if kw.get("start_new_session") and not stops:
+            stops.append(asyncio.ensure_future(table.stop("cam")))
+            await asyncio.sleep(0)            # stop runs cancel_start
+        return await spawn(*argv, **kw)
+
+    monkeypatch.setattr(pr.asyncio, "create_subprocess_exec", stop_then_spawn)
+    await asyncio.wait_for(table.launch(blocked_spec("cam", gate, state)), 5)
+    await asyncio.wait_for(stops[0], 1)
+    assert table.status()["cam"]["state"] == pr.STOPPED
+    assert not running(gate)
+
+
+async def test_restart_kills_a_hung_start_and_relaunches(tmp_path):
+    gate, state = str(tmp_path / "GO"), str(tmp_path / "S")
+    table = make_table(tmp_path)
+    launch = await launch_hung(table, blocked_spec("cam", gate, state), gate)
+    restart = asyncio.ensure_future(table.restart("cam"))
+    await asyncio.sleep(0)                    # the hung start is killed
+    open(gate, "w").close()                   # only the relaunch gets through
+    await asyncio.wait_for(restart, 5)
+    await asyncio.wait_for(launch, 1)
+    await wait_state(table, "cam", pr.RUNNING)
+    await table.stop("cam")

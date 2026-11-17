@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import yaml
 
+from sheppy.manifest import json_safe
 from sheppy.profiles.models import Profile
 
 NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -59,7 +60,7 @@ class ProfileStore:
         clean_overrides: dict = {}
         for k, v in overrides.items():
             if isinstance(v, dict):
-                clean_overrides[k] = dict(v)
+                clean_overrides[k] = json_safe(v)
             else:
                 errors.append(
                     f"profile '{name}': override '{k}' is not a mapping; ignored"
