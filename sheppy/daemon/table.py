@@ -61,10 +61,14 @@ class ProcessTable:
         await proc.start()
 
     async def stop(self, node: str) -> None:
+        # A launch holds the lock until its start exits; don't queue
+        # behind one that never does (#189).
+        self._entries[node].cancel_start()
         async with self._lock(node):
             await self._entries[node].stop()
 
     async def restart(self, node: str) -> None:
+        self._entries[node].cancel_start()
         async with self._lock(node):
             entry = self._entries[node]
             await entry.stop()

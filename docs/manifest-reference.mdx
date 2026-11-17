@@ -213,9 +213,9 @@ machine, the launch fails with docker's error in the log.
 
 Each launch waits for the pull. On a machine that cannot reach the registry,
 the pull can take a while to fail before the cached image is used. A registry
-that accepts connections but never answers holds the launch indefinitely, and
-a `down` or `restart` of that node waits for it. Set `pull_policy: missing` on
-machines without registry access.
+that accepts connections but never answers holds the launch indefinitely;
+`sheppy down` or `sheppy restart` of that node kills the pull. Set
+`pull_policy: missing` on machines without registry access.
 
 `pull_policy` overrides this:
 

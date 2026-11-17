@@ -134,7 +134,9 @@ runtime-specific behavior.
   launch's `reset` cleans up whatever the orphaned start produced (see
   #165). A non-zero exit marks the launch as crashed. Its stderr (and
   `reset`'s) is written to the node's run log, so a failed start's error
-  shows up in `sheppy logs`.
+  shows up in `sheppy logs`. `start` runs in its own process group; a stop
+  or restart of the node while `start` is still running kills that group,
+  runs `reset`, and marks the node stopped.
 - **exactly one of `watch` or `poll`** (required) — how the daemon learns
   the unit died:
   - **`watch`** (preferred) — a *blocking* argv that exits when the unit

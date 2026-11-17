@@ -82,6 +82,10 @@ class Supervised:
         # reaped. Don't hold the node's lock forever if that never happens.
         await self._group_gone_within(self._cfg.kill_grace)
 
+    def cancel_start(self) -> None:
+        """Abort a start still in progress. Spawning a child returns at
+        once, so only DetachedSupervisor has one to abort."""
+
     async def wait(self) -> None:
         await self._exited.wait()
 
@@ -234,6 +238,8 @@ class DetachedSupervisor(Supervised):
         self._watch_task = None
         self._watch_proc = None
         self._logs_proc = None
+        self._starting = False
+        self._start_proc = None
         self.adopted = False
 
     async def _run_once(self, argv, capture=False,
@@ -249,6 +255,38 @@ class DetachedSupervisor(Supervised):
             return 127, b""
         out, _ = await proc.communicate()
         return proc.returncode, (out or b"")
+
+    async def _run_start(self, fd) -> int:
+        # Its own session, so cancel_start() can kill the whole group: a
+        # `sh -c` and the `docker pull` under it.
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *self._start_cmd, stdout=asyncio.subprocess.DEVNULL,
+                stderr=fd, stdin=asyncio.subprocess.DEVNULL,
+                start_new_session=True)
+        except (OSError, ValueError):
+            return 127
+        self._start_proc = proc
+        try:
+            return await proc.wait()
+        finally:
+            self._start_proc = None
+
+    def cancel_start(self) -> None:
+        """Kill a `start` that is still running (#189). start() holds the
+        node's lock until `start` exits, which may be never (a pull from a
+        registry that never answers), so stop and restart call this before
+        they take the lock. start() then runs `reset` and ends STOPPED."""
+        if not self._starting or self._stop_requested:
+            return
+        self._stop_requested = True
+        self._set(STOPPING)
+        proc = self._start_proc
+        if proc is not None and proc.returncode is None:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     async def _open_logs(self, fd) -> None:
         if not self._logs_cmd:
@@ -272,10 +310,19 @@ class DetachedSupervisor(Supervised):
         # The run log opens before `start` so a failed launch (image
         # missing, port in use) leaves the runtime's error in `sheppy logs`.
         fd = self.log.open_run()
+        self._starting = True
         try:
             if self._reset_cmd:                            # best-effort cleanup
                 await self._run_once(self._reset_cmd, stderr=fd)
-            rc, _ = await self._run_once(self._start_cmd, stderr=fd)
+            rc = None if self._stop_requested else await self._run_start(fd)
+            self._starting = False
+            if self._stop_requested:
+                # Stopped mid-start: clear whatever the killed start left
+                # behind (a created container) before reporting STOPPED.
+                if self._reset_cmd:
+                    await self._run_once(self._reset_cmd, stderr=fd)
+                self._finish(None)
+                return
             if rc != 0:
                 self.log.read_new()
                 self._set(CRASHED)                         # launch failed
