@@ -8,8 +8,9 @@ import { Callout, Steps } from 'nextra/components'
 
 ## Install
 
-sheppy runs on Linux 5.3 or newer with Python 3.10 or newer. The daemon
-refuses to start on other systems.
+sheppy runs on Linux with Python 3.10 or newer; the daemon refuses to start
+on macOS and Windows. Re-adopting running nodes after a daemon restart needs
+Linux 5.3 or newer.
 
 One line — installs [uv](https://docs.astral.sh/uv/) if you don't have it,
 then puts `sheppy` and `sheppyd` on your `PATH` (`~/.local/bin`) in an
