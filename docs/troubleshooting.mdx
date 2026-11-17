@@ -47,7 +47,8 @@ if your nodes need longer to shut down.
 ## The TUI
 
 **`sheppy` prints a manifest error and exits.** The file is missing,
-unreadable (or a directory), or isn't valid YAML. With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
+unreadable (or a directory), isn't valid YAML, or isn't a YAML mapping (an
+empty file, say). With no argument, `sheppy` looks for `./sheppy-manifest.yaml` in
 the current directory.
 
 **Nodes or alternatives are missing in the TUI.** Their manifest entries have
@@ -61,6 +62,13 @@ the daemon.
 [the TUI](../tui#colors-washed-out-over-ssh).
 
 ## The daemon
+
+**Where is the daemon's own log?** `~/.sheppy/logs/sheppyd.log` (under
+`log_dir` if you set one in
+[`sheppyd.json`](../guides/sheppyd#configuration)). It records startup,
+re-adoption, config warnings, and the traceback if `sheppyd` dies. The
+[home directory](../guides/sheppyd#home-directory) section lists the other
+files sheppy keeps under `~/.sheppy`.
 
 **`sheppyd: not running` from a command.** The daemon isn't up, and only
 `sheppy up` (or a launch in the TUI) starts it. `status`, `down`, and `daemon`
@@ -84,6 +92,13 @@ launch starts a new daemon that re-adopts them.
 TUI and CLI connect to it without noticing. Run `sheppy daemon stop` (nodes
 keep running), then any sheppy command starts a daemon on the new version and
 re-adopts them. `sheppy --version` shows the client's version.
+
+**The daemon log says `cannot adopt '<node>' (pid …, still running): kernel
+lacks pidfd_open`.** A restarted daemon re-adopts running nodes through
+`pidfd_open`, which needs Linux 5.3 or newer; Jetson JetPack 4.x ships 4.9.
+Launching works on older kernels, but a node started by a previous daemon is
+left running unsupervised. Stop it by hand with `kill <pid>` before launching
+it again.
 
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the
