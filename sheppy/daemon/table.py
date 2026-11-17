@@ -45,9 +45,8 @@ class ProcessTable:
     async def _launch(self, spec: dict) -> None:
         node = spec["node"]
         old = self._entries.get(node)
-        if old is not None and not old._exited.is_set() \
-                and old.state != pr.STOPPED:
-            await old.stop()
+        if old is not None and old.state != pr.STOPPED:
+            await old.stop()               # also clears a crash's leftovers
         log = NodeLog(self._cfg.log_dir, node,
                       self._cfg.ring_lines, self._cfg.keep_runs)
         descriptor = spec.get("descriptor") or {}
@@ -71,9 +70,7 @@ class ProcessTable:
     async def restart(self, node: str) -> None:
         self._entries[node].cancel_start()
         async with self._lock(node):
-            entry = self._entries[node]
-            await entry.stop()
-            await self._launch(entry.spec)
+            await self._launch(self._entries[node].spec)   # stops it first
 
     async def stop_all(self) -> None:
         for node in list(self._entries):

@@ -133,8 +133,14 @@ whole process group is empty. If the child dies on `SIGINT` but a helper it
 spawned (a camera pipeline, a serial bridge) ignores the signal and lives on,
 the escalation continues against the group — `SIGTERM`, then `SIGKILL` —
 until nothing in it remains or the grace budget is spent. A stop, restart,
-or relaunch of a running node waits for this. If the leader crashed on its
-own, see #163.
+or relaunch of a running node waits for this.
+
+A crashed node can leave helpers behind in the same way: the child exits on
+its own, but a helper it spawned is still running. A stop, restart, or
+relaunch of a crashed node first runs the same escalation against whatever
+is left of its process group, as long as a helper that was running when the
+node crashed is still alive. Clearing them out does not change the node's
+state: the run is still reported as **crashed**.
 
 ### Crashes are flagged, never auto-restarted
 

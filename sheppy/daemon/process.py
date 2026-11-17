@@ -45,6 +45,13 @@ except AttributeError:
         return fd
 
 
+def _boot_ticks() -> int:
+    """Now, in the units of a process's start time (/proc/<pid>/stat
+    field 22): clock ticks since boot."""
+    return (time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+            // (10**9 // os.sysconf("SC_CLK_TCK")))
+
+
 class Supervised:
     """Common supervision surface: state, stop escalation, exit event."""
 
@@ -59,6 +66,7 @@ class Supervised:
         self._on_state = on_state
         self._stop_requested = False
         self._exited = asyncio.Event()
+        self._exit_ticks = 0           # when the leader's exit was seen
         self.adopted = False
 
     def _set(self, state: str) -> None:
@@ -66,10 +74,17 @@ class Supervised:
         self._on_state(self)
 
     async def stop(self) -> None:
-        if self.pid is None or self._exited.is_set():
+        if self.pid is None:
             return
-        self._stop_requested = True
-        self._set(STOPPING)
+        if self._exited.is_set():
+            # The leader is gone, but a helper in its group may have
+            # outlived a crash and still hold the hardware (#163). Clear it
+            # out with the same escalation; the run's state stays as it is.
+            if not self._old_group_alive():
+                return
+        else:
+            self._stop_requested = True
+            self._set(STOPPING)
         escalation = ((signal.SIGINT, self._cfg.stop_grace),
                       (signal.SIGTERM, self._cfg.kill_grace))
         for sig, grace in escalation:
@@ -113,6 +128,26 @@ class Supervised:
             # started via sudo). It exists but we can't signal it; treat it
             # as alive and let the escalation run out its grace.
             return True
+
+    def _old_group_alive(self) -> bool:
+        """A process in the exited leader's group started before that exit.
+        Once the group empties, the kernel may give its pid to a new process
+        whose own group has the same pgid; everything in that group started
+        after our leader exited, so it is never signalled (#163). A group
+        whose pre-exit members are all gone is left alone, even if a process
+        they forked later is still in it."""
+        for entry in os.listdir("/proc"):
+            if not entry.isdigit():
+                continue
+            try:
+                with open(f"/proc/{entry}/stat", "rb") as f:
+                    fields = f.read().rsplit(b")", 1)[1].split()
+            except OSError:            # it just exited
+                continue
+            pgid, started = int(fields[2]), int(fields[19])
+            if pgid == self.pid and started <= self._exit_ticks:
+                return True
+        return False
 
     async def _group_gone_within(self, grace: float) -> bool:
         """True once the leader has exited *and* its process group is
@@ -181,6 +216,7 @@ class ManagedProcess(Supervised):
             rc = await proc.wait()
         self.exit_code = rc
         self.log.read_new()                # capture dying words in the ring
+        self._exit_ticks = _boot_ticks()
         self._exited.set()
         self._set(STOPPED if self._stop_requested else CRASHED)
 
@@ -205,6 +241,7 @@ class AdoptedProcess(Supervised):
         loop.remove_reader(self._pidfd)
         os.close(self._pidfd)
         self.log.read_new()
+        self._exit_ticks = _boot_ticks()
         self._exited.set()
         self._set(STOPPED if self._stop_requested else CRASHED)
 

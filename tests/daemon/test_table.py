@@ -2,6 +2,7 @@ import asyncio
 import errno
 import json
 import os
+import signal
 import subprocess
 import sys
 
@@ -80,6 +81,72 @@ async def test_restart_relaunches_same_spec(tmp_path):
     await table.restart("flaky")
     await wait_state(table, "flaky", pr.CRASHED)   # crashes again — same spec
     assert table.status()["flaky"]["spec"]["descriptor"]["start"] == list(CRASH)
+
+
+@pytest.mark.parametrize("relaunch", ["launch", "restart"])
+async def test_relaunch_after_crash_stops_surviving_helper(tmp_path, relaunch):
+    # The leader crashes but a helper it spawned (same process group)
+    # ignores SIGINT and lives on. A relaunch must clear it out first, or
+    # the new instance fights it for the hardware (#163).
+    pid_file = tmp_path / "helper.pid"
+    helper = ("import os, signal, time\n"
+              "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+              f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+              "time.sleep(30)\n")
+    leader = [sys.executable, "-c",
+              "import os, subprocess, sys\n"
+              f"if not os.path.exists({str(pid_file)!r}):\n"   # once
+              f"    subprocess.Popen([sys.executable, '-c', {helper!r}])\n"
+              "sys.exit(3)\n"]
+    table, _ = make_table(tmp_path)
+    await table.launch(spec("arm", leader))
+    await wait_state(table, "arm", pr.CRASHED)
+    crashed = table._entries["arm"]
+    await asyncio.wait_for(_wait_file(pid_file), 5)
+    helper_pid = int(pid_file.read_text())
+    try:
+        if relaunch == "launch":
+            await table.launch(spec("arm"))
+        else:
+            await table.restart("arm")
+        with pytest.raises(ProcessLookupError):
+            os.kill(helper_pid, 0)
+        assert crashed.state == pr.CRASHED      # the old run still crashed
+    finally:
+        subprocess.run(["kill", "-9", str(helper_pid)], capture_output=True)
+        await table.stop_all()
+
+
+async def test_relaunch_after_crash_spares_a_recycled_pgid(tmp_path):
+    # After the crashed group empties, its pid can lead a new, unrelated
+    # group, here one whose leader has already exited (a double fork).
+    table, _ = make_table(tmp_path)
+    await table.launch(spec("arm", CRASH))
+    await wait_state(table, "arm", pr.CRASHED)
+    await asyncio.sleep(0.05)                 # later than the exit, in ticks
+    pid_file = tmp_path / "orphan.pid"
+    fork = ("import os, time\n"
+            "os.setsid()\n"
+            "if os.fork() == 0:\n"
+            f"    open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+            "    time.sleep(30)\n")
+    leader = subprocess.Popen([sys.executable, "-c", fork])
+    leader.wait()
+    await asyncio.wait_for(_wait_file(pid_file), 5)
+    orphan = int(pid_file.read_text())
+    try:
+        table._entries["arm"].pid = leader.pid    # as if recycled
+        await table.launch(spec("arm"))
+        with open(f"/proc/{orphan}/stat") as f:
+            assert f.read().rsplit(")", 1)[1].split()[0] != "Z"   # not killed
+    finally:
+        subprocess.run(["kill", "-9", str(orphan)], capture_output=True)
+        await table.stop_all()
+
+
+async def _wait_file(path):
+    while not path.exists() or not path.read_text():
+        await asyncio.sleep(0.01)
 
 
 async def test_unknown_node_raises(tmp_path):
