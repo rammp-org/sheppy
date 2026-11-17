@@ -228,7 +228,6 @@ async def test_enter_in_a_param_field_applies_the_edit():
 
 
 async def test_a_date_typed_into_a_param_field_is_kept_as_text():
-    # JSON has no date, so a date param could not be sent to sheppyd (#188).
     fake = FakeDaemonClient({"camera": payload("camera", "running",
                                                alt="realsense")})
     app = make_app(fake)

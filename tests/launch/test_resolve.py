@@ -199,7 +199,7 @@ def test_a_yaml_date_param_reaches_the_daemon_and_the_launch_file(tmp_path):
               - {id: rs, kind: launch_file, package: pkg, launch_file: a.py,
                  params: {stamp: 2024-01-01}}
               - {id: exe, kind: executable, package: pkg, executable: cam,
-                 params: {stamp: 2024-01-01}}
+                 params: {stamp: 2024-01-01, days: [2024-01-02]}}
         """))
     lf, exe = load_manifest(str(p)).manifest.node("camera").alternatives
     spec, _ = resolve(manifest(), "camera", lf, lf.params)

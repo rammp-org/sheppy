@@ -1,7 +1,6 @@
 import textwrap
 
 import pytest
-import yaml
 
 from sheppy.manifest import parse_manifest, load_manifest, LoadResult
 
@@ -370,13 +369,3 @@ def test_publishes_elements_must_be_strings():
     assert any(e.location == "nodes[0].alternatives[0].publishes"
                and "string" in e.message for e in result.errors)
     assert result.manifest.node("camera").alternatives[0].publishes == []
-
-
-def test_a_yaml_date_param_loads_as_its_text():
-    # JSON has no date, so a date param could not be sent to sheppyd (#188).
-    data = _valid_data()
-    data["nodes"][0]["alternatives"][0]["params"] = yaml.safe_load(
-        "{stamp: 2024-01-01, days: [2024-01-02], fps: 30}")
-    result = parse_manifest(data)
-    assert result.manifest.node("camera").alternatives[0].params == {
-        "stamp": "2024-01-01", "days": ["2024-01-02"], "fps": 30}
