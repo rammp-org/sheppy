@@ -142,17 +142,12 @@ def test_default_pulls_before_run(tmp_path, pull_ok, cached, rc, logged, ran):
         if ran else [])
 
 
-@pytest.mark.parametrize("pull_ok,cached,rc,ran", [
-    (True, True, 0, True), (False, True, 0, True), (False, False, 1, False)])
-def test_pull_policy_always_falls_back_to_the_cached_image(
-        tmp_path, pull_ok, cached, rc, ran):
-    # Offline, `always` still launches a cached image, like the default (#211)
-    p, calls = run_start(tmp_path, {"image": "org/perc:1",
-                                    "pull_policy": "always"}, pull_ok, cached)
-    assert p.returncode == rc and calls[0] == "pull org/perc:1"
-    assert [c for c in calls if c.startswith("run")] == (
-        ["run --pull never -d --name sheppy-perception org/perc:1"]
-        if ran else [])
+def test_prefer_latest_is_the_default_pull(tmp_path):
+    def start(container):
+        return DockerLauncher().launch(alt(container=container), {},
+                                       ctx(tmp_path)).start
+    assert start({"image": "i", "pull_policy": "prefer_latest"}) == start(
+        {"image": "i"})
 
 
 def test_default_pull_uses_the_service_platform(tmp_path):

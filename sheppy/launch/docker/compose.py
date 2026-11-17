@@ -190,16 +190,16 @@ def _check_gpus(value, errors):
 
 def _check_pull_policy(value, errors):
     """docker run --pull takes only always, missing and never; compose's
-    if_not_present is its synonym for missing. always emits no flag: the
-    launcher pulls itself, falling back to a cached image offline."""
+    if_not_present is its synonym for missing. sheppy's prefer_latest emits
+    no flag: the launcher pulls, as with no pull_policy."""
     if value == "if_not_present":
         return "missing"
-    if value == "always":
+    if value == "prefer_latest":
         return None
-    if value in ("missing", "never"):
+    if value in ("always", "missing", "never"):
         return value
     errors.append(f"compose pull_policy {value!r} is not supported; "
-                  f"use 'always', 'missing' or 'never'")
+                  f"use 'always', 'missing', 'never' or 'prefer_latest'")
     return None
 
 
