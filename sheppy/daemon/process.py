@@ -275,10 +275,8 @@ class DetachedSupervisor(Supervised):
             self._start_proc = None
 
     def cancel_start(self) -> None:
-        """Kill a `start` that is still running (#189). start() holds the
-        node's lock until `start` exits, which may be never (a pull from a
-        registry that never answers), so stop and restart call this before
-        they take the lock. start() then runs `reset` and ends STOPPED."""
+        """Kill a `start` that is still running; start() then cleans up and
+        ends STOPPED (#189)."""
         if not self._starting or self._stop_requested:
             return
         self._stop_requested = True
@@ -320,12 +318,12 @@ class DetachedSupervisor(Supervised):
             if self._reset_cmd:                            # best-effort cleanup
                 await self._run_once(self._reset_cmd, stderr=fd)
             rc = None if self._stop_requested else await self._run_start(fd)
-            self._starting = False
             if self._stop_requested:
-                # Stopped mid-start: clear whatever the killed start left
-                # behind (a created container) before reporting STOPPED.
-                if self._reset_cmd:
-                    await self._run_once(self._reset_cmd, stderr=fd)
+                # Stopped mid-start: clear whatever the start left behind (a
+                # created container, or a unit it finished bringing up).
+                cleanup = self._reset_cmd or self._stop_cmd
+                if rc is not None and cleanup:
+                    await self._run_once(cleanup, stderr=fd)
                 self._finish(None)
                 return
             if rc != 0:
