@@ -88,9 +88,8 @@ and `sheppy daemon stop` can't either. Stop the old daemon by hand with
 launch starts a new daemon that re-adopts them.
 
 **I upgraded, but sheppy still behaves like the old version.** The running
-`sheppyd` was started by the old install and keeps executing that code. The
-TUI and CLI still connect to it and warn that its version differs from
-theirs. Run `sheppy daemon stop` (nodes
+`sheppyd` was started by the old install and keeps executing that code; the
+TUI and CLI connect to it without noticing. Run `sheppy daemon stop` (nodes
 keep running), then any sheppy command starts a daemon on the new version and
 re-adopts them. `sheppy --version` shows the client's version.
 

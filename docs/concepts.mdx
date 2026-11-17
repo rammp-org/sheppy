@@ -90,9 +90,8 @@ sequenceDiagram
   and work out exactly what to run. `sheppyd` never reads YAML.
 - **`sheppyd` owns the processes.** It's a small background daemon, one per
   home directory (`~/.sheppy`, or `SHEPPY_HOME`), started automatically by
-  the first launch. Quit the TUI or
-  lose your SSH session and the nodes keep running; open the TUI again and it
-  reconnects.
+  the first launch. Quit the TUI or lose your SSH session and the nodes keep
+  running; open the TUI again and it reconnects.
 - **Nodes inherit `sheppyd`'s environment**, which came from the terminal that
   started it. For ROS that decides what's sourced and which `ROS_DOMAIN_ID`
   nodes use — see [ROS integration](../ros-integration).
