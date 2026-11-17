@@ -35,7 +35,7 @@ manifest alternative (kind: "...")
    process), never inside `sheppyd`. It reads the manifest alternative and
    decides *what command to run and how to supervise it*.
 2. **`LaunchDescriptor`** — the answer, as data: an argv tuple for `start`,
-   optionally argv tuples for `watch`/`poll`/`stop`/`logs`/`stats`/`reset`.
+   optionally argv tuples for `watch`/`poll`/`alive`/`stop`/`logs`/`stats`/`reset`.
    It is serialized (`to_wire()`) and sent to `sheppyd` over the local
    socket.
 3. **Daemon engine** — `sheppyd` executes the descriptor's argv tuples. It
@@ -113,8 +113,8 @@ is the whole story — this is what `process`, `executable`, and
 ```python
 LaunchDescriptor.detached(
     name, start, *,
-    watch=None, poll=None, stop=None, logs=None, stats=None, reset=None,
-    grace=None,
+    watch=None, poll=None, alive=None, stop=None, logs=None, stats=None,
+    reset=None, grace=None,
 )
 ```
 
@@ -144,6 +144,13 @@ runtime-specific behavior.
   - **`poll`** — an argv run repeatedly on an interval (default 1s, see
     `grace["poll"]` below) whose exit code indicates liveness (0 = still
     alive). Use this only when your runtime has no blocking-wait primitive.
+- **`alive`** (optional, used with `watch`) — a one-shot argv that exits 0
+  while the unit is running (the docker launcher checks
+  `docker inspect -f '{{.State.Running}}'`). When `watch` exits and no stop
+  was requested, the daemon runs it once. If it exits 0, the unit was
+  restarted outside sheppy (for example with `docker restart`): the daemon
+  keeps the node running, starts a new run log with a fresh `logs`
+  follower, and runs `watch` again. Otherwise the node is marked crashed.
 - **`stop`** (optional) — argv to gracefully stop the unit (e.g.
   `docker stop --time 10 <name>`). If omitted, the daemon has no direct
   intervention. If it exits non-zero, or the unit is still up

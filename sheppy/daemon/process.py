@@ -225,6 +225,7 @@ class DetachedSupervisor(Supervised):
         self._reset_cmd = d.get("reset")
         self._watch_cmd = d.get("watch")
         self._poll_cmd = d.get("poll")
+        self._alive_cmd = d.get("alive")
         self._stop_cmd = d.get("stop")
         self._logs_cmd = d.get("logs")
         self._stats_cmd = d.get("stats")
@@ -307,7 +308,21 @@ class DetachedSupervisor(Supervised):
             if not self._stop_requested:
                 self._set(RUNNING)
             out, _ = await comm
+        if await self._up_again():
+            # Restarted outside sheppy (`docker restart`, #220): the watch
+            # and the logs follower ended with the old run, but the unit is
+            # up again. Follow it instead of reporting a crash.
+            self.log.read_new()
+            self._reap_logs()
+            await self.reattach()
+            return
         self._finish(_parse_exit(out))
+
+    async def _up_again(self) -> bool:
+        if self._stop_requested or not self._alive_cmd:
+            return False
+        rc, _ = await self._run_once(self._alive_cmd)
+        return rc == 0 and not self._stop_requested    # stop may land meanwhile
 
     async def _poll(self) -> None:
         try:

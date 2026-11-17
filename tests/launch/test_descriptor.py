@@ -15,6 +15,7 @@ def test_detached_with_watch_roundtrips():
     d = LD.detached("sheppy-cam",
                     start=("docker", "run", "-d", "--name", "sheppy-cam", "img"),
                     watch=("docker", "wait", "sheppy-cam"),
+                    alive=("docker", "top", "sheppy-cam"),
                     stop=("docker", "stop", "sheppy-cam"),
                     logs=("docker", "logs", "-f", "sheppy-cam"))
     assert d.validate() == []

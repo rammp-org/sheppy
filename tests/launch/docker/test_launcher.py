@@ -27,6 +27,7 @@ def test_inline_container_descriptor(tmp_path):
                        "sheppy-perception")
     assert d.start[-5:] == ("org/perc:1", "ros2", "launch", "perc", "up.py")
     assert d.watch == ("docker", "wait", "sheppy-perception")
+    assert d.alive[-1] == "sheppy-perception"
     assert d.stop[:3] == ("docker", "stop", "--time")
     assert d.reset == ("docker", "rm", "-f", "sheppy-perception")
     assert d.validate() == []

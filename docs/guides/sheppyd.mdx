@@ -144,6 +144,10 @@ restart it. Restarting is an operator decision (`r` in the TUI, or
 `sheppy restart <node>`). Automatic restart-on-crash is intentionally not
 implemented.
 
+A docker container restarted outside sheppy (`docker restart sheppy-<node>`)
+is not a crash: the container is running again under the same name, so
+`sheppyd` keeps the node running and starts a new run log for it.
+
 ## Logs
 
 Each node's stdout and stderr are written **directly to a per-run log file** —
