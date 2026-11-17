@@ -27,3 +27,13 @@ def test_unhandled_task_exception_is_logged_with_traceback(tmp_path):
     text = (tmp_path / "logs" / "sheppyd.log").read_text()
     assert "Task exception was never retrieved" in text
     assert "RuntimeError: watcher blew up" in text and "Traceback" in text
+
+
+def test_main_refuses_non_linux(tmp_path, monkeypatch, capsys):
+    # pidfd_open and /proc are Linux-only; on macOS the ctypes fallback
+    # would issue an unrelated Darwin syscall (#79).
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    monkeypatch.setattr(daemon_main.sys, "platform", "darwin")
+    assert daemon_main.main([]) == 1
+    assert "Linux" in capsys.readouterr().err
+    assert "Linux" in (tmp_path / "logs" / "sheppyd.log").read_text()

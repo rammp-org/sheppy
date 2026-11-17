@@ -85,6 +85,17 @@ TUI and CLI connect to it without noticing. Run `sheppy daemon stop` (nodes
 keep running), then any sheppy command starts a daemon on the new version and
 re-adopts them. `sheppy --version` shows the client's version.
 
+**`sheppyd: sheppyd runs on Linux only`.** The daemon uses Linux-only
+interfaces (`/proc` and the `pidfd_open` syscall), so it does not run on
+macOS or Windows.
+
+**The daemon log says `cannot adopt '<node>' (pid …, still running): kernel
+lacks pidfd_open`.** A restarted daemon re-adopts running nodes through
+`pidfd_open`, which needs Linux 5.3 or newer; Jetson JetPack 4.x ships 4.9.
+Launching works on older kernels, but a node started by a previous daemon is
+left running unsupervised. Stop it by hand with `kill <pid>` before launching
+it again.
+
 **The daemon died but my nodes are still running.** That's by design. Start
 the daemon again and it re-adopts them: run `sheppyd` (it stays in the
 foreground), or launch something with `space` or `sheppy up`. Their in-memory
