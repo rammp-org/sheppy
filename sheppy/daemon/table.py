@@ -137,9 +137,7 @@ class ProcessTable:
             self._entries[node] = pr.AdoptedProcess(
                 rec["spec"], self._cfg, log, self._on_state,
                 pid=rec["pid"], started_at=rec["started_at"])
-        except OSError as e:
-            # ENOSYS: the node is alive but this kernel can't pidfd it (#79);
-            # anything else: it died between the check and pidfd_open.
+        except OSError as e:                   # died between check and pidfd
             if e.errno == errno.ENOSYS:
                 daemon_log(self._cfg, f"cannot adopt {node!r} (pid "
                            f"{rec['pid']}, still running): kernel lacks "

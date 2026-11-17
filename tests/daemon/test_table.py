@@ -148,8 +148,7 @@ async def test_adoption_survives_pid_dying_mid_adopt(tmp_path, monkeypatch):
 
 
 async def test_adoption_logs_kernel_without_pidfd_open(tmp_path, monkeypatch):
-    # Linux < 5.3 (Jetson JetPack 4) has no pidfd_open: ENOSYS is not "the
-    # pid died", and must not drop the still-running node silently (#79).
+    # (#79)
     table_a, cfg = make_table(tmp_path)
     await table_a.launch(spec("camera"))
     await wait_state(table_a, "camera", pr.RUNNING)
@@ -163,7 +162,7 @@ async def test_adoption_logs_kernel_without_pidfd_open(tmp_path, monkeypatch):
     assert table_b.adopt_from_state() == []
     text = (tmp_path / "logs" / "sheppyd.log").read_text()
     assert "kernel lacks pidfd_open (Linux >= 5.3 required)" in text
-    assert f"pid {pid}" in text and "camera" in text
+    assert f"pid {pid}" in text and "'camera'" in text
     await table_a.stop("camera")
 
 
