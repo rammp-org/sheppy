@@ -4,7 +4,8 @@ from dataclasses import dataclass, field
 
 INHERIT = "inherit"
 DETACHED = "detached"
-_CMD_FIELDS = ("start", "watch", "poll", "stop", "logs", "stats", "reset")
+_CMD_FIELDS = ("start", "watch", "poll", "alive", "stop", "logs", "stats",
+               "reset")
 
 
 def _t(v):
@@ -18,6 +19,7 @@ class LaunchDescriptor:
     name: "str | None" = None
     watch: "tuple | None" = None
     poll: "tuple | None" = None
+    alive: "tuple | None" = None
     stop: "tuple | None" = None
     logs: "tuple | None" = None
     stats: "tuple | None" = None
@@ -29,11 +31,11 @@ class LaunchDescriptor:
         return cls(supervise=INHERIT, start=tuple(start))
 
     @classmethod
-    def detached(cls, name, start, *, watch=None, poll=None, stop=None,
-                 logs=None, stats=None, reset=None, grace=None):
+    def detached(cls, name, start, *, watch=None, poll=None, alive=None,
+                 stop=None, logs=None, stats=None, reset=None, grace=None):
         return cls(supervise=DETACHED, name=name or None, start=tuple(start),
-                   watch=_t(watch), poll=_t(poll), stop=_t(stop),
-                   logs=_t(logs), stats=_t(stats), reset=_t(reset),
+                   watch=_t(watch), poll=_t(poll), alive=_t(alive),
+                   stop=_t(stop), logs=_t(logs), stats=_t(stats), reset=_t(reset),
                    grace=dict(grace or {}))
 
     def validate(self) -> list:
@@ -70,6 +72,7 @@ class LaunchDescriptor:
         return cls(
             supervise=d.get("supervise", ""), start=tuple(d.get("start") or ()),
             name=d.get("name"), watch=_t(d.get("watch")), poll=_t(d.get("poll")),
+            alive=_t(d.get("alive")),
             stop=_t(d.get("stop")), logs=_t(d.get("logs")),
             stats=_t(d.get("stats")), reset=_t(d.get("reset")),
             grace=dict(d.get("grace") or {}))

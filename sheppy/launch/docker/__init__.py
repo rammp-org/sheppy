@@ -89,6 +89,7 @@ class DockerLauncher:
         return LaunchDescriptor.detached(
             name, start=start,
             watch=["docker", "wait", name],
+            alive=["docker", "top", name],
             stop=["docker", "stop", "--time", "10", name],
             logs=["docker", "logs", "-f", "--tail", "300", name],
             reset=["docker", "rm", "-f", name])

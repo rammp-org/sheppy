@@ -188,3 +188,39 @@ async def test_failed_start_stderr_reaches_the_log(tmp_path):
     assert sup.state == pr.CRASHED
     log.read_new()
     assert log.tail() == ["stale", "boom"]
+
+
+async def test_unit_restarted_outside_sheppy_is_reattached(tmp_path):
+    # `docker restart` ends `docker wait` and the logs follower, then the
+    # same container comes back. The node must stay running, follow the
+    # new run, and still crash or stop normally afterwards (#220).
+    up, gen = str(tmp_path / "UP"), str(tmp_path / "GEN")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"touch {up}; echo 0 > {gen}"),
+            "watch": sh(f"g=$(cat {gen}); "
+                        f"while [ \"$(cat {gen})\" = \"$g\" ]; do sleep 0.02; "
+                        f"done; echo 137"),
+            "alive": sh(f"test -f {up}"),
+            "stop":  sh(f"rm -f {up}; echo x >> {gen}"),
+            "logs":  sh(f"echo following-$(cat {gen} | wc -l)")}
+    sup, states, log = make(tmp_path, desc, launch_grace=0.05)
+    await sup.start()
+    await wait_for(lambda: "following-1" in (log.read_new() or log.tail()))
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    with open(gen, "a") as f:                      # restarted outside
+        f.write("1\n")
+    await wait_for(lambda: "following-2" in (log.read_new() or log.tail()))
+    assert pr.CRASHED not in states and sup.state == pr.RUNNING
+    await sup.stop()
+    assert sup.state == pr.STOPPED
+
+
+async def test_unit_that_stays_down_still_crashes(tmp_path):
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh("true"), "watch": sh("sleep 0.2; echo 5"),
+            "alive": ["false"], "stop": sh("true")}
+    sup, states, _ = make(tmp_path, desc, launch_grace=0.05)
+    await sup.start()
+    await sup.wait()
+    assert states == [pr.LAUNCHING, pr.RUNNING, pr.CRASHED]
+    assert sup.exit_code == 5
