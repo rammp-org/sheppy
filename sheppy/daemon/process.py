@@ -267,6 +267,8 @@ class DetachedSupervisor(Supervised):
         except (OSError, ValueError):
             return 127
         self._start_proc = proc
+        if self._stop_requested:           # cancelled while spawning
+            self._kill_start()
         try:
             return await proc.wait()
         finally:
@@ -281,11 +283,14 @@ class DetachedSupervisor(Supervised):
             return
         self._stop_requested = True
         self._set(STOPPING)
+        self._kill_start()
+
+    def _kill_start(self) -> None:
         proc = self._start_proc
         if proc is not None and proc.returncode is None:
             try:
                 os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
+            except (ProcessLookupError, PermissionError):
                 pass
 
     async def _open_logs(self, fd) -> None:
@@ -330,6 +335,7 @@ class DetachedSupervisor(Supervised):
                 return
             await self._open_logs(fd)
         finally:
+            self._starting = False
             os.close(fd)
         self._watch_task = asyncio.ensure_future(
             self._watch() if self._watch_cmd else self._poll())

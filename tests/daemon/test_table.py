@@ -302,6 +302,28 @@ async def test_stop_cancels_a_detached_start_that_never_returns(tmp_path):
     assert pgrep.stdout == b"", "start's process group outlived the stop"
 
 
+async def test_stop_while_the_start_is_spawning_still_kills_it(
+        tmp_path, monkeypatch):
+    # The stop lands after start() has begun but before the start's
+    # process exists: the start must still be killed once it spawns.
+    table, _ = make_table(tmp_path)
+    real_spawn = asyncio.create_subprocess_exec
+    stops = []
+
+    async def spawn(*argv, **kw):
+        if kw.get("start_new_session") and not stops:
+            stops.append(asyncio.ensure_future(table.stop("cam")))
+            await asyncio.sleep(0)                 # stop runs cancel_start
+        return await real_spawn(*argv, **kw)
+
+    monkeypatch.setattr(pr.asyncio, "create_subprocess_exec", spawn)
+    launch = asyncio.ensure_future(table.launch(detached(
+        "cam", ["sleep", "30"], ["true"])))
+    await asyncio.wait_for(launch, 5)
+    await asyncio.wait_for(stops[0], 1)
+    assert table.status()["cam"]["state"] == pr.STOPPED
+
+
 async def test_restart_cancels_a_detached_start_and_relaunches(tmp_path):
     flag = tmp_path / "STARTED"
     table, _ = make_table(tmp_path)
