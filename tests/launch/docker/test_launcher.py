@@ -142,6 +142,14 @@ def test_default_pulls_before_run(tmp_path, pull_ok, cached, rc, logged, ran):
         if ran else [])
 
 
+def test_prefer_latest_is_the_default_pull(tmp_path):
+    def start(container):
+        return DockerLauncher().launch(alt(container=container), {},
+                                       ctx(tmp_path)).start
+    assert start({"image": "i", "pull_policy": "prefer_latest"}) == start(
+        {"image": "i"})
+
+
 def test_default_pull_uses_the_service_platform(tmp_path):
     _, calls = run_start(tmp_path, {"image": "org/perc:1",
                                     "platform": "linux/arm64"})

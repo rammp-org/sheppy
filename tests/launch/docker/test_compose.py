@@ -79,7 +79,8 @@ def test_unsupported_pull_policy_is_a_hard_error():
         assert "--pull" not in flags
         assert len(errs) == 1
         assert repr(policy) in errs[0]
-        assert all(p in errs[0] for p in ("always", "missing", "never"))
+        assert all(p in errs[0] for p in ("always", "missing", "never",
+                                        "prefer_latest"))
 
 
 def test_short_form_ports_and_gpus_still_work():
