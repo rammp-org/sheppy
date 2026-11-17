@@ -5,7 +5,7 @@ title: CLI reference
 # CLI reference
 
 `sheppy` with a manifest path (or nothing) opens [the TUI](../tui). If the
-manifest is missing, unreadable, or isn't valid YAML, it prints the error and exits 1
+manifest is missing, unreadable, isn't valid YAML, or isn't a YAML mapping, it prints the error and exits 1
 instead. With a **verb**, it runs headless — the verbs never import Textual, so they work over
 SSH on a machine with no display.
 
@@ -175,12 +175,13 @@ sheppy up mock
 | Situation | Code |
 |-----------|------|
 | Success | 0 |
-| TUI: manifest missing, unreadable, or not valid YAML | 1 |
+| TUI: manifest missing, unreadable, not valid YAML, or not a mapping | 1 |
 | Daemon not running — `down`, `status`, `daemon` | 0 |
 | Daemon not running — `logs`, `restart`, `status <node>` | 1 |
 | Unknown node (`logs`, `restart`, `status <node>`) | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 | `sheppyd` died mid-command (`sheppy: sheppyd: sheppyd connection lost`) | 1 |
+| Usage error: a missing or unexpected argument, an invalid `-n` (not a positive integer), or an unknown `daemon` action (argparse prints the usage) | 2 |
 | Interrupted with Ctrl-C | 130 |
 
 ## `sheppyd`
@@ -196,6 +197,6 @@ protocol.
 
 | Variable | Effect |
 |----------|--------|
-| `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy`. Useful for test isolation. Keep it short: the socket path must fit in 107 bytes, or `sheppyd` won't start. |
+| `SHEPPY_HOME` | Pin logs, state, config, and the socket under this directory instead of `~/.sheppy` (see [what's in it](../guides/sheppyd#home-directory)). Useful for test isolation. Keep it short: the socket path must fit in 107 bytes, or `sheppyd` won't start. |
 | `NO_COLOR` | Set to any non-empty value to turn off the colors in the headless verbs' output. They're already off when output goes to a pipe or file. |
 | `COLORTERM=truecolor` | Required for the TUI's full palette over SSH — see [colors washed out over SSH?](../tui#colors-washed-out-over-ssh) |

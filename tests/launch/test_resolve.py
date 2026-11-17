@@ -1,6 +1,9 @@
+import textwrap
+
+from sheppy.daemon.protocol import encode
 from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.resolve import LaunchSpec, diff, resolve
-from sheppy.manifest import Alternative, Machine, Manifest, Node
+from sheppy.manifest import Alternative, Machine, Manifest, Node, load_manifest
 
 
 def manifest(machines=(), nodes=()):
@@ -184,3 +187,24 @@ def test_resolve_emits_descriptor_wire(tmp_path, monkeypatch):
     assert "argv" not in wire
     assert wire["descriptor"]["supervise"] == "inherit"
     assert "ros2 run p e" in wire["descriptor"]["start"][2]
+
+
+def test_a_yaml_date_param_reaches_the_daemon_and_the_launch_file(tmp_path):
+    # #188: the request failed to encode; a launch arg must not get quotes.
+    p = tmp_path / "system.yaml"
+    p.write_text(textwrap.dedent("""\
+        nodes:
+          - name: camera
+            alternatives:
+              - {id: rs, kind: launch_file, package: pkg, launch_file: a.py,
+                 params: {stamp: 2024-01-01}}
+              - {id: exe, kind: executable, package: pkg, executable: cam,
+                 params: {stamp: 2024-01-01, days: [2024-01-02]}}
+        """))
+    lf, exe = load_manifest(str(p)).manifest.node("camera").alternatives
+    spec, _ = resolve(manifest(), "camera", lf, lf.params)
+    encode(spec.to_wire())
+    assert cmd(spec).endswith(" 'stamp:=2024-01-01'")
+    spec, _ = resolve(manifest(), "camera", exe, exe.params)
+    encode(spec.to_wire())
+    assert """-p 'stamp:="2024-01-01"'""" in cmd(spec)
