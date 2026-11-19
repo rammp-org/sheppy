@@ -38,9 +38,11 @@ class NodeLog:
     def open_run(self) -> int:
         os.makedirs(self._dir, exist_ok=True)
         self._prune(self._keep_runs - 1)
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        suffix = f"{time.time_ns() % 1_000_000:06d}"   # uniquify fast restarts
-        self.path = os.path.join(self._dir, f"{stamp}-{suffix}.log")
+        now = time.time_ns()
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now // 10**9))
+        # nanoseconds within the second, so runs started in the same second
+        # still sort in start order (#253)
+        self.path = os.path.join(self._dir, f"{stamp}-{now % 10**9:09d}.log")
         self._ring.clear()
         self._offset = 0
         self._partial = b""

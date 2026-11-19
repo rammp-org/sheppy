@@ -592,8 +592,10 @@ def test_logs_all_prints_the_latest_run_file_without_sheppyd(
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
     whole = "".join(f"line {i}\n" for i in range(1000))   # past ring_lines
     _write_runs(tmp_path / "logs", "camera", {
-        "20261101-090000-000001.log": "older run\n",
-        "20261102-090000-000002.log": whole,
+        "20261102-090000-999000000.log": whole,
+        "20261102-090000-001000000.log": "same second, earlier\n",
+        "20261101-090000-000000001.log": "older run\n",
+        "zzz.txt": "not a run\n",
     })
     assert cli.main(["logs", "camera", "--all"]) == 0
     assert capsys.readouterr().out == whole
@@ -616,6 +618,14 @@ def test_logs_all_fails_when_the_node_has_no_run_files(tmp_path, capsys,
     assert cli.main(["logs", "camera", "--all"]) == 1
     assert ("camera: no run files in "
             f"{tmp_path / 'logs' / 'camera'}") in capsys.readouterr().err
+
+
+def test_logs_all_rejects_a_name_outside_log_dir(tmp_path, capsys,
+                                                 monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    _write_runs(tmp_path, "secret", {"20261102-090000-000000001.log": "x\n"})
+    assert cli.main(["logs", "../secret", "--all"]) == 1
+    assert capsys.readouterr().out == ""
 
 
 def test_logs_all_rejects_n(tmp_path, capsys, monkeypatch):

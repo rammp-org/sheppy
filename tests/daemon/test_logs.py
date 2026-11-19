@@ -121,3 +121,18 @@ def test_tail_of_zero_or_negative_is_empty(tmp_path):
     log.read_new()
     assert log.tail(0) == []
     assert log.tail(-2) == []
+
+
+def test_runs_started_in_the_same_second_sort_in_start_order(tmp_path,
+                                                            monkeypatch):
+    # A suffix of nanoseconds within the millisecond wrapped: 999999 then
+    # 000000 sorted the newer run first (#253).
+    base = 1_800_000_000 * 10**9
+    times = iter([base + 999_999, base + 1_000_000])
+    monkeypatch.setattr("sheppy.daemon.logs.time.time_ns", lambda: next(times))
+    log = NodeLog(str(tmp_path), "n", ring_lines=10, keep_runs=5)
+    paths = []
+    for _ in range(2):
+        os.close(log.open_run())
+        paths.append(log.path)
+    assert sorted(paths) == paths

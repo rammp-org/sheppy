@@ -121,7 +121,7 @@ With `--all`, print the node's latest run file from the start instead. It reads
 the file from disk (the `log_dir` set in `sheppyd.json`, `~/.sheppy/logs/` by
 default), so it works without `sheppyd` running and for a node it no longer
 supervises, such as one you stopped. `sheppyd` keeps the last `keep_runs`
-(default 5) runs per node; `--all` prints only the latest.
+(default 5) runs per node.
 `--all` and `-n` can't be used together. Exits 1 if the node has no run files.
 
 ### `sheppy restart <node>`

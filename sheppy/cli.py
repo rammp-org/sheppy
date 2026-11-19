@@ -210,12 +210,13 @@ def _print_run_file(node: str) -> int:
     import shutil
     from sheppy.daemon.config import load_config
     from sheppy.daemon.logs import run_files
+    from sheppy.manifest.loader import _NAME
     node_dir = os.path.join(load_config()[0].log_dir, node)
-    runs = run_files(node_dir)
+    # a name no manifest allows (`..`, a path) must not reach outside log_dir
+    runs = run_files(node_dir) if _NAME.fullmatch(node) else []
     if not runs:
         _error(f"{node}: no run files in {node_dir}")
         return 1
-    sys.stdout.flush()
     try:
         with open(runs[-1], "rb") as f:
             shutil.copyfileobj(f, sys.stdout.buffer)   # streamed, not loaded
