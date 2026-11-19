@@ -326,7 +326,8 @@ async def _up(args) -> int:
 
     desired, unresolved = {}, set()
     for node in result.manifest.nodes:
-        if state.selected_alt(node.name) is None:
+        if (state.selected_alt(node.name) is None
+                or node.name in unresolved):    # duplicate name (#231)
             continue
         spec, errs, warns = _resolve_selected(result, state, node.name,
                                               args.manifest)

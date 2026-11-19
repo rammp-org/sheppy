@@ -385,7 +385,8 @@ def test_up_refuses_a_duplicate_node_name(site, capsys):
     captured = capsys.readouterr()
     assert rc == 1
     assert "start camera" not in captured.out
-    assert "camera: not launched, duplicate node name 'camera'" in captured.err
+    assert captured.err.count(
+        "camera: not launched, duplicate node name 'camera'") == 1
 
 
 def test_up_settle_timeout_follows_the_daemon_graces(site, capsys, monkeypatch):

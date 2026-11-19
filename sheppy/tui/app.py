@@ -411,7 +411,9 @@ class SheppyApp(App):
         """Refuse to launch an alternative that failed validation (#61):
         resolve() would build a half-formed command from it. The node is
         left as it is and the load errors go to the overlay."""
-        errs = self.load_result.errors_for(node, alt)
+        # `alt` comes from the first node of this name, which on a
+        # duplicate name (#231) is not necessarily `node`
+        errs = self.load_result.errors_for(self.manifest.node(node.name), alt)
         if errs:
             self._append_warnings(
                 [f"'{node.name}': not launched, {e.message}" for e in errs])
