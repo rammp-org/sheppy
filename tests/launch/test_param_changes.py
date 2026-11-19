@@ -12,3 +12,10 @@ def test_changes_lists_each_differing_key_old_to_new():
         'fps: — → 5', 'frame: "a" → —', "rate: 10 → 30"]
     assert changes({"x": None}, {}) == ["x: null → —"]
     assert changes({"x": 1}, {"x": 1}) == []
+
+
+def test_changes_lists_a_type_only_change():
+    # 1 == 1.0 and 0 == False in Python, but ROS reads them as different
+    # types (#230)
+    assert changes({"gain": 1, "on": 0}, {"gain": 1.0, "on": False}) == [
+        "gain: 1 → 1.0", "on: 0 → false"]

@@ -468,6 +468,18 @@ class DetachedSupervisor(Supervised):
                 pass
         self._finish(None)
 
+    def release(self) -> None:
+        """Kill the watch and logs followers but leave the unit running. A
+        start still in progress is killed too: a unit it brings up after
+        sheppyd exits is one the next daemon can't adopt."""
+        self._kill_start()
+        for proc in (self._watch_proc, self._logs_proc):
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                except ProcessLookupError:
+                    pass
+
     def mark_adopted(self, started_at) -> None:
         self._stop_requested = False
         self._exited = asyncio.Event()

@@ -10,6 +10,7 @@ from textual.reactive import reactive
 from textual.widgets import Static, TabbedContent
 
 from sheppy.launch import diff, resolve
+from sheppy.launch.resolve import changes, same
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
@@ -276,7 +277,7 @@ class SheppyApp(App):
         # drift = the selection builds another command (#182)
         if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
-        if (recorded.get("params") or {}) != spec.params:
+        if changes(recorded.get("params") or {}, spec.params):
             return "params changed"
         return "launch command changed"
 
@@ -482,7 +483,7 @@ class SheppyApp(App):
                 continue
             selections[name] = alt.id
             over = {k: v for k, v in payload["spec"]["params"].items()
-                    if k in alt.params and alt.params[k] != v}
+                    if k in alt.params and not same(alt.params[k], v)}
             if over:
                 overrides[name] = over
         return selections, overrides, skipped
