@@ -76,6 +76,14 @@ class ProcessTable:
         for node in list(self._entries):
             await self.stop(node)
 
+    def release(self) -> None:
+        """Before sheppyd exits: kill detached units' followers, which the
+        next daemon replaces when it re-adopts, and leave every node
+        running (#227)."""
+        for e in self._entries.values():
+            if isinstance(e, pr.DetachedSupervisor):
+                e.release()
+
     # ---- views ------------------------------------------------------------
     def status(self) -> dict:
         return {n: self._payload(e) for n, e in self._entries.items()}
