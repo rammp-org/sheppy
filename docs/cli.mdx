@@ -133,14 +133,19 @@ doesn't pick up manifest or profile edits; use `sheppy up` for that.
 For a node `sheppy up` launched, `restart` also checks the manifest and
 profile `up` used, and prints a warning with the `sheppy up` command to run
 if they now give a different alternative, command, or params. Nodes launched
-from the TUI aren't checked. Exits 1 if the node is unknown or the daemon
-isn't running. `sheppy woof`, its old name, still works.
+from the TUI aren't checked. If `sheppyd` isn't running but left nodes
+running when it stopped, `restart` starts it first, and the new daemon
+re-adopts them. Exits 1 if the node is unknown or the daemon isn't running
+and can't be started. `sheppy woof`, its old name, still works.
 
 ### `sheppy down`
 
 Stop every node `sheppyd` supervises, from any manifest, printing
-`stopped <node>` for each, then stop the daemon itself. Exits 0 even if the
-daemon wasn't running.
+`stopped <node>` for each, then stop the daemon itself. If the daemon isn't
+running but left nodes running when it stopped (after `sheppy daemon stop`),
+`down` starts it, the new daemon re-adopts those nodes, and `down` stops them;
+it exits 1 if the daemon can't start. With no daemon and no nodes left
+running, it prints `sheppyd: not running` and exits 0.
 
 There's no headless verb to stop or start a single node. Use `x` and `space`
 in the TUI, or `sheppy up` a profile that doesn't select that node.
@@ -190,8 +195,9 @@ sheppy up mock
 |-----------|------|
 | Success | 0 |
 | TUI: manifest missing, unreadable, not valid YAML, or not a mapping | 1 |
-| Daemon not running — `down`, `status`, `daemon` | 0 |
-| Daemon not running — `logs`, `restart`, `status <node>` | 1 |
+| Daemon not running — `status`, `daemon`, and `down` with no nodes left running | 0 |
+| Daemon not running — `logs`, `status <node>`, and `restart` with no nodes left running | 1 |
+| `down`, `restart`: the daemon left nodes running and couldn't be started again | 1 |
 | Unknown node (`logs`, `restart`, `status <node>`) | 1 |
 | `logs --all`: the node has no run files | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |

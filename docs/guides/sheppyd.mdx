@@ -62,7 +62,9 @@ Consequences worth knowing:
 You never have to start `sheppyd` by hand. The first action that needs it —
 pressing `space` on a node in the TUI, or running `sheppy up` — spawns the
 daemon detached and waits for its socket. Browsing and editing profiles never
-spawn a daemon; only an actual launch does.
+spawn a daemon. `sheppy down` and `sheppy restart` spawn one only when the
+last daemon left nodes running, so that it re-adopts them and they can be
+stopped or restarted.
 
 You can also manage it explicitly:
 
