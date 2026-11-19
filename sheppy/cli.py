@@ -131,7 +131,14 @@ async def _dispatch(args) -> int:
         return await _up(args)
     from sheppy.daemon.client import DaemonClient
     client = DaemonClient()
-    if not await client.connect(spawn=False):
+    # sheppyd left nodes running when it stopped (#227): start it to
+    # re-adopt them, or `down` would stop nothing and `restart` fail (#250)
+    spawn = args.cmd in ("down", "restart") and _left_running()
+    if not await client.connect(spawn=spawn):
+        if spawn:
+            _error("could not start sheppyd; the nodes it left running "
+                   "are still running")
+            return 1
         print(f"sheppyd: {_style('not running', 'dim')}")
         return 0 if args.cmd in ("down", "daemon") or (
             args.cmd == "status" and args.node is None) else 1
@@ -193,6 +200,18 @@ async def _dispatch(args) -> int:
         return 0
     finally:
         await client.close()
+
+
+def _left_running() -> bool:
+    """Whether sheppyd's state file records nodes, which the next daemon
+    re-adopts if they are still alive."""
+    import json
+    from sheppy.daemon.config import sheppy_home, state_path
+    try:
+        with open(state_path(sheppy_home())) as f:
+            return bool(json.load(f).get("nodes"))
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def _print_status(nodes: dict) -> None:
