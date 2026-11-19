@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 
 from sheppy.launch.base import LaunchContext
+from sheppy.launch.builtins import param_text
 from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.registry import default_registry
 
@@ -53,12 +54,17 @@ def fmt(value) -> str:
     return json.dumps(value, default=str, ensure_ascii=False)
 
 
+def same(a, b) -> bool:
+    """Equal as ROS reads them: 1 and 1.0, or 0 and false, differ (#230)."""
+    return param_text(a) == param_text(b)
+
+
 def changes(old: dict, new: dict) -> list:
     """`key: old → new` for each differing key; — for a key on one side only."""
     side = lambda d, k: fmt(d[k]) if k in d else "—"
     return [f"{k}: {side(old, k)} → {side(new, k)}"
             for k in sorted(old.keys() | new.keys())
-            if k not in old or k not in new or old[k] != new[k]]
+            if k not in old or k not in new or not same(old[k], new[k])]
 
 
 _ALIVE = ("launching", "running")

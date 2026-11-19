@@ -1,3 +1,4 @@
+from sheppy.launch.resolve import same
 from sheppy.manifest import Manifest
 from sheppy.profiles.models import Profile
 from sheppy.selection import SelectionState
@@ -50,7 +51,7 @@ class ProfileState:
             raise KeyError(
                 f"param '{param}' is not declared on the selected alternative "
                 f"for node '{node_name}'")
-        if value == alt.params[param]:
+        if same(value, alt.params[param]):
             self.clear_override(node_name, param)
             return
         self._overrides.setdefault(node_name, {})[param] = value
