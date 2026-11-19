@@ -37,8 +37,9 @@ watches `ros2 launch` itself, not the nodes it starts. See
 [what sheppy watches](../ros-integration#what-sheppy-watches).
 
 **A relative path in a container's `volumes` points somewhere unexpected.**
-It resolves against `sheppyd`'s working directory, not the manifest. Use
-absolute paths.
+It resolves against the manifest's directory for an inline `container`, and
+against the compose file's directory for a `compose` service, as compose
+does. See [containers](../ros-integration#containers).
 
 **A node won't stop.** It's ignoring `SIGINT` and `SIGTERM`. `sheppyd`
 escalates to `SIGKILL` after `stop_grace + kill_grace` seconds (10 by
@@ -80,13 +81,14 @@ has to fit in 107 bytes, and the socket lives in the home directory
 (`SHEPPY_HOME`, or `~/.sheppy`), which put it past that. Set a shorter
 `SHEPPY_HOME`.
 
-**After upgrading from 1.0.0, `sheppy up` says `could not start sheppyd`
-while nodes are still running.** sheppy 1.0.0 put the socket in
-`$XDG_RUNTIME_DIR/sheppy/` when that variable was set. Newer versions always
-put it in the home directory, so they can't reach a daemon that 1.0.0 started,
-and `sheppy daemon stop` can't either. Stop the old daemon by hand with
-`pkill -f 'sheppy\.daemon|sheppyd'`. Your nodes keep running, and the next
-launch starts a new daemon that re-adopts them.
+**After upgrading from v0.1.0, `sheppy up` says `could not start sheppyd`
+while nodes are still running.** v0.1.0, and `dev` installs from before
+November 2026, put the socket in `$XDG_RUNTIME_DIR/sheppy/` when that
+variable was set. Newer versions always put it in the home directory, so
+they can't reach a daemon an older version started, and `sheppy daemon stop`
+can't either. If `$XDG_RUNTIME_DIR/sheppy/sheppyd.sock` exists, stop the old
+daemon by hand with `pkill -f 'sheppy\.daemon|sheppyd'`. Your nodes keep
+running, and the next launch starts a new daemon that re-adopts them.
 
 **I upgraded, but sheppy still behaves like the old version.** The running
 `sheppyd` was started by the old install and keeps executing that code; the
