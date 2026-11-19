@@ -16,6 +16,14 @@ def _after_first_newline(data: bytes) -> bytes:
     return data.split(b"\n", 1)[1] if b"\n" in data else b""
 
 
+def run_files(node_dir: str) -> list[str]:
+    """A node's run files, oldest first (the names start with a timestamp)."""
+    if not os.path.isdir(node_dir):
+        return []
+    return sorted(os.path.join(node_dir, f)
+                  for f in os.listdir(node_dir) if f.endswith(".log"))
+
+
 class NodeLog:
     def __init__(self, log_dir: str, node: str, ring_lines: int,
                  keep_runs: int) -> None:
@@ -96,10 +104,7 @@ class NodeLog:
         return lines[-n:] if n > 0 else []     # lines[-0:] would be all (#104)
 
     def _runs(self) -> list[str]:
-        if not os.path.isdir(self._dir):
-            return []
-        return sorted(os.path.join(self._dir, f)
-                      for f in os.listdir(self._dir) if f.endswith(".log"))
+        return run_files(self._dir)
 
     def _prune(self, keep: int) -> None:
         runs = self._runs()
