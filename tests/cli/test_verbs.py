@@ -546,9 +546,9 @@ def test_status_of_a_node_without_sheppyd_fails(site, capsys):
     assert "not running" in capsys.readouterr().out
 
 
-def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
-    # #227: asyncio's teardown finalized each node's subprocess transport,
-    # which SIGKILLs a child that is still running.
+def _up_then_daemon_stop(site, capsys) -> int:
+    """`up` cam-only, then `daemon stop` and wait for sheppyd to exit;
+    returns the pid of camera, which is left running."""
     import fcntl
     import os
     import re
@@ -575,7 +575,63 @@ def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
         fcntl.flock(lock, fcntl.LOCK_UN)
     os.kill(pid, 0)                            # still alive
     capsys.readouterr()
+    return pid
+
+
+def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
+    # #227: asyncio's teardown finalized each node's subprocess transport,
+    # which SIGKILLs a child that is still running.
+    manifest = str(site / "system.yaml")
+    _up_then_daemon_stop(site, capsys)
     assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
     assert "already converged" in capsys.readouterr().out
     log = (site / "home" / "logs" / "sheppyd.log").read_text()
     assert "adopted: camera" in log
+
+
+def test_down_after_daemon_stop_stops_the_nodes_it_left(site, capsys):
+    # #250: `down` with no daemon said "not running" and exited 0 while
+    # the nodes `daemon stop` left were still up. It starts sheppyd, which
+    # re-adopts them, and stops them.
+    import os
+    import time
+
+    pid = _up_then_daemon_stop(site, capsys)
+    assert cli.main(["down"]) == 0
+    out = capsys.readouterr().out
+    assert "stopped camera" in out and "sheppyd stopped" in out
+    for _ in range(100):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("camera still running after down")
+    assert cli.main(["status"]) == 0
+    assert "not running" in capsys.readouterr().out
+
+
+def test_restart_after_daemon_stop_restarts_the_node(site, capsys):
+    # #250: restart, too, starts sheppyd when it left nodes running.
+    _up_then_daemon_stop(site, capsys)
+    assert cli.main(["restart", "camera"]) == 0
+    assert "restarted camera" in capsys.readouterr().out
+
+
+def test_down_fails_when_it_cannot_start_the_daemon_that_left_nodes(
+        site, capsys, monkeypatch):
+    # #250: never report success while recorded nodes may still be up
+    from sheppy.daemon.client import DaemonClient
+
+    async def cannot_connect(self, spawn=True):
+        return False
+
+    (site / "home" / "sheppyd.state.json").write_text(json.dumps(
+        {"nodes": {"camera": {}}}))
+    monkeypatch.setattr(DaemonClient, "connect", cannot_connect)
+    assert cli.main(["down"]) == 1
+    assert "nodes it left running are still running" in capsys.readouterr().err
+    # the fixture runs `down` again, with the real connect
+    monkeypatch.undo()
+    (site / "home" / "sheppyd.state.json").unlink()
