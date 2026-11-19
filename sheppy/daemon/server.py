@@ -6,7 +6,7 @@ import os
 import sheppy
 from sheppy.daemon import usage as usage_mod
 from sheppy.daemon.config import Config, socket_path
-from sheppy.daemon.protocol import Decoder, encode
+from sheppy.daemon.protocol import ARGV_FIELDS, Decoder, encode
 from sheppy.daemon.table import ProcessTable
 
 
@@ -20,6 +20,11 @@ def _validate_descriptor(node, d) -> "str | None":
     start = d.get("start")
     if not isinstance(start, list) or not start:
         return "descriptor needs a non-empty 'start'"
+    for f in ARGV_FIELDS:
+        argv = d.get(f)
+        if argv is not None and not (isinstance(argv, list) and
+                                     all(isinstance(a, str) for a in argv)):
+            return f"descriptor '{f}' must be a list of strings, got {argv!r}"
     if d.get("supervise") == "detached":
         if not d.get("name"):
             return "detached descriptor needs 'name'"
