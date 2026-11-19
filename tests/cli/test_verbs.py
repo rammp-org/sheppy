@@ -546,9 +546,9 @@ def test_status_of_a_node_without_sheppyd_fails(site, capsys):
     assert "not running" in capsys.readouterr().out
 
 
-def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
-    # #227: asyncio's teardown finalized each node's subprocess transport,
-    # which SIGKILLs a child that is still running.
+def _up_then_daemon_stop(site, capsys) -> int:
+    """`up` cam-only, then `daemon stop` and wait for sheppyd to exit;
+    returns the pid of camera, which is left running."""
     import fcntl
     import os
     import re
@@ -575,7 +575,125 @@ def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
         fcntl.flock(lock, fcntl.LOCK_UN)
     os.kill(pid, 0)                            # still alive
     capsys.readouterr()
+    return pid
+
+
+def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
+    # #227: asyncio's teardown finalized each node's subprocess transport,
+    # which SIGKILLs a child that is still running.
+    manifest = str(site / "system.yaml")
+    _up_then_daemon_stop(site, capsys)
     assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
     assert "already converged" in capsys.readouterr().out
     log = (site / "home" / "logs" / "sheppyd.log").read_text()
     assert "adopted: camera" in log
+
+
+def _write_runs(log_dir, node, runs: dict) -> None:
+    (log_dir / node).mkdir(parents=True)
+    for name, text in runs.items():
+        (log_dir / node / name).write_text(text)
+
+
+def test_logs_all_prints_the_latest_run_file_without_sheppyd(
+        tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    whole = "".join(f"line {i}\n" for i in range(1000))   # past ring_lines
+    _write_runs(tmp_path / "logs", "camera", {
+        "20261102-090000-999000000.log": whole,
+        "20261102-090000-001000000.log": "same second, earlier\n",
+        "20261101-090000-000000001.log": "older run\n",
+        "zzz.txt": "not a run\n",
+    })
+    assert cli.main(["logs", "camera", "--all"]) == 0
+    assert capsys.readouterr().out == whole
+
+
+def test_logs_all_reads_log_dir_from_sheppyd_json(tmp_path, capsys,
+                                                  monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    (tmp_path / "sheppyd.json").write_text(
+        json.dumps({"log_dir": str(tmp_path / "elsewhere")}))
+    _write_runs(tmp_path / "elsewhere", "camera",
+                {"20261102-090000-000002.log": "from elsewhere\n"})
+    assert cli.main(["logs", "camera", "--all"]) == 0
+    assert capsys.readouterr().out == "from elsewhere\n"
+
+
+def test_logs_all_fails_when_the_node_has_no_run_files(tmp_path, capsys,
+                                                       monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    assert cli.main(["logs", "camera", "--all"]) == 1
+    assert ("camera: no run files in "
+            f"{tmp_path / 'logs' / 'camera'}") in capsys.readouterr().err
+
+
+def test_logs_all_rejects_a_name_outside_log_dir(tmp_path, capsys,
+                                                 monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    _write_runs(tmp_path, "secret", {"20261102-090000-000000001.log": "x\n"})
+    assert cli.main(["logs", "../secret", "--all"]) == 1
+    assert capsys.readouterr().out == ""
+
+
+def test_logs_all_rejects_n(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["logs", "camera", "--all", "-n", "5"])
+    assert exc.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_logs_all_of_a_supervised_node(site, capsys):
+    cli.main(["up", "broken", "--manifest", str(site / "system.yaml")])
+    capsys.readouterr()
+    assert cli.main(["logs", "flaky", "--all"]) == 0
+    assert capsys.readouterr().out == "no such device\n"
+
+
+def test_down_after_daemon_stop_stops_the_nodes_it_left(site, capsys):
+    # #250: `down` with no daemon said "not running" and exited 0 while
+    # the nodes `daemon stop` left were still up. It starts sheppyd, which
+    # re-adopts them, and stops them.
+    import os
+    import time
+
+    pid = _up_then_daemon_stop(site, capsys)
+    assert cli.main(["down"]) == 0
+    out = capsys.readouterr().out
+    assert "stopped camera" in out and "sheppyd stopped" in out
+    for _ in range(100):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("camera still running after down")
+    assert cli.main(["status"]) == 0
+    assert "not running" in capsys.readouterr().out
+
+
+def test_restart_after_daemon_stop_restarts_the_node(site, capsys):
+    # #250: restart, too, starts sheppyd when it left nodes running.
+    _up_then_daemon_stop(site, capsys)
+    assert cli.main(["restart", "camera"]) == 0
+    assert "restarted camera" in capsys.readouterr().out
+
+
+def test_down_fails_when_it_cannot_start_the_daemon_that_left_nodes(
+        site, capsys, monkeypatch):
+    # #250: never report success while recorded nodes may still be up
+    from sheppy.daemon.client import DaemonClient
+
+    async def cannot_connect(self, spawn=True):
+        return False
+
+    (site / "home" / "sheppyd.state.json").write_text(json.dumps(
+        {"nodes": {"camera": {}}}))
+    monkeypatch.setattr(DaemonClient, "connect", cannot_connect)
+    assert cli.main(["down"]) == 1
+    assert "nodes it left running are still running" in capsys.readouterr().err
+    # the fixture runs `down` again, with the real connect
+    monkeypatch.undo()
+    (site / "home" / "sheppyd.state.json").unlink()

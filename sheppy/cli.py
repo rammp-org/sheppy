@@ -104,7 +104,13 @@ def _build_parser() -> argparse.ArgumentParser:
     stp.add_argument("node", nargs="?")
     lg = sub.add_parser("logs", help="tail a node's output")
     lg.add_argument("node")
-    lg.add_argument("-n", type=_positive_int, default=50)
+    how = lg.add_mutually_exclusive_group()
+    how.add_argument("-n", type=_positive_int, default=50,
+                     help="print the last N lines (default 50) from sheppyd")
+    how.add_argument("--all", action="store_true",
+                     help="print the node's latest run file from the start, "
+                          "read from disk (no sheppyd needed); not "
+                          "allowed with -n")
     rs = sub.add_parser("restart", help="restart a node")
     rs.add_argument("node")
     dm = sub.add_parser("daemon", help="daemon lifecycle")
@@ -129,9 +135,18 @@ def _run_verb(argv: list[str]) -> int:
 async def _dispatch(args) -> int:
     if args.cmd == "up":
         return await _up(args)
+    if args.cmd == "logs" and args.all:
+        return _print_run_file(args.node)
     from sheppy.daemon.client import DaemonClient
     client = DaemonClient()
-    if not await client.connect(spawn=False):
+    # sheppyd left nodes running when it stopped (#227): start it to
+    # re-adopt them, or `down` would stop nothing and `restart` fail (#250)
+    spawn = args.cmd in ("down", "restart") and _left_running()
+    if not await client.connect(spawn=spawn):
+        if spawn:
+            _error("could not start sheppyd; the nodes it left running "
+                   "are still running")
+            return 1
         print(f"sheppyd: {_style('not running', 'dim')}")
         return 0 if args.cmd in ("down", "daemon") or (
             args.cmd == "status" and args.node is None) else 1
@@ -193,6 +208,42 @@ async def _dispatch(args) -> int:
         return 0
     finally:
         await client.close()
+
+
+def _print_run_file(node: str) -> int:
+    """`logs --all`: copy the node's latest run file to stdout. Read on the
+    client, so it works without sheppyd and for nodes it no longer
+    supervises (#253)."""
+    import shutil
+    from sheppy.daemon.config import load_config
+    from sheppy.daemon.logs import run_files
+    from sheppy.manifest.loader import _NAME
+    node_dir = os.path.join(load_config()[0].log_dir, node)
+    # a name no manifest allows (`..`, a path) must not reach outside log_dir
+    runs = run_files(node_dir) if _NAME.fullmatch(node) else []
+    if not runs:
+        _error(f"{node}: no run files in {node_dir}")
+        return 1
+    try:
+        with open(runs[-1], "rb") as f:
+            shutil.copyfileobj(f, sys.stdout.buffer)   # streamed, not loaded
+        sys.stdout.buffer.flush()
+    except BrokenPipeError:             # `sheppy logs x --all | head`
+        # Point stdout at /dev/null so the exit-time flush doesn't raise again.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    return 0
+
+
+def _left_running() -> bool:
+    """Whether sheppyd's state file records nodes, which the next daemon
+    re-adopts if they are still alive."""
+    import json
+    from sheppy.daemon.config import sheppy_home, state_path
+    try:
+        with open(state_path(sheppy_home())) as f:
+            return bool(json.load(f).get("nodes"))
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def _print_status(nodes: dict) -> None:
