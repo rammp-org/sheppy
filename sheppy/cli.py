@@ -216,17 +216,33 @@ async def _dispatch(args) -> int:
         await client.close()
 
 
+def _node_log_dir(node: str) -> "str | None":
+    """The node's run-file directory, or None for a name no manifest allows
+    (`..`, a path), which must not reach outside log_dir."""
+    from sheppy.daemon.config import load_config
+    from sheppy.manifest.loader import _NAME
+    if not _NAME.fullmatch(node):
+        _error(f"{node}: not a valid node name")
+        return None
+    return os.path.join(load_config()[0].log_dir, node)
+
+
+def _stdout_closed() -> None:
+    """After a BrokenPipeError (`sheppy logs x | head`): point stdout at
+    /dev/null so the exit-time flush doesn't raise again."""
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
 def _print_run_file(node: str) -> int:
     """`logs --all`: copy the node's latest run file to stdout. Read on the
     client, so it works without sheppyd and for nodes it no longer
     supervises (#253)."""
     import shutil
-    from sheppy.daemon.config import load_config
     from sheppy.daemon.logs import run_files
-    from sheppy.manifest.loader import _NAME
-    node_dir = os.path.join(load_config()[0].log_dir, node)
-    # a name no manifest allows (`..`, a path) must not reach outside log_dir
-    runs = run_files(node_dir) if _NAME.fullmatch(node) else []
+    node_dir = _node_log_dir(node)
+    if node_dir is None:
+        return 1
+    runs = run_files(node_dir)
     if not runs:
         _error(f"{node}: no run files in {node_dir}")
         return 1
@@ -234,9 +250,8 @@ def _print_run_file(node: str) -> int:
         with open(runs[-1], "rb") as f:
             shutil.copyfileobj(f, sys.stdout.buffer)   # streamed, not loaded
         sys.stdout.buffer.flush()
-    except BrokenPipeError:             # `sheppy logs x --all | head`
-        # Point stdout at /dev/null so the exit-time flush doesn't raise again.
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    except BrokenPipeError:
+        _stdout_closed()
     return 0
 
 
@@ -247,12 +262,9 @@ async def _follow_run_files(node: str, tail: "int | None") -> int:
     """`logs -f`: print the last `tail` lines of the node's latest run file
     (all of it if None), then what the node writes next, moving to each
     newer run file as it restarts. Read on the client like `--all` (#254)."""
-    from sheppy.daemon.config import load_config
     from sheppy.daemon.logs import run_files
-    from sheppy.manifest.loader import _NAME
-    node_dir = os.path.join(load_config()[0].log_dir, node)
-    if not _NAME.fullmatch(node):       # must not reach outside log_dir
-        _error(f"{node}: not a valid node name")
+    node_dir = _node_log_dir(node)
+    if node_dir is None:
         return 1
     out = sys.stdout.buffer
     path, f, partial, announce = None, None, b"", False
@@ -263,30 +275,31 @@ async def _follow_run_files(node: str, tail: "int | None") -> int:
     try:
         while True:
             runs = run_files(node_dir)
-            if runs and runs[-1] != path:
+            # every run newer than the one followed, in order: a run that
+            # started and ended within one poll still gets printed
+            for nxt in runs[-1:] if path is None else [r for r in runs
+                                                        if r > path]:
                 try:
-                    new = open(runs[-1], "rb", buffering=0)
+                    new = open(nxt, "rb", buffering=0)
                 except OSError:         # pruned between listing and opening
-                    new = None
-                if new is not None:
-                    if f is not None:   # the old run's last output first
-                        partial = _copy_lines(f, partial, out)
-                        f.close()
-                        if partial:     # it ended mid-line
-                            out.write(partial + b"\n")
-                            out.flush()
-                    if announce:
-                        print(f"-- new run: {runs[-1]}", file=sys.stderr,
-                              flush=True)
-                    if tail is not None:
-                        new.seek(_tail_start(new, tail))
-                    path, f, partial = runs[-1], new, b""
-                    tail, announce = None, True
+                    continue
+                if f is not None:       # the old run's last output first
+                    partial = _copy_lines(f, partial, out)
+                    f.close()
+                    if partial:         # it ended mid-line
+                        out.write(partial + b"\n")
+                        out.flush()
+                if announce:
+                    print(f"-- new run: {nxt}", file=sys.stderr, flush=True)
+                if tail is not None:
+                    new.seek(_tail_start(new, tail))
+                path, f, partial = nxt, new, b""
+                tail, announce = None, True
             if f is not None:
                 partial = _copy_lines(f, partial, out)
             await asyncio.sleep(_FOLLOW_POLL)
-    except BrokenPipeError:             # `sheppy logs x -f | head`
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    except BrokenPipeError:
+        _stdout_closed()
         return 0
     finally:
         if f is not None:

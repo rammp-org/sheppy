@@ -707,9 +707,11 @@ def test_logs_follow_tails_then_follows_across_a_restart(tmp_path):
         # the restart prunes the old run (keep_runs) and starts a new one
         (runs / "20261102-090000-000000001.log").unlink()
         first.unlink()
-        (runs / "20261102-090001-000000001.log").write_text("new run\n")
+        # two restarts inside one poll: the short run in between is printed
+        (runs / "20261102-090001-000000001.log").write_text("short run\n")
+        (runs / "20261102-090001-000000002.log").write_text("new run\n")
         out = _read_until(proc.stdout, b"new run\n")
-        assert out == b"cut off\nnew run\n"
+        assert out == b"cut off\nshort run\nnew run\n"
         assert b"-- new run: " in _read_until(proc.stderr, b"\n")
     finally:
         _interrupt(proc)
@@ -752,11 +754,10 @@ def test_logs_follow_into_a_closed_pipe_exits_quietly(tmp_path):
     assert b"Traceback" not in proc.stderr.read()
 
 
-def test_logs_follow_rejects_a_name_outside_log_dir(tmp_path, capsys,
-                                                    monkeypatch):
-    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
-    assert cli.main(["logs", "../secret", "-f"]) == 1
-    assert "not a valid node name" in capsys.readouterr().err
+def test_logs_follow_rejects_a_name_outside_log_dir(tmp_path):
+    proc = _follow(tmp_path, "../secret", "-f")    # would follow forever
+    assert proc.wait(timeout=10) == 1
+    assert b"not a valid node name" in proc.stderr.read()
 
 
 def test_down_after_daemon_stop_stops_the_nodes_it_left(site, capsys):
