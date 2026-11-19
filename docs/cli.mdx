@@ -44,8 +44,8 @@ Then it:
 - stops nodes in the manifest that the profile doesn't select;
 - leaves running nodes whose names aren't in the manifest alone. It matches
   by node name only, so a node another manifest launched under a name this
-  manifest also uses is restarted, or stopped if the profile doesn't select
-  it;
+  manifest also uses is treated as this manifest's node: restarted if it
+  differs, stopped if the profile doesn't select it;
 - leaves a selected node as it is, running or not, when its launcher fails
   to resolve (a missing compose file, say): it prints the failure and exits
   1 after converging the rest.
