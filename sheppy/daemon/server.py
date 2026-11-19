@@ -64,10 +64,12 @@ class Server:
             self._usage_task.cancel()
         if self._server:
             self._server.close()          # stop accepting new connections
-        # Let in-flight requests finish and their replies flush; the bound
-        # covers the longest legitimate op, a full stop escalation.
+        # Let in-flight requests finish and their replies flush, for as long
+        # as a node's full stop escalation can take: SIGINT and stop_grace,
+        # SIGTERM and kill_grace, SIGKILL and kill_grace to reap the group.
+        # A detached unit's stop command has no bound of its own.
         deadline = (asyncio.get_running_loop().time()
-                    + self._cfg.stop_grace + self._cfg.kill_grace + 1.0)
+                    + self._cfg.stop_grace + 2 * self._cfg.kill_grace + 1.0)
         while self._inflight and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.05)
         # Server.wait_closed() (pre-3.13) blocks until every accepted
