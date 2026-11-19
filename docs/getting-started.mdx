@@ -40,6 +40,13 @@ it keeps serving the old version until it is restarted, so follow up with
 and it re-adopts anything still running. `sheppy --version` shows what you
 have. Uninstall with `uv tool uninstall sheppy`.
 
+**Upgrading from v0.1.0:** with 0.1.0 still installed, run `sheppy down` and
+`sheppy daemon stop` first; a 0.1.0 daemon kills its non-docker nodes when it
+stops, and 1.0 can't start its own daemon while the old one runs. Then
+install, rename `system.yaml` to `sheppy-manifest.yaml` (or pass
+`--manifest`), and run `sheppy up <profile>`. Node names and alternative ids
+must match `[A-Za-z0-9][A-Za-z0-9_.-]*`, and `params` must be a mapping.
+
 ## Run the demo — no ROS required
 
 The repo ships `examples/local-demo.yaml`, a manifest that launches plain
