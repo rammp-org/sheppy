@@ -239,8 +239,7 @@ class SheppyApp(App):
             # Offline, self.actual is the last status sheppyd sent: hide
             # the orphans rather than show them still running (#233).
             orphans = [p for n, p in sorted(self.actual.items())
-                      if self.manifest.node(n) is None] \
-                if self.daemon_connected else []
+                       if self.daemon_connected and self.manifest.node(n) is None]
             # partial (not the already-created coroutine) so a worker
             # cancelled by the exclusive group before it starts never left
             # an un-awaited coroutine behind.
