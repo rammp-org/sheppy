@@ -129,6 +129,8 @@ class SheppyApp(App):
         # reconnects, so each one used to add another (#114).
         self._client.on_event(self._on_daemon_event)
         self.run_worker(self._daemon_connect(spawn=False), exclusive=False)
+        # Another terminal may start sheppyd after this one opened (#224).
+        self.set_interval(2.0, self._retry_connect)
         self._proc_timer = self.set_interval(
             1.0, self._refresh_process_tab, pause=True)
 
@@ -184,6 +186,12 @@ class SheppyApp(App):
                                        if reason else "could not start sheppyd"])
                 return False
         return True
+
+    async def _retry_connect(self) -> None:
+        if self.daemon_connected or self._connect_lock.locked():
+            return
+        async with self._connect_lock:
+            await self._daemon_connect(spawn=False)
 
     def _on_daemon_event(self, event: dict) -> None:
         if event.get("event") == "disconnected":
