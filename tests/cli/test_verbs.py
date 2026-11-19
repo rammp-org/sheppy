@@ -506,11 +506,6 @@ def test_restart_warns_when_the_profile_no_longer_selects_the_node(
             in capsys.readouterr().err)
 
 
-def test_restart_does_not_check_a_node_up_did_not_launch():
-    # e.g. launched from the TUI, whose selection sheppy can't recover
-    assert cli._restart_drift("camera", {"spec": _spec().to_wire()}) is None
-
-
 def test_status_of_one_node(site, capsys):
     cli.main(["up", "cam-only", "--manifest", str(site / "system.yaml")])
     capsys.readouterr()

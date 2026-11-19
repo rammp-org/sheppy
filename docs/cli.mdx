@@ -121,23 +121,10 @@ Restart a node, including a crashed one, with the alternative, params, and
 command it was launched with, then print the alternative and params. `restart`
 doesn't pick up manifest or profile edits; use `sheppy up` for that.
 
-If `sheppy up` launched the node, `restart` also re-resolves it from the
-manifest and profile `up` used. When that gives a different alternative,
-command, or params, or the profile no longer selects the node, it prints a
-warning with the `sheppy up` command that applies the change:
-
-```
-$ sheppy restart scene_camera
-restarted scene_camera
-  alternative  oak
-  params       color.i_rotation: 180
-warning: scene_camera: restarted with the params it was launched with, but profile flatbot now resolves differently (launch command changed; params color.i_rotation: 180 → 0); 'sheppy up flatbot --manifest /home/me/ws/sheppy-manifest.yaml' applies it
-```
-
-The warning doesn't change the exit code. Nodes launched from the TUI aren't
-checked. The check uses the profile the node was last launched under: a later
-`sheppy up` with another profile that leaves the node running unchanged
-doesn't update it. Exits 1 if the node is unknown or the daemon isn't running.
+For a node `sheppy up` launched, `restart` also checks the manifest and
+profile `up` used, and prints a warning with the `sheppy up` command to run
+if they now give a different alternative, command, or params. Nodes launched
+from the TUI aren't checked. Exits 1 if the node is unknown or the daemon isn't running.
 `sheppy woof`, its old name, still works.
 
 ### `sheppy down`

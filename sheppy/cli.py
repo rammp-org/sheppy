@@ -265,11 +265,26 @@ def _load_profile(manifest_path: str, profile: str):
     return result, state, warnings + rec.warnings, []
 
 
+def _resolve_selected(result, state, name: str, manifest_path: str):
+    """Resolve the alternative the profile selects for `name` as `up`
+    launches it: (spec, errors, warnings). spec is None when the
+    alternative has manifest errors (#61) or its launcher fails."""
+    from sheppy.launch import resolve
+    alt = state.selected_alt(name)
+    errs = result.errors_for(result.manifest.node(name), alt)
+    if errs:
+        return None, [e.message for e in errs], []
+    spec, warns = resolve(result.manifest, name, alt,
+                          state.effective_params(name),
+                          manifest_dir=os.path.dirname(
+                              os.path.abspath(manifest_path)))
+    return spec, [], warns
+
+
 def _restart_drift(node: str, payload: dict) -> "str | None":
     """How what `up` would launch now differs from the spec `restart`
     reran (#219), re-resolved from the manifest and profile `up` recorded
     in the spec. None when they agree, or when `up` didn't launch it."""
-    from sheppy.launch import resolve
     origin = payload["spec"].get("origin")
     if not origin:
         return None
@@ -281,17 +296,11 @@ def _restart_drift(node: str, payload: dict) -> "str | None":
         return f"{unchecked}: {'; '.join(errors)}"
     if result.manifest.node(node) is None:
         return f"it is no longer in {path}"
-    alt = state.selected_alt(node)
-    if alt is None:
+    if state.selected_alt(node) is None:
         return f"profile {profile} no longer selects it; {up} stops it"
-    errs = result.errors_for(result.manifest.node(node), alt)
-    if errs:
-        return f"{unchecked}: {errs[0].message}"
-    spec, warns = resolve(result.manifest, node, alt,
-                          state.effective_params(node),
-                          manifest_dir=os.path.dirname(path))
+    spec, errs, warns = _resolve_selected(result, state, node, path)
     if spec is None:
-        return f"{unchecked}: {warns[-1]}"
+        return f"{unchecked}: {errs[0] if errs else warns[-1]}"
     if payload["spec"]["descriptor"] == spec.descriptor.to_wire():
         return None
     return (f"profile {profile} now resolves differently "
@@ -300,7 +309,7 @@ def _restart_drift(node: str, payload: dict) -> "str | None":
 
 async def _up(args) -> int:
     from sheppy.daemon.client import DaemonClient
-    from sheppy.launch import diff, resolve
+    from sheppy.launch import diff
 
     result, state, warnings, errors = _load_profile(args.manifest,
                                                     args.profile)
@@ -317,19 +326,15 @@ async def _up(args) -> int:
 
     desired, unresolved = {}, set()
     for node in result.manifest.nodes:
-        alt = state.selected_alt(node.name)
-        if alt is None:
+        if state.selected_alt(node.name) is None:
             continue
-        errs = result.errors_for(node, alt)
+        spec, errs, warns = _resolve_selected(result, state, node.name,
+                                              args.manifest)
         if errs:                            # never launch a half-built alt (#61)
             for e in errs:
-                _error(f"{node.name}: not launched, {e.message}")
+                _error(f"{node.name}: not launched, {e}")
             unresolved.add(node.name)
             continue
-        spec, warns = resolve(result.manifest, node.name, alt,
-                              state.effective_params(node.name),
-                              manifest_dir=os.path.dirname(
-                                  os.path.abspath(args.manifest)))
         for w in warns:
             _warn(w)
         if spec is None:
