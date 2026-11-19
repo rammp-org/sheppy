@@ -93,7 +93,7 @@ def _build_parser() -> argparse.ArgumentParser:
         description="With a manifest path (or nothing) sheppy opens the TUI; "
                     f"MANIFEST defaults to ./{DEFAULT_MANIFEST}. With a verb "
                     "it runs headless.")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=True, prog="sheppy")
     up = sub.add_parser("up", help="converge to a profile")
     up.add_argument("profile")
     up.add_argument("--manifest", default=DEFAULT_MANIFEST)

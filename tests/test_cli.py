@@ -75,6 +75,19 @@ def test_help_flag_prints_usage_and_exits_zero(capsys):
         assert "up" in out and "status" in out
 
 
+def test_subcommand_usage_names_only_sheppy_and_the_verb(capsys):
+    import pytest
+
+    from sheppy.cli import _build_parser
+
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["up", "-h"])
+    assert capsys.readouterr().out.startswith("usage: sheppy up [-h]")
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["logs"])
+    assert "sheppy logs: error:" in capsys.readouterr().err
+
+
 def test_sheppyd_help_flag_prints_usage_and_exits_zero(capsys, tmp_path,
                                                         monkeypatch):
     import pytest
