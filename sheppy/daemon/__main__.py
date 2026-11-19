@@ -24,19 +24,31 @@ def _log_unhandled(cfg, context: dict) -> None:
 
 
 async def _amain(cfg, warnings) -> None:
-    loop = asyncio.get_running_loop()
-    loop.set_exception_handler(lambda loop, ctx: _log_unhandled(cfg, ctx))
-    server = Server(cfg)
-    adopted = server.table.adopt_from_state()
-    await server.start()
-    for w in warnings:
-        daemon_log(cfg, f"config: {w}")
-    daemon_log(cfg, f"started (adopted: {', '.join(adopted) or 'none'})")
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, server._shutdown.set)
-    await server.wait_shutdown()
-    await server.close()
+    # Leaves by os._exit, never by returning: asyncio.run's teardown
+    # finalizes each node's subprocess transport, which SIGKILLs a child
+    # still running, so `daemon stop` killed the nodes it left (#227).
+    server = None
+    try:
+        loop = asyncio.get_running_loop()
+        loop.set_exception_handler(lambda loop, ctx: _log_unhandled(cfg, ctx))
+        server = Server(cfg)
+        adopted = server.table.adopt_from_state()
+        await server.start()
+        for w in warnings:
+            daemon_log(cfg, f"config: {w}")
+        daemon_log(cfg, f"started (adopted: {', '.join(adopted) or 'none'})")
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, server._shutdown.set)
+        await server.wait_shutdown()
+        await server.close()
+    except Exception as e:                 # died: say so where it can be read
+        daemon_log(cfg, "died\n" + "".join(traceback.format_exception(e)))
+        if server is not None:
+            server.table.release()
+        os._exit(1)
+    server.table.release()
     daemon_log(cfg, "shut down (children left running)")
+    os._exit(0)
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -61,11 +73,7 @@ def main(argv: "list[str] | None" = None) -> int:
     except OSError:
         print("sheppyd: already running", file=sys.stderr)
         return 1
-    try:
-        asyncio.run(_amain(cfg, warnings))
-    except Exception as e:                 # died: say so where it can be read
-        daemon_log(cfg, "died\n" + "".join(traceback.format_exception(e)))
-        return 1
+    asyncio.run(_amain(cfg, warnings))     # exits the process itself
     return 0
 
 

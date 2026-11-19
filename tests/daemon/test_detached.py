@@ -144,6 +144,24 @@ async def test_logs_follower_is_reaped_on_stop(tmp_path):
     assert sup._logs_proc.returncode is not None
 
 
+async def test_release_kills_followers_but_not_the_unit(tmp_path):
+    # sheppyd exiting (#227) leaves the unit for the next daemon, which
+    # starts its own followers; the old ones must not linger.
+    state = str(tmp_path / "S")
+    desc = {"supervise": "detached", "name": "n",
+            "start": sh(f"echo up > {state}"),
+            "watch": sh(f"while [ -f {state} ]; do sleep 0.02; done; echo 0"),
+            "stop":  sh(f"rm -f {state}"),
+            "logs":  sh("while true; do echo tick; sleep 0.05; done")}
+    sup, _, _ = make(tmp_path, desc)
+    await sup.start()
+    await wait_for(lambda: sup.state == pr.RUNNING)
+    watch, logs = sup._watch_proc, sup._logs_proc
+    sup.release()
+    await asyncio.wait_for(asyncio.gather(watch.wait(), logs.wait()), 2)
+    assert os.path.exists(state)           # no stop command ran
+
+
 async def test_stop_completes_when_stop_cmd_fails(tmp_path):
     # The stop command can fail (runtime hiccup, unit already gone). The
     # unit's watch never observes an exit then; stop() must still return
