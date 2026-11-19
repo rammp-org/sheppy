@@ -49,20 +49,48 @@ def test_unknown_machine_reference():
 
 
 def test_duplicate_node_name():
+    # Filed at every copy, so the first one (the one node() returns) is
+    # refused too rather than launched as a guess (#231).
     data = _valid_data()
     data["nodes"].append({"name": "camera", "alternatives": [
         {"id": "x", "kind": "process", "command": "true"}]})
     result = parse_manifest(data)
-    assert any("camera" in e.message and "duplicate" in e.message.lower()
-               for e in result.errors)
+    assert {e.location for e in result.errors
+            if e.message == "duplicate node name 'camera'"} == {
+        "nodes[0]", "nodes[2]"}
+    first = result.manifest.node("camera")
+    assert result.errors_for(first, first.alternatives[0])
+    sim = result.manifest.node("sim_gui")
+    assert result.errors_for(sim, sim.alternatives[0]) == []
 
 
 def test_duplicate_alternative_id():
     data = _valid_data()
     data["nodes"][0]["alternatives"][1]["id"] = "realsense"
     result = parse_manifest(data)
-    assert any("realsense" in e.message and "duplicate" in e.message.lower()
-               for e in result.errors)
+    assert {e.location for e in result.errors
+            if e.message == "duplicate alternative id 'realsense'"} == {
+        "nodes[0].alternatives[0]", "nodes[0].alternatives[1]"}
+    camera = result.manifest.node("camera")
+    assert all(result.errors_for(camera, a) for a in camera.alternatives)
+
+
+def test_duplicate_machine_name():
+    # Which machine's ros_setup an alternative means is a guess, so the
+    # alternatives that reference it are refused (#231).
+    data = _valid_data()
+    data["machines"].append({"name": "robot", "host": "10.0.0.21", "user": "r",
+                             "ros_setup": "/other/setup.bash"})
+    result = parse_manifest(data)
+    assert {e.location for e in result.errors
+            if e.message == "duplicate machine name 'robot'"} == {
+        "machines[0]", "machines[1]"}
+    camera = result.manifest.node("camera")
+    realsense, mock = camera.alternatives
+    assert [e.message for e in result.errors_for(camera, realsense)] == [
+        "alternative 'realsense' references machine 'robot', "
+        "which is defined more than once"]
+    assert result.errors_for(camera, mock) == []
 
 
 def test_bad_kind():

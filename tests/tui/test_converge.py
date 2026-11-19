@@ -208,6 +208,37 @@ async def test_space_and_apply_all_refuse_an_alternative_with_load_errors(
         assert not any(op == "launch" for op, _ in fake.requests)
 
 
+async def test_space_and_apply_all_refuse_a_duplicate_node_name(tmp_path):
+    # Two nodes named cam (#231): neither row launches, and `space` on the
+    # second row or `L` warns instead of crashing on the mismatched copy.
+    path = tmp_path / "system.yaml"
+    path.write_text(
+        "machines: []\n"
+        "nodes:\n"
+        "  - name: cam\n"
+        "    alternatives:\n"
+        "      - {id: a, kind: process, command: \"true\"}\n"
+        "  - name: cam\n"
+        "    alternatives:\n"
+        "      - {id: b, kind: process, command: \"true\"}\n")
+    fake = FakeDaemonClient()
+    app = SheppyApp(load_manifest(str(path)), path=str(path), client=fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.state.select("cam", "a")
+        await pilot.press("down", "space")
+        await pilot.pause()
+        assert not any(op == "launch" for op, _ in fake.requests)
+        dup = "'cam': not launched, duplicate node name 'cam'"
+        assert dup in app._runtime_warnings
+        app._runtime_warnings.clear()
+        await pilot.press("L")
+        await pilot.pause()
+        assert not isinstance(app.screen, ConvergeModal)
+        assert not any(op == "launch" for op, _ in fake.requests)
+        assert dup in app._runtime_warnings
+
+
 async def test_converge_all_survives_status_error_reply():
     fake = FakeDaemonClient()
     app = make_app(fake)

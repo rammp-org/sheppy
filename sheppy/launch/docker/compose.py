@@ -123,7 +123,9 @@ def _volume_str(vol):
 def _command_list(cmd):
     if cmd is None:
         return []
-    return list(cmd) if isinstance(cmd, (list, tuple)) else shlex.split(cmd)
+    if isinstance(cmd, (list, tuple)):
+        return [str(c) for c in cmd]    # YAML reads `[sleep, 10]` with an int
+    return shlex.split(cmd)
 
 
 def _ulimit_pair(name, limit):

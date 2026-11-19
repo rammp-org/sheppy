@@ -178,3 +178,14 @@ async def test_restart_kills_a_hung_start_and_relaunches(tmp_path):
     await asyncio.wait_for(launch, 1)
     await wait_state(table, "cam", pr.RUNNING)
     await table.stop("cam")
+
+
+async def test_release_kills_a_start_in_progress(tmp_path):
+    # sheppyd exiting mid-start (#227): the start must not bring the unit
+    # up behind the next daemon's back.
+    gate, state = str(tmp_path / "GO"), str(tmp_path / "S")
+    table = make_table(tmp_path)
+    launch = await launch_hung(table, blocked_spec("cam", gate, state), gate)
+    table.release()
+    await asyncio.wait_for(launch, 2)
+    assert not running(gate)

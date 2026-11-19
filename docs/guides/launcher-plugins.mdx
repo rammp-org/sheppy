@@ -102,7 +102,8 @@ pure, JSON-serializable data, built via one of two classmethods.
 LaunchDescriptor.inherit(start)
 ```
 
-`start` is an argv sequence. The daemon spawns it directly as a
+`start` is an argv sequence of strings; sheppyd refuses a descriptor whose
+argv fields hold anything else. The daemon spawns it directly as a
 `ManagedProcess`: a child in its own new process session, whose lifetime and
 supervision the daemon fully owns via the process group (SIGINT → SIGTERM →
 SIGKILL escalation, `/proc`-based CPU/RSS sampling, crash detection from the
