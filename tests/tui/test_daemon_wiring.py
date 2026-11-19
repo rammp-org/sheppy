@@ -364,3 +364,21 @@ async def test_r_without_drift_adds_no_warning():
         await pilot.pause()
         assert ("restart", {"node": "camera"}) in fake.requests
         assert app._runtime_warnings == []
+
+
+async def test_type_only_param_change_is_drift_and_names_the_params():
+    # 1 == True in Python, but `enable_depth:=1` is an int to ROS (#230)
+    fake = FakeDaemonClient({"camera": payload(
+        "camera", "running", alt="realsense", params={"enable_depth": 1})})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        value = app.state.effective_params("camera")["enable_depth"]
+        assert type(value) is int and value == 1
+        assert "Δ" not in str(app.query_one("#node-0 .col-status").content)
+        app.state.override("camera", "enable_depth", True)  # the manifest's
+        await pilot.press("r")
+        await pilot.pause()
+        assert ("'camera': restarted with its running params; selection "
+                "differs (params changed) — space applies it"
+                ) in app._runtime_warnings

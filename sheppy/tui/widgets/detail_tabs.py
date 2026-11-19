@@ -10,7 +10,7 @@ from textual.widgets import Input, RichLog, Static, TabbedContent, TabPane
 
 from sheppy.manifest import Alternative, Node, json_safe
 from sheppy.launch.builtins import param_text
-from sheppy.launch.resolve import fmt
+from sheppy.launch.resolve import fmt, same
 from sheppy.tui.widgets import status as st
 from sheppy.tui.widgets.theme import c
 
@@ -126,7 +126,8 @@ class DetailTabs(Vertical):
                 row("", c("fg", f"{k}: {fmt(ran[k]) if k in ran else '—'}")
                     + " " + c("muted", "running"))
                 for k in sorted(ran.keys() | selected.keys())
-                if k not in ran or k not in selected or ran[k] != selected[k]]
+                if k not in ran or k not in selected
+                or not same(ran[k], selected[k])]
         if other:       # the highlighted alternative isn't running (#191)
             out = [row("state", c("muted", f"{st.glyph(st.Status.NONE)} "
                                            "not running")), *drift_rows]
@@ -304,7 +305,7 @@ class ParamRow(Horizontal):
             self._paint()
 
     def _paint(self, error: str = "") -> None:
-        edited = self.value != self.manifest
+        edited = not same(self.value, self.manifest)
         self.set_class(edited, "-edited")
         self.query_one(".param-note", Static).update(
             c("red", error) if error else

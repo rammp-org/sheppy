@@ -133,3 +133,15 @@ def test_apply_without_description_clears_previous_description():
     st.apply({}, {}, "p", description="hello")
     st.apply({}, {}, "p")
     assert st.to_profile("p").description == ""
+
+
+def test_override_that_only_changes_the_type_is_kept():
+    # 15 == 15.0 and 1 == True in Python; ROS reads them as other types (#230)
+    m = Manifest(machines=[], nodes=[Node(name="camera", alternatives=[
+        Alternative(id="mock", kind="process", command="true",
+                    params={"fps": 15, "on": 1})])])
+    st = ProfileState(m)
+    st.select("camera", "mock")
+    st.override("camera", "fps", 15.0)
+    st.override("camera", "on", True)
+    assert st.to_profile("p").overrides == {"camera": {"fps": 15.0, "on": True}}
