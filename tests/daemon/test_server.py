@@ -140,6 +140,24 @@ async def test_launch_rejects_bad_spec(tmp_path, monkeypatch):
     await server.close()
 
 
+async def test_launch_rejects_non_string_argv(tmp_path, monkeypatch):
+    # #232: an int in argv must be refused up front in both supervise modes,
+    # not crash the inherit spawn or leave a detached node stuck launching.
+    server = await make_server(tmp_path, monkeypatch)
+    wire = await Wire.connect(str(tmp_path))
+    reply = await wire.request("launch", spec=spec("i", ["sleep", 10]))
+    assert reply["ok"] is False and "'start'" in reply["error"]
+    detached = {"supervise": "detached", "name": "d", "start": ["sleep", 10],
+                "poll": ["true"]}
+    reply = await wire.request("launch", spec={"node": "d", "descriptor": detached})
+    assert reply["ok"] is False and "'start'" in reply["error"]
+    detached = dict(detached, start=["true"], stop=["kill", 1])
+    reply = await wire.request("launch", spec={"node": "d", "descriptor": detached})
+    assert reply["ok"] is False and "'stop'" in reply["error"]
+    assert (await wire.request("status"))["nodes"] == {}
+    await server.close()
+
+
 async def test_logs_op_returns_tail(tmp_path, monkeypatch):
     server = await make_server(tmp_path, monkeypatch)
     wire = await Wire.connect(str(tmp_path))
@@ -183,6 +201,33 @@ async def test_shutdown_waits_for_inflight_stop_reply(tmp_path, monkeypatch):
     await asyncio.wait_for(server.close(), 5)
     reply = await asyncio.wait_for(stop_reply, 5)
     assert reply["ok"] is True             # in-flight reply was delivered
+
+
+async def test_shutdown_waits_out_a_full_stop_escalation(tmp_path,
+                                                         monkeypatch):
+    # The longest stop is stop_grace, kill_grace, then kill_grace more to
+    # reap after SIGKILL (#120); the shutdown bound used to stop at one
+    # kill_grace and cut it short (#236).
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    cfg = Config(home=str(tmp_path), log_dir=str(tmp_path / "logs"),
+                 stop_grace=0.1, kill_grace=1.5)
+    server = Server(cfg)
+    await server.start()
+    finished = []
+
+    async def full_escalation(node):
+        await asyncio.sleep(cfg.stop_grace + 2 * cfg.kill_grace)
+        finished.append(node)
+
+    monkeypatch.setattr(server.table, "stop", full_escalation)
+    a = await Wire.connect(str(tmp_path))
+    a.writer.write(encode({"id": 1, "op": "stop", "node": "camera"}))
+    await a.writer.drain()
+    await asyncio.sleep(0.05)              # the stop is now in flight
+    await asyncio.wait_for(server.close(), 10)
+    assert finished == ["camera"]
+    line = await asyncio.wait_for(a.reader.readline(), 1)
+    assert json.loads(line) == {"id": 1, "ok": True}
 
 
 async def test_socket_has_owner_only_perms(tmp_path, monkeypatch):

@@ -6,7 +6,7 @@ import os
 import sheppy
 from sheppy.daemon import usage as usage_mod
 from sheppy.daemon.config import Config, socket_path
-from sheppy.daemon.protocol import Decoder, encode
+from sheppy.daemon.protocol import ARGV_FIELDS, Decoder, encode
 from sheppy.daemon.table import ProcessTable
 
 
@@ -20,6 +20,11 @@ def _validate_descriptor(node, d) -> "str | None":
     start = d.get("start")
     if not isinstance(start, list) or not start:
         return "descriptor needs a non-empty 'start'"
+    for f in ARGV_FIELDS:
+        argv = d.get(f)
+        if argv is not None and not (isinstance(argv, list) and
+                                     all(isinstance(a, str) for a in argv)):
+            return f"descriptor '{f}' must be a list of strings, got {argv!r}"
     if d.get("supervise") == "detached":
         if not d.get("name"):
             return "detached descriptor needs 'name'"
@@ -59,10 +64,12 @@ class Server:
             self._usage_task.cancel()
         if self._server:
             self._server.close()          # stop accepting new connections
-        # Let in-flight requests finish and their replies flush; the bound
-        # covers the longest legitimate op, a full stop escalation.
+        # Let in-flight requests finish and their replies flush, for as long
+        # as a node's full stop escalation can take: SIGINT and stop_grace,
+        # SIGTERM and kill_grace, SIGKILL and kill_grace to reap the group.
+        # A detached unit's stop command has no bound of its own.
         deadline = (asyncio.get_running_loop().time()
-                    + self._cfg.stop_grace + self._cfg.kill_grace + 1.0)
+                    + self._cfg.stop_grace + 2 * self._cfg.kill_grace + 1.0)
         while self._inflight and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.05)
         # Server.wait_closed() (pre-3.13) blocks until every accepted
