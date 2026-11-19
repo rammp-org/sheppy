@@ -4,7 +4,7 @@ Per-release notes are generated from pull request titles and published on
 the [GitHub releases page](https://github.com/rammp-org/sheppy/releases).
 This file records what each major version commits to.
 
-## 1.0.0 (unreleased)
+## 1.0.0
 
 First stable release. The following are frozen for the 1.x series; a change
 to any of them is a 2.0:
@@ -31,7 +31,11 @@ to any of them is a 2.0:
   described in `docs/cli.mdx`. `woof` is an alias of `restart` and is kept
   as well.
 
-Upgrade note: `sheppyd` is long-lived and keeps running the version it was
-started with. After upgrading, run `sheppy daemon stop`; the next command
-starts a daemon on the new code. Nodes keep running across the daemon
-restart and are re-adopted.
+Upgrade note: `sheppyd` keeps running the version it was started with.
+Within 1.x, run `sheppy daemon stop` after installing; the next command
+starts a daemon on the new code, which re-adopts the running nodes.
+Upgrading from 0.1.0 is different: with 0.1.0 still installed, run
+`sheppy down` and `sheppy daemon stop`, then install 1.0.0, rename
+`system.yaml` to `sheppy-manifest.yaml`, and run `sheppy up <profile>`. A
+0.1.0 daemon kills its `process`, `executable` and `launch_file` nodes when
+it stops, so they can't be kept running across this upgrade.

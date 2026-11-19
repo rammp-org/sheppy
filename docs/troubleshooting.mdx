@@ -82,19 +82,30 @@ has to fit in 107 bytes, and the socket lives in the home directory
 `SHEPPY_HOME`.
 
 **After upgrading from v0.1.0, `sheppy up` says `could not start sheppyd`
-while nodes are still running.** v0.1.0, and `dev` installs from before
-November 2026, put the socket in `$XDG_RUNTIME_DIR/sheppy/` when that
-variable was set. Newer versions always put it in the home directory, so
-they can't reach a daemon an older version started, and `sheppy daemon stop`
-can't either. If `$XDG_RUNTIME_DIR/sheppy/sheppyd.sock` exists, stop the old
-daemon by hand with `pkill -f 'sheppy\.daemon|sheppyd'`. Your nodes keep
-running, and the next launch starts a new daemon that re-adopts them.
+while nodes are still running.** The old daemon is still running and holds
+the lock. v0.1.0, and `dev` installs from before November 2026, put the
+socket in `$XDG_RUNTIME_DIR/sheppy/` when that variable was set; newer
+versions look in the home directory, so they report `sheppyd: not running`.
+Stop the old daemon and its nodes through its own socket:
+
+```bash
+SHEPPY_HOME="$XDG_RUNTIME_DIR/sheppy" sheppy down
+SHEPPY_HOME="$XDG_RUNTIME_DIR/sheppy" sheppy daemon stop
+```
+
+Then run `sheppy up <profile>`. The nodes can't be kept running across this
+upgrade: a daemon from before 2026-11-19 kills its `process`, `executable`
+and `launch_file` nodes when it stops, and docker nodes restart on the first
+`sheppy up` because their launch command changed.
 
 **I upgraded, but sheppy still behaves like the old version.** The running
 `sheppyd` was started by the old install and keeps executing that code; the
-TUI and CLI connect to it without noticing. Run `sheppy daemon stop` (nodes
-keep running), then any sheppy command starts a daemon on the new version and
-re-adopts them. `sheppy --version` shows the client's version.
+TUI and CLI connect to it without noticing. Run `sheppy daemon stop`, then
+any sheppy command starts a daemon on the new version and re-adopts the
+running nodes. `sheppy --version` shows the client's version. A daemon from
+before 2026-11-19 (v0.1.0, or an older `dev` install) kills its `process`,
+`executable` and `launch_file` nodes when it stops; stop those nodes first,
+or expect to start them again.
 
 **The daemon log says `cannot adopt '<node>' (pid …, still running): kernel
 lacks pidfd_open`.** A restarted daemon re-adopts running nodes through
