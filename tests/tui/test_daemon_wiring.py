@@ -34,6 +34,21 @@ async def test_offline_daemon_shows_unknown_and_offline_footer():
         assert app._client.spawn_attempts == [False]   # browsing never spawns
 
 
+async def test_offline_tui_connects_when_sheppyd_starts_later():
+    # #224: a sheppyd started by another terminal was never picked up.
+    fake = FakeDaemonClient({"camera": payload("camera", "running")},
+                            connect_ok=False)
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.daemon_connected is False
+        fake._ok = True
+        await pilot.pause(2.5)
+        assert app.daemon_connected is True
+        assert "●" in str(app.query_one("#sf-daemon").content)
+        assert True not in fake.spawn_attempts       # retries never spawn
+
+
 async def test_stale_daemon_version_is_warned_about():
     fake = FakeDaemonClient({"camera": payload("camera", "running")})
     fake.daemon_version = "0.1"
