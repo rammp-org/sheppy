@@ -29,7 +29,7 @@ machines:
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty or missing. Any string is accepted, unlike a node `name`: a machine name is only matched against `machine:` and shown in the TUI, never used as a container name or path. |
+| `name` | **yes** | string | Referenced by an alternative's `machine:`. Must be unique; the loader errors if empty, missing, or duplicated. An alternative whose `machine:` names a duplicated machine is not launched. Any string is accepted, unlike a node `name`: a machine name is only matched against `machine:` and shown in the TUI, never used as a container name or path. |
 | `host` | **yes** | string | Stored on the machine record. The loader errors if empty or missing. |
 | `user` | **yes** | string | Stored on the machine record. The loader errors if empty or missing; see [below](#things-that-surprise-people). |
 | `ros_setup` | no | string | Path to a setup file `source`d before the command of any `executable`, `launch_file`, or `process` alternative whose `machine:` names this machine. `~` is expanded; a relative path is resolved against the manifest's directory. See [ROS integration](../ros-integration#sourcing-per-alternative-with-ros_setup). |
@@ -52,7 +52,7 @@ nodes:
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `name` | **yes** | string | Must be unique across the manifest; the loader errors on a duplicate. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*` (letters, digits, `_`, `.`, `-`; no spaces or `/`), because it becomes the docker container name `sheppy-<node>` and the scratch directory `~/.sheppy/scratch/<node>`. |
+| `name` | **yes** | string | Must be unique across the manifest; the loader errors on a duplicate, and none of the nodes with that name is launched. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*` (letters, digits, `_`, `.`, `-`; no spaces or `/`), because it becomes the docker container name `sheppy-<node>` and the scratch directory `~/.sheppy/scratch/<node>`. |
 | `description` | no | string | Stored, but rendered nowhere in the TUI today. |
 | `select` | no | string | Defaults to `single`, the only accepted value — see [below](#things-that-surprise-people). |
 | `alternatives` | **yes** | non-empty list of [alternative](#alternatives) | The interchangeable ways to do this job. |
@@ -63,7 +63,7 @@ Common fields, valid regardless of `kind`:
 
 | Field | Required | Type | Meaning |
 |---|---|---|---|
-| `id` | **yes** | string | Unique within its node; the loader errors on a duplicate. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*`, the same rule as a node `name`. |
+| `id` | **yes** | string | Unique within its node; the loader errors on a duplicate, and none of the alternatives with that id is launched. Must match `[A-Za-z0-9][A-Za-z0-9_.-]*`, the same rule as a node `name`. |
 | `kind` | **yes** | string | Must name a registered launcher — one of `executable`, `launch_file`, `process`, `docker`, or a kind added by a third-party plugin. |
 | `machine` | no | string | Must name a declared machine (validated). Selects that machine's `ros_setup` to source before the command, and is shown in the TUI's host column and detail panel. It does **not** launch the command remotely — see [below](#things-that-surprise-people). |
 | `params` | no | mapping | How it's used depends on `kind` — see the per-kind sections below. The loader errors if it is not a mapping. A value YAML reads as a date, such as `2024-01-01`, is passed as that text. A timestamp is passed in normalised form (`2024-01-01T10:00:00Z` becomes `2024-01-01 10:00:00+00:00`); quote it to keep the text as written. |

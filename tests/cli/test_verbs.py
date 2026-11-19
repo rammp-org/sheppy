@@ -371,6 +371,24 @@ def test_up_refuses_an_alternative_with_load_errors(site, capsys):
     assert "broken_alt" not in capsys.readouterr().out
 
 
+def test_up_refuses_a_duplicate_node_name(site, capsys):
+    # Two nodes named camera: up must not guess and launch the first (#231).
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: camera\n"
+        "    alternatives:\n"
+        "      - id: fake\n"
+        "        kind: process\n"
+        "        command: \"true\"\n"))
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "start camera" not in captured.out
+    assert captured.err.count(
+        "camera: not launched, duplicate node name 'camera'") == 1
+
+
 def test_up_settle_timeout_follows_the_daemon_graces(site, capsys, monkeypatch):
     # A launch_grace above the old fixed 30 s made healthy nodes "time out"
     # while still launching (#103): the settle timeout must come from the
