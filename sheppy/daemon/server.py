@@ -60,9 +60,11 @@ class Server:
         if self._server:
             self._server.close()          # stop accepting new connections
         # Let in-flight requests finish and their replies flush; the bound
-        # covers the longest legitimate op, a full stop escalation.
+        # covers the longest legitimate op, a full stop escalation: SIGINT
+        # and stop_grace, SIGTERM and kill_grace, then SIGKILL and up to
+        # kill_grace more for the group to be reaped (ManagedProcess.stop).
         deadline = (asyncio.get_running_loop().time()
-                    + self._cfg.stop_grace + self._cfg.kill_grace + 1.0)
+                    + self._cfg.stop_grace + 2 * self._cfg.kill_grace + 1.0)
         while self._inflight and asyncio.get_running_loop().time() < deadline:
             await asyncio.sleep(0.05)
         # Server.wait_closed() (pre-3.13) blocks until every accepted
