@@ -64,7 +64,7 @@ def _build_alternative(raw: dict, loc: str, machine_names: set,
     if machine is not None and machine not in machine_names:
         errors.append(ValidationError(
             loc, f"alternative '{alt_id}' references unknown machine '{machine}'"))
-    elif machine in dup_machines:       # which ros_setup it means is a guess (#231)
+    elif machine in dup_machines:       # which definition it means is a guess (#231)
         errors.append(ValidationError(
             loc, f"alternative '{alt_id}' references machine '{machine}', "
                  f"which is defined more than once"))
