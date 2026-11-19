@@ -3,6 +3,7 @@ import pytest
 from sheppy.manifest import Manifest, Node, Alternative, LoadResult
 from sheppy.profiles import Profile, ProfileStore
 from sheppy.tui.app import SheppyApp
+from sheppy.tui.profile_modals import ConfirmModal
 from sheppy.tui.widgets.detail_tabs import ParamRow
 from textual import events
 from textual.widgets import Input
@@ -80,6 +81,32 @@ async def test_load_applies_profile(tmp_path):
         assert "mocked" in bar and "*" not in bar
         # node row reflects the applied selection (alt column)
         assert "mock" in str(app.query_one("#node-0 .col-alt").content)
+
+
+async def test_load_over_unsaved_changes_asks_first(tmp_path):
+    # #234: loading replaced unsaved selections and param edits silently.
+    ProfileStore(str(tmp_path)).save(
+        Profile(name="real", selections={"camera": "real"}))
+    app = SheppyApp(_result(), profiles_dir=str(tmp_path))
+    async with app.run_test() as pilot:
+        await _select_first_alt(app, pilot)           # camera/mock, dirty
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmModal)
+        await pilot.press("n")                        # keep the edits
+        await pilot.pause()
+        assert app.state.selected("camera") == "mock"
+        assert app.state.is_dirty
+        await pilot.press("l")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("y")                        # discard them
+        await pilot.pause()
+        assert app.state.selected("camera") == "real"
+        assert not app.state.is_dirty
 
 
 async def test_delete_removes_file(tmp_path):

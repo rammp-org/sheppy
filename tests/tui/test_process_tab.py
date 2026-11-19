@@ -115,6 +115,26 @@ async def test_edit_params_on_orphan_row_does_not_crash():
         assert any("stop/logs only" in w for w in app._runtime_warnings)
 
 
+async def test_orphan_rows_hidden_while_daemon_offline():
+    # #233: losing sheppyd blanked the manifest rows but kept the orphan
+    # rows, built from the last status, showing them as running.
+    fake = FakeDaemonClient({"old_recorder": payload("old_recorder",
+                                                     "running",
+                                                     alt="bag_v1")})
+    app = make_app(fake)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.query(".orphan-row")
+        fake.connected = False
+        fake.push({"event": "disconnected"})
+        await pilot.pause()
+        assert not app.query(".orphan-row, .orphan-divider")
+        await app._retry_connect()          # sheppyd is back
+        await pilot.pause()
+        assert app.daemon_connected is True
+        assert app.query(".orphan-row")
+
+
 async def test_up_after_orphan_rows_vanish_keeps_the_app_running():
     # #107: sheppyd restarted with no orphans while the cursor sat on an
     # orphan row. The rows went away but the ListView index still pointed

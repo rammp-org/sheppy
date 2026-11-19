@@ -2,10 +2,10 @@
 logs for a supervised unit. Pure, JSON-serializable data."""
 from dataclasses import dataclass, field
 
+from sheppy.daemon.protocol import ARGV_FIELDS
+
 INHERIT = "inherit"
 DETACHED = "detached"
-_CMD_FIELDS = ("start", "watch", "poll", "alive", "stop", "logs", "stats",
-               "reset")
 
 
 def _t(v):
@@ -57,7 +57,7 @@ class LaunchDescriptor:
         out = {"supervise": self.supervise, "start": list(self.start)}
         if self.name:
             out["name"] = self.name
-        for f in _CMD_FIELDS:
+        for f in ARGV_FIELDS:
             if f == "start":
                 continue
             v = getattr(self, f)

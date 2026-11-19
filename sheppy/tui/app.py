@@ -10,6 +10,7 @@ from textual.reactive import reactive
 from textual.widgets import Static, TabbedContent
 
 from sheppy.launch import diff, resolve
+from sheppy.launch.resolve import changes, same
 from sheppy.manifest import LoadResult, Node
 from sheppy.profiles import ProfileState, ProfileStore, reconcile
 from sheppy.tui.daemon_modals import ConvergeModal
@@ -236,8 +237,10 @@ class SheppyApp(App):
             self.query_one(StatusFooter).set_daemon(
                 self.daemon_connected, self._running_count(),
                 len(self.manifest.nodes))
+            # Offline, self.actual is the last status sheppyd sent: hide
+            # the orphans rather than show them still running (#233).
             orphans = [p for n, p in sorted(self.actual.items())
-                      if self.manifest.node(n) is None]
+                       if self.daemon_connected and self.manifest.node(n) is None]
             # partial (not the already-created coroutine) so a worker
             # cancelled by the exclusive group before it starts never left
             # an un-awaited coroutine behind.
@@ -276,7 +279,7 @@ class SheppyApp(App):
         # drift = the selection builds another command (#182)
         if spec is None or recorded.get("descriptor") == spec.descriptor.to_wire():
             return None
-        if (recorded.get("params") or {}) != spec.params:
+        if changes(recorded.get("params") or {}, spec.params):
             return "params changed"
         return "launch command changed"
 
@@ -411,7 +414,9 @@ class SheppyApp(App):
         """Refuse to launch an alternative that failed validation (#61):
         resolve() would build a half-formed command from it. The node is
         left as it is and the load errors go to the overlay."""
-        errs = self.load_result.errors_for(node, alt)
+        # `alt` comes from the first node of this name, which on a
+        # duplicate name (#231) is not necessarily `node`
+        errs = self.load_result.errors_for(self.manifest.node(node.name), alt)
         if errs:
             self._append_warnings(
                 [f"'{node.name}': not launched, {e.message}" for e in errs])
@@ -480,7 +485,7 @@ class SheppyApp(App):
                 continue
             selections[name] = alt.id
             over = {k: v for k, v in payload["spec"]["params"].items()
-                    if k in alt.params and alt.params[k] != v}
+                    if k in alt.params and not same(alt.params[k], v)}
             if over:
                 overrides[name] = over
         return selections, overrides, skipped
@@ -750,6 +755,14 @@ class SheppyApp(App):
                 ConfirmModal(f"Delete profile '{name}'?"),
                 lambda ok: self.store.delete(name) if ok else None)
             return
+        if self.state.is_dirty:         # don't drop edits silently (#234)
+            self.push_screen(
+                ConfirmModal(f"Discard unsaved changes and load '{name}'?"),
+                lambda ok: self._load_profile(name) if ok else None)
+            return
+        self._load_profile(name)
+
+    def _load_profile(self, name: str) -> None:
         result = self.store.load(name)
         if result.profile is None:
             self._append_warnings(result.errors)

@@ -355,3 +355,12 @@ def test_empty_entrypoint_overrides_the_image_default():
     assert errs == []
     assert flags[flags.index("--entrypoint") + 1] == ""
     assert command == ["echo", "hi"]
+
+
+def test_non_string_command_and_entrypoint_items_become_strings():
+    # #232: YAML reads `command: [sleep, 10]` with an int; argv must be str.
+    flags, _, command, errs, _ = service_to_docker_args(
+        {"image": "i", "entrypoint": [1, 2.5], "command": ["sleep", 10]})
+    assert errs == []
+    assert flags[flags.index("--entrypoint") + 1] == "1"
+    assert command == ["2.5", "sleep", "10"]

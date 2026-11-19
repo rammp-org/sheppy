@@ -371,6 +371,24 @@ def test_up_refuses_an_alternative_with_load_errors(site, capsys):
     assert "broken_alt" not in capsys.readouterr().out
 
 
+def test_up_refuses_a_duplicate_node_name(site, capsys):
+    # Two nodes named camera: up must not guess and launch the first (#231).
+    manifest_path = site / "system.yaml"
+    manifest_path.write_text(manifest_path.read_text() + (
+        "  - name: camera\n"
+        "    alternatives:\n"
+        "      - id: fake\n"
+        "        kind: process\n"
+        "        command: \"true\"\n"))
+
+    rc = cli.main(["up", "cam-only", "--manifest", str(manifest_path)])
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "start camera" not in captured.out
+    assert captured.err.count(
+        "camera: not launched, duplicate node name 'camera'") == 1
+
+
 def test_up_settle_timeout_follows_the_daemon_graces(site, capsys, monkeypatch):
     # A launch_grace above the old fixed 30 s made healthy nodes "time out"
     # while still launching (#103): the settle timeout must come from the
@@ -526,3 +544,38 @@ def test_status_of_an_unsupervised_node_fails(site, capsys):
 def test_status_of_a_node_without_sheppyd_fails(site, capsys):
     assert cli.main(["status", "camera"]) == 1
     assert "not running" in capsys.readouterr().out
+
+
+def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
+    # #227: asyncio's teardown finalized each node's subprocess transport,
+    # which SIGKILLs a child that is still running.
+    import fcntl
+    import os
+    import re
+    import time
+
+    from sheppy.daemon.config import lock_path
+
+    home = str(site / "home")
+    manifest = str(site / "system.yaml")
+    assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
+    capsys.readouterr()
+    assert cli.main(["status"]) == 0
+    pid = int(re.search(r"pid=(\d+)", capsys.readouterr().out).group(1))
+    assert cli.main(["daemon", "stop"]) == 0
+    with open(lock_path(home), "w") as lock:   # wait for sheppyd to exit
+        for _ in range(100):
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                time.sleep(0.05)
+        else:
+            raise AssertionError("sheppyd did not exit")
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    os.kill(pid, 0)                            # still alive
+    capsys.readouterr()
+    assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
+    assert "already converged" in capsys.readouterr().out
+    log = (site / "home" / "logs" / "sheppyd.log").read_text()
+    assert "adopted: camera" in log
