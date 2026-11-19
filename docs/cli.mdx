@@ -206,7 +206,7 @@ sheppy up mock
 | Daemon not running — `status`, `daemon`, and `down` with no nodes left running | 0 |
 | Daemon not running — `logs`, `status <node>`, and `restart` with no nodes left running | 1 |
 | `down`, `restart`: the daemon left nodes running and couldn't be started again | 1 |
-| Unknown node (`logs`, `restart`, `status <node>`) | 1 |
+| Unknown node (`logs` without `-f`, `restart`, `status <node>`) | 1 |
 | `logs --all`: the node has no run files | 1 |
 | `logs -f`: a node name that can't be a manifest node (such as a path) | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
