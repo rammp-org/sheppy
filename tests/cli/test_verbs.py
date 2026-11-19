@@ -1,6 +1,11 @@
 import json
+import os
+import select
+import signal
+import subprocess
 import sys
 import textwrap
+import time
 
 import pytest
 
@@ -649,6 +654,109 @@ def test_logs_all_of_a_supervised_node(site, capsys):
     capsys.readouterr()
     assert cli.main(["logs", "flaky", "--all"]) == 0
     assert capsys.readouterr().out == "no such device\n"
+
+
+def _follow(home, *args):
+    """`sheppy logs <args>` in a child process, so Ctrl-C and pipes are
+    real; stdout/stderr unbuffered for _read_until."""
+    return subprocess.Popen(
+        [PY, "-c", "import sys; from sheppy import cli; "
+                   "raise SystemExit(cli.main(['logs', *sys.argv[1:]]))",
+         *args],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
+        env={**os.environ, "SHEPPY_HOME": str(home)})
+
+
+def _read_until(stream, want: bytes, timeout: float = 10.0) -> bytes:
+    data, deadline = b"", time.monotonic() + timeout
+    while want not in data:
+        left = deadline - time.monotonic()
+        assert left > 0, f"timed out waiting for {want!r}; got {data!r}"
+        if select.select([stream], [], [], left)[0]:
+            chunk = os.read(stream.fileno(), 65536)
+            assert chunk, f"EOF before {want!r}; got {data!r}"
+            data += chunk
+    return data
+
+
+def _interrupt(proc) -> "tuple[bytes, bytes]":
+    proc.send_signal(signal.SIGINT)
+    out, err = proc.communicate(timeout=10)
+    assert proc.returncode == 130
+    assert b"Traceback" not in err
+    return out, err
+
+
+def test_logs_follow_tails_then_follows_across_a_restart(tmp_path):
+    runs = tmp_path / "logs" / "camera"
+    _write_runs(tmp_path / "logs", "camera", {
+        "20261102-090000-000000001.log": "older run\n",
+        "20261102-090000-000000002.log":
+            "".join(f"line {i}\n" for i in range(10)) + "par"})
+    first = runs / "20261102-090000-000000002.log"
+    proc = _follow(tmp_path, "camera", "-n", "3", "-f")
+    try:
+        out = _read_until(proc.stdout, b"line 9\n")
+        assert out == b"line 7\nline 8\nline 9\n"   # not the partial line
+        with open(first, "ab") as f:
+            f.write(b"tial \xff\n")                   # invalid UTF-8 as-is
+        out = _read_until(proc.stdout, b"\xff\n")
+        assert out == b"partial \xff\n"
+        with open(first, "ab") as f:
+            f.write(b"cut off")
+        # the restart prunes the old run (keep_runs) and starts a new one
+        (runs / "20261102-090000-000000001.log").unlink()
+        first.unlink()
+        (runs / "20261102-090001-000000001.log").write_text("new run\n")
+        out = _read_until(proc.stdout, b"new run\n")
+        assert out == b"cut off\nnew run\n"
+        assert b"-- new run: " in _read_until(proc.stderr, b"\n")
+    finally:
+        _interrupt(proc)
+
+
+def test_logs_follow_waits_for_the_first_run(tmp_path):
+    proc = _follow(tmp_path, "camera", "-f")
+    try:
+        assert b"waiting for camera's first run" in _read_until(
+            proc.stderr, b"\n")
+        _write_runs(tmp_path / "logs", "camera", {
+            "20261102-090000-000000001.log":
+                "".join(f"line {i}\n" for i in range(100))})
+        out = _read_until(proc.stdout, b"line 99\n")
+        assert out.startswith(b"line 0\n")          # the new run, all of it
+    finally:
+        _interrupt(proc)
+
+
+def test_logs_all_follow_starts_from_the_top(tmp_path):
+    whole = "".join(f"line {i}\n" for i in range(100))
+    _write_runs(tmp_path / "logs", "camera",
+                {"20261102-090000-000000001.log": whole})
+    proc = _follow(tmp_path, "camera", "--all", "-f")
+    try:
+        assert _read_until(proc.stdout, b"line 99\n") == whole.encode()
+    finally:
+        _interrupt(proc)
+
+
+def test_logs_follow_into_a_closed_pipe_exits_quietly(tmp_path):
+    run = tmp_path / "logs" / "camera" / "20261102-090000-000000001.log"
+    _write_runs(tmp_path / "logs", "camera", {run.name: "one\n"})
+    proc = _follow(tmp_path, "camera", "-f")       # as in `... -f | head -1`
+    _read_until(proc.stdout, b"one\n")
+    proc.stdout.close()
+    with open(run, "a") as f:
+        f.write("two\n")
+    assert proc.wait(timeout=10) == 0
+    assert b"Traceback" not in proc.stderr.read()
+
+
+def test_logs_follow_rejects_a_name_outside_log_dir(tmp_path, capsys,
+                                                    monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    assert cli.main(["logs", "../secret", "-f"]) == 1
+    assert "not a valid node name" in capsys.readouterr().err
 
 
 def test_down_after_daemon_stop_stops_the_nodes_it_left(site, capsys):

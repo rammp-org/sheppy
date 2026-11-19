@@ -8,7 +8,8 @@ title: Troubleshooting
 
 **A node goes straight to `✕ crashed`.** It exited during the launch grace
 period (2 seconds by default). `sheppy logs <node>` shows its last output, and
-`sheppy logs <node> --all` shows its whole latest run. The
+`sheppy logs <node> --all` shows its whole latest run (add `-f` to keep
+watching it across restarts). The
 usual causes:
 
 - `ros2: command not found`, or a package that can't be found: `sheppyd`
@@ -121,4 +122,4 @@ the daemon again and it re-adopts them: run `sheppyd` (it stays in the
 foreground), or launch something with `space` or `sheppy up`. Their in-memory
 log tails restart empty, but the log files under `~/.sheppy/logs/` are intact;
 `sheppy logs <node> --all` prints a node's latest one, with or without the
-daemon.
+daemon, and `sheppy logs <node> -f` follows it.
