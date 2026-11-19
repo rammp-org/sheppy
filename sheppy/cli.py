@@ -106,11 +106,15 @@ def _build_parser() -> argparse.ArgumentParser:
     lg.add_argument("node")
     how = lg.add_mutually_exclusive_group()
     how.add_argument("-n", type=_positive_int, default=50,
-                     help="print the last N lines (default 50) from sheppyd")
+                     help="print the last N lines (default 50), from sheppyd "
+                          "unless -f")
     how.add_argument("--all", action="store_true",
                      help="print the node's latest run file from the start, "
                           "read from disk (no sheppyd needed); not "
                           "allowed with -n")
+    lg.add_argument("-f", "--follow", action="store_true",
+                    help="then keep printing new output, across restarts, "
+                         "until Ctrl-C; read from disk (no sheppyd needed)")
     rs = sub.add_parser("restart", help="restart a node")
     rs.add_argument("node")
     dm = sub.add_parser("daemon", help="daemon lifecycle")
@@ -135,6 +139,8 @@ def _run_verb(argv: list[str]) -> int:
 async def _dispatch(args) -> int:
     if args.cmd == "up":
         return await _up(args)
+    if args.cmd == "logs" and args.follow:
+        return await _follow_run_files(args.node, None if args.all else args.n)
     if args.cmd == "logs" and args.all:
         return _print_run_file(args.node)
     from sheppy.daemon.client import DaemonClient
@@ -210,17 +216,33 @@ async def _dispatch(args) -> int:
         await client.close()
 
 
+def _node_log_dir(node: str) -> "str | None":
+    """The node's run-file directory, or None for a name no manifest allows
+    (`..`, a path), which must not reach outside log_dir."""
+    from sheppy.daemon.config import load_config
+    from sheppy.manifest.loader import _NAME
+    if not _NAME.fullmatch(node):
+        _error(f"{node}: not a valid node name")
+        return None
+    return os.path.join(load_config()[0].log_dir, node)
+
+
+def _stdout_closed() -> None:
+    """After a BrokenPipeError (`sheppy logs x | head`): point stdout at
+    /dev/null so the exit-time flush doesn't raise again."""
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+
+
 def _print_run_file(node: str) -> int:
     """`logs --all`: copy the node's latest run file to stdout. Read on the
     client, so it works without sheppyd and for nodes it no longer
     supervises (#253)."""
     import shutil
-    from sheppy.daemon.config import load_config
     from sheppy.daemon.logs import run_files
-    from sheppy.manifest.loader import _NAME
-    node_dir = os.path.join(load_config()[0].log_dir, node)
-    # a name no manifest allows (`..`, a path) must not reach outside log_dir
-    runs = run_files(node_dir) if _NAME.fullmatch(node) else []
+    node_dir = _node_log_dir(node)
+    if node_dir is None:
+        return 1
+    runs = run_files(node_dir)
     if not runs:
         _error(f"{node}: no run files in {node_dir}")
         return 1
@@ -228,9 +250,90 @@ def _print_run_file(node: str) -> int:
         with open(runs[-1], "rb") as f:
             shutil.copyfileobj(f, sys.stdout.buffer)   # streamed, not loaded
         sys.stdout.buffer.flush()
-    except BrokenPipeError:             # `sheppy logs x --all | head`
-        # Point stdout at /dev/null so the exit-time flush doesn't raise again.
-        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    except BrokenPipeError:
+        _stdout_closed()
+    return 0
+
+
+_FOLLOW_POLL = 0.25      # seconds between checks for output or a new run
+
+
+async def _follow_run_files(node: str, tail: "int | None") -> int:
+    """`logs -f`: print the last `tail` lines of the node's latest run file
+    (all of it if None), then what the node writes next, moving to each
+    newer run file as it restarts. Read on the client like `--all` (#254)."""
+    from sheppy.daemon.logs import run_files
+    node_dir = _node_log_dir(node)
+    if node_dir is None:
+        return 1
+    out = sys.stdout.buffer
+    path, f, partial, announce = None, None, b"", False
+    if not run_files(node_dir):
+        print(f"-- waiting for {node}'s first run in {node_dir}",
+              file=sys.stderr, flush=True)
+        tail, announce = None, True     # a run that starts later: all of it
+    try:
+        while True:
+            runs = run_files(node_dir)
+            # every run newer than the one followed, in order: a run that
+            # started and ended within one poll still gets printed
+            for nxt in runs[-1:] if path is None else [r for r in runs
+                                                        if r > path]:
+                try:
+                    new = open(nxt, "rb", buffering=0)
+                except OSError:         # pruned between listing and opening
+                    continue
+                if f is not None:       # the old run's last output first
+                    partial = _copy_lines(f, partial, out)
+                    f.close()
+                    if partial:         # it ended mid-line
+                        out.write(partial + b"\n")
+                        out.flush()
+                if announce:
+                    print(f"-- new run: {nxt}", file=sys.stderr, flush=True)
+                if tail is not None:
+                    new.seek(_tail_start(new, tail))
+                path, f, partial = nxt, new, b""
+                tail, announce = None, True
+            if f is not None:
+                partial = _copy_lines(f, partial, out)
+            await asyncio.sleep(_FOLLOW_POLL)
+    except BrokenPipeError:
+        _stdout_closed()
+        return 0
+    finally:
+        if f is not None:
+            f.close()
+
+
+def _copy_lines(f, partial: bytes, out) -> bytes:
+    """Write the complete lines left in `f` to `out`, bytes as they are;
+    return the unfinished last line, held until its newline arrives."""
+    while True:
+        chunk = f.read(64 * 1024)
+        if not chunk:
+            return partial
+        lines, nl, partial = (partial + chunk).rpartition(b"\n")
+        if nl:
+            out.write(lines + nl)
+            out.flush()
+
+
+def _tail_start(f, n: int) -> int:
+    """Offset where the last `n` complete lines of `f` begin, found by
+    reading back from the end so a long run isn't read whole."""
+    pos, seen = f.seek(0, os.SEEK_END), 0
+    while pos > 0:
+        size = min(64 * 1024, pos)
+        pos -= size
+        f.seek(pos)
+        block = f.read(size)
+        i = len(block)
+        # the (n+1)-th newline from the end closes the line before them
+        while (i := block.rfind(b"\n", 0, i)) >= 0:
+            seen += 1
+            if seen == n + 1:
+                return pos + i + 1
     return 0
 
 
