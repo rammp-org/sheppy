@@ -29,7 +29,8 @@ under `environment:`, and they need `network_mode: host`. See
 **I edited the manifest, restarted the node, and it still runs the old
 command.** `r` and `sheppy restart` rerun the command stored when the node was
 launched, and an open TUI doesn't reread the manifest. Quit and reopen the
-TUI, then press `space`, or run `sheppy up <profile>`.
+TUI, then press `space`, or run `sheppy up <profile>`. `sheppy restart` warns
+when this happens to a node `sheppy up` launched.
 
 **A ROS node inside a launch file died, but sheppy still shows `●`.** Sheppy
 watches `ros2 launch` itself, not the nodes it starts. See

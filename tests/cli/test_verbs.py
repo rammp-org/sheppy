@@ -165,7 +165,9 @@ def test_status_and_restart_and_logs(site, capsys):
     first = capsys.readouterr().out
     assert "camera" in first and "running" in first
     assert cli.main(["restart", "camera"]) == 0
-    assert "restarted camera" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "restarted camera" in captured.out
+    assert "warning" not in captured.err     # nothing changed since `up`
     assert cli.main(["woof", "camera"]) == 0     # old name still works (#21)
     assert "restarted camera" in capsys.readouterr().out
     assert cli.main(["logs", "camera", "-n", "5"]) == 0
@@ -476,6 +478,32 @@ def test_up_says_why_it_restarts_a_node(site, capsys):
     out = capsys.readouterr().out
     assert "restarted camera" in out
     assert "alternative  fake" in out and "params       rate: 30" in out
+
+
+def test_restart_warns_when_the_manifest_changed_since_up(site, capsys):
+    manifest = site / "system.yaml"
+    assert cli.main(["up", "cam-only", "--manifest", str(manifest)]) == 0
+    manifest.write_text(manifest.read_text().replace("sleep(30)", "sleep(31)"))
+    capsys.readouterr()
+    assert cli.main(["restart", "camera"]) == 0
+    captured = capsys.readouterr()
+    assert "restarted camera" in captured.out
+    assert ("camera: restarted with the params it was launched with, but "
+            "profile cam-only now resolves differently (launch command "
+            f"changed); 'sheppy up cam-only --manifest {manifest}' applies "
+            "it") in captured.err
+
+
+def test_restart_warns_when_the_profile_no_longer_selects_the_node(
+        site, capsys):
+    assert cli.main(["up", "cam-only",
+                     "--manifest", str(site / "system.yaml")]) == 0
+    ProfileStore(str(site / "profiles")).save(
+        Profile(name="cam-only", selections={}))
+    capsys.readouterr()
+    assert cli.main(["restart", "camera"]) == 0
+    assert ("profile cam-only no longer selects it; 'sheppy up cam-only"
+            in capsys.readouterr().err)
 
 
 def test_status_of_one_node(site, capsys):

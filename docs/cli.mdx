@@ -120,8 +120,12 @@ running.
 Restart a node, including a crashed one, with the alternative, params, and
 command it was launched with, then print the alternative and params. `restart`
 doesn't pick up manifest or profile edits; use `sheppy up` for that.
-Exits 1 if the node is unknown or the daemon isn't running. `sheppy woof`,
-its old name, still works.
+
+For a node `sheppy up` launched, `restart` also checks the manifest and
+profile `up` used, and prints a warning with the `sheppy up` command to run
+if they now give a different alternative, command, or params. Nodes launched
+from the TUI aren't checked. Exits 1 if the node is unknown or the daemon
+isn't running. `sheppy woof`, its old name, still works.
 
 ### `sheppy down`
 

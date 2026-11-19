@@ -173,9 +173,14 @@ async def _dispatch(args) -> int:
                 _error(reply["error"])
                 return 1
             print(f"{_style('restarted', 'yellow')} {args.node}")
-            # restart reruns the spec recorded at launch (#34); say which
-            nodes = (await client.request("status"))["nodes"]
-            _print_spec(nodes[args.node]["spec"])
+            # restart reruns the spec recorded at launch (#34); say which,
+            # and whether `up` would launch something else now (#219)
+            payload = (await client.request("status"))["nodes"][args.node]
+            _print_spec(payload["spec"])
+            drift = _restart_drift(args.node, payload)
+            if drift:
+                _warn(f"{args.node}: restarted with the params it was "
+                      f"launched with, but {drift}")
             return 0
         # daemon status|stop
         if args.action == "status":
@@ -237,49 +242,99 @@ def _restart_reason(payload: dict, spec) -> str:
         f"; params {'; '.join(changed)}" if changed else "")
 
 
-async def _up(args) -> int:
-    from sheppy.daemon.client import DaemonClient
-    from sheppy.launch import diff, resolve
+def _load_profile(manifest_path: str, profile: str):
+    """Load the manifest and apply a profile to it. Returns (load result,
+    ProfileState or None, warnings, errors); the state is None when the
+    manifest or the profile fails to load, and errors say why."""
     from sheppy.manifest import load_manifest
     from sheppy.profiles import ProfileState, ProfileStore, reconcile
-
-    result = load_manifest(args.manifest)
+    result = load_manifest(manifest_path)
+    warnings = [f"{e.location}: {e.message}" for e in result.errors]
     if result.manifest is None:
-        for e in result.errors:
-            _error(f"{e.location}: {e.message}")
-        return 1
-    for e in result.errors:
-        _warn(f"{e.location}: {e.message}")
+        return result, None, [], warnings
     profiles_dir = os.path.join(
-        os.path.dirname(os.path.abspath(args.manifest)), "profiles")
-    loaded = ProfileStore(profiles_dir).load(args.profile)
+        os.path.dirname(os.path.abspath(manifest_path)), "profiles")
+    loaded = ProfileStore(profiles_dir).load(profile)
     if loaded.profile is None:
-        for err in loaded.errors:
-            _error(str(err))
-        return 1
-    for err in loaded.errors:           # loaded, but with parts dropped (#102)
-        _warn(str(err))
+        return result, None, warnings, [str(e) for e in loaded.errors]
+    # loaded, but with parts dropped (#102)
+    warnings += [str(e) for e in loaded.errors]
     rec = reconcile(loaded.profile, result.manifest)
-    for w in rec.warnings:
-        _warn(w)
     state = ProfileState(result.manifest)
-    state.apply(rec.selections, rec.overrides, args.profile)
+    state.apply(rec.selections, rec.overrides, profile)
+    return result, state, warnings + rec.warnings, []
+
+
+def _resolve_selected(result, state, name: str, manifest_path: str):
+    """Resolve the alternative the profile selects for `name` as `up`
+    launches it: (spec, errors, warnings). spec is None when the
+    alternative has manifest errors (#61) or its launcher fails."""
+    from sheppy.launch import resolve
+    alt = state.selected_alt(name)
+    errs = result.errors_for(result.manifest.node(name), alt)
+    if errs:
+        return None, [e.message for e in errs], []
+    spec, warns = resolve(result.manifest, name, alt,
+                          state.effective_params(name),
+                          manifest_dir=os.path.dirname(
+                              os.path.abspath(manifest_path)))
+    return spec, [], warns
+
+
+def _restart_drift(node: str, payload: dict) -> "str | None":
+    """How what `up` would launch now differs from the spec `restart`
+    reran (#219), re-resolved from the manifest and profile `up` recorded
+    in the spec. None when they agree, or when `up` didn't launch it."""
+    origin = payload["spec"].get("origin")
+    if not origin:
+        return None
+    path, profile = origin["manifest"], origin["profile"]
+    up = f"'sheppy up {profile} --manifest {path}'"
+    unchecked = f"couldn't check it against profile {profile}"
+    result, state, _, errors = _load_profile(path, profile)
+    if state is None:
+        return f"{unchecked}: {'; '.join(errors)}"
+    if result.manifest.node(node) is None:
+        return f"it is no longer in {path}"
+    if state.selected_alt(node) is None:
+        return f"profile {profile} no longer selects it; {up} stops it"
+    spec, errs, warns = _resolve_selected(result, state, node, path)
+    if spec is None:
+        return f"{unchecked}: {errs[0] if errs else warns[-1]}"
+    if payload["spec"]["descriptor"] == spec.descriptor.to_wire():
+        return None
+    return (f"profile {profile} now resolves differently "
+            f"({_restart_reason(payload, spec)}); {up} applies it")
+
+
+async def _up(args) -> int:
+    from sheppy.daemon.client import DaemonClient
+    from sheppy.launch import diff
+
+    result, state, warnings, errors = _load_profile(args.manifest,
+                                                    args.profile)
+    for w in warnings:
+        _warn(w)
+    for e in errors:
+        _error(e)
+    if state is None:
+        return 1
+    # recorded with each launch, so `restart` can tell when the manifest or
+    # profile has changed since (#219); sheppyd only stores it
+    origin = {"manifest": os.path.abspath(args.manifest),
+              "profile": args.profile}
 
     desired, unresolved = {}, set()
     for node in result.manifest.nodes:
-        alt = state.selected_alt(node.name)
-        if alt is None:
+        if state.selected_alt(node.name) is None:
             continue
-        errs = result.errors_for(node, alt)
+        spec, errs, warns = _resolve_selected(result, state, node.name,
+                                              args.manifest)
         if errs:                            # never launch a half-built alt (#61)
             for e in errs:
-                _error(f"{node.name}: not launched, {e.message}")
+                _error(f"{node.name}: not launched, {e}")
             unresolved.add(node.name)
             continue
-        spec, warns = resolve(result.manifest, node.name, alt,
-                              state.effective_params(node.name),
-                              manifest_dir=os.path.dirname(
-                                  os.path.abspath(args.manifest)))
         for w in warns:
             _warn(w)
         if spec is None:
@@ -318,7 +373,8 @@ async def _up(args) -> int:
         # at once (#48); diff() never yields two for the same node.
         replies = await asyncio.gather(*(
             client.request("stop", node=node) if verb == "stop"
-            else client.request("launch", spec=desired[node].to_wire())
+            else client.request("launch", spec={**desired[node].to_wire(),
+                                                 "origin": origin})
             for verb, node in actions))
         rejected = False                    # e.g. the command couldn't exec (#97)
         for (_, node), reply in zip(actions, replies):
