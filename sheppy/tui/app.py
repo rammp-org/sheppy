@@ -750,6 +750,14 @@ class SheppyApp(App):
                 ConfirmModal(f"Delete profile '{name}'?"),
                 lambda ok: self.store.delete(name) if ok else None)
             return
+        if self.state.is_dirty:         # don't drop edits silently (#234)
+            self.push_screen(
+                ConfirmModal(f"Discard unsaved changes and load '{name}'?"),
+                lambda ok: self._load_profile(name) if ok else None)
+            return
+        self._load_profile(name)
+
+    def _load_profile(self, name: str) -> None:
         result = self.store.load(name)
         if result.profile is None:
             self._append_warnings(result.errors)
