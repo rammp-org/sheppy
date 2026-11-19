@@ -526,3 +526,38 @@ def test_status_of_an_unsupervised_node_fails(site, capsys):
 def test_status_of_a_node_without_sheppyd_fails(site, capsys):
     assert cli.main(["status", "camera"]) == 1
     assert "not running" in capsys.readouterr().out
+
+
+def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
+    # #227: asyncio's teardown finalized each node's subprocess transport,
+    # which SIGKILLs a child that is still running.
+    import fcntl
+    import os
+    import re
+    import time
+
+    from sheppy.daemon.config import lock_path
+
+    home = str(site / "home")
+    manifest = str(site / "system.yaml")
+    assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
+    capsys.readouterr()
+    assert cli.main(["status"]) == 0
+    pid = int(re.search(r"pid=(\d+)", capsys.readouterr().out).group(1))
+    assert cli.main(["daemon", "stop"]) == 0
+    with open(lock_path(home), "w") as lock:   # wait for sheppyd to exit
+        for _ in range(100):
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                time.sleep(0.05)
+        else:
+            raise AssertionError("sheppyd did not exit")
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    os.kill(pid, 0)                            # still alive
+    capsys.readouterr()
+    assert cli.main(["up", "cam-only", "--manifest", manifest]) == 0
+    assert "already converged" in capsys.readouterr().out
+    log = (site / "home" / "logs" / "sheppyd.log").read_text()
+    assert "adopted: camera" in log

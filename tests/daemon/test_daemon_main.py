@@ -1,3 +1,5 @@
+import pytest
+
 from sheppy.daemon import __main__ as daemon_main
 from sheppy.daemon.config import load_config
 
@@ -7,11 +9,17 @@ def test_main_logs_a_fatal_exception(tmp_path, monkeypatch):
     # write nothing anywhere; every client just saw "could not start" (#88).
     monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
 
-    async def doomed(cfg, warnings):
+    def doomed(cfg):
         raise RuntimeError("bad state file")
 
-    monkeypatch.setattr(daemon_main, "_amain", doomed)
-    assert daemon_main.main([]) == 1
+    def exit_(code):                       # os._exit would end pytest too
+        raise SystemExit(code)
+
+    monkeypatch.setattr(daemon_main, "Server", doomed)
+    monkeypatch.setattr(daemon_main.os, "_exit", exit_)
+    with pytest.raises(SystemExit) as e:
+        daemon_main.main([])
+    assert e.value.code == 1
     text = (tmp_path / "logs" / "sheppyd.log").read_text()
     assert "RuntimeError: bad state file" in text and "Traceback" in text
 
