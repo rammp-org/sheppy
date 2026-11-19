@@ -169,12 +169,16 @@ def parse_manifest(data: object) -> LoadResult:
 def load_manifest(path: str) -> LoadResult:
     import yaml
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             raw = yaml.safe_load(f)
     except FileNotFoundError:
         return LoadResult(None, [ValidationError("<file>", f"manifest not found: {path}")])
     except OSError as exc:              # a directory, no read permission (#100)
         return LoadResult(None, [ValidationError("<file>", f"cannot read manifest: {exc}")])
+    except UnicodeDecodeError as exc:
+        return LoadResult(None, [ValidationError(
+            "<file>", f"manifest is not UTF-8 text: {path}: "
+            f"byte 0x{exc.object[exc.start]:02x}, {exc.reason}")])
     except yaml.YAMLError as exc:
         return LoadResult(None, [ValidationError("<file>", f"invalid YAML: {exc}")])
     return parse_manifest(raw)

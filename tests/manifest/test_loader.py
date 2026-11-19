@@ -166,6 +166,27 @@ def test_load_bad_yaml(tmp_path):
     assert len(result.errors) == 1
 
 
+def test_load_non_utf8_file_is_an_error_not_a_traceback(tmp_path):
+    p = tmp_path / "system.yaml"
+    p.write_bytes(b"nodes:\n  - name: caf\xe9\n")
+    result = load_manifest(str(p))
+    assert result.manifest is None
+    assert len(result.errors) == 1
+    assert result.errors[0].location == "<file>"
+    assert str(p) in result.errors[0].message
+    assert "not UTF-8 text" in result.errors[0].message
+    assert "0xe9" in result.errors[0].message
+
+
+def test_load_utf8_file_with_non_ascii_name(tmp_path):
+    p = tmp_path / "system.yaml"
+    p.write_text("machines:\n  - {name: café, host: localhost, user: r}\n",
+                 encoding="utf-8")
+    result = load_manifest(str(p))
+    assert result.ok
+    assert result.manifest.machines[0].name == "café"
+
+
 def test_load_directory_is_an_error_not_a_traceback(tmp_path):
     result = load_manifest(str(tmp_path))
     assert result.manifest is None
