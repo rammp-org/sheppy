@@ -19,12 +19,13 @@ isolated environment:
 curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
 ```
 
-That installs the **latest release**. Pin one with `SHEPPY_REF=v1.0.0`, or
-install the **development version** from the tip of the `dev` branch, which
-can break between releases:
+That installs the **latest release**. Set `SHEPPY_REF` on the `sh` side of
+the pipe to pin a release (`SHEPPY_REF=v1.0.0`) or to install the
+**development version** from the tip of the `dev` branch, which can break
+between releases:
 
 ```bash
-SHEPPY_REF=dev curl -LsSf https://rammp-org.github.io/sheppy/install.sh | sh
+curl -LsSf https://rammp-org.github.io/sheppy/install.sh | SHEPPY_REF=dev sh
 ```
 
 <Callout type="info">
