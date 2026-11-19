@@ -373,7 +373,8 @@ async def test_type_only_param_change_is_drift_and_names_the_params():
     app = make_app(fake)
     async with app.run_test() as pilot:
         await pilot.pause()
-        assert app.state.effective_params("camera")["enable_depth"] is not True
+        value = app.state.effective_params("camera")["enable_depth"]
+        assert type(value) is int and value == 1
         assert "Δ" not in str(app.query_one("#node-0 .col-status").content)
         app.state.override("camera", "enable_depth", True)  # the manifest's
         await pilot.press("r")

@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 
 from sheppy.launch.base import LaunchContext
-from sheppy.launch.builtins import param_text
 from sheppy.launch.descriptor import LaunchDescriptor
 from sheppy.launch.registry import default_registry
 
@@ -56,7 +55,7 @@ def fmt(value) -> str:
 
 def same(a, b) -> bool:
     """Equal as ROS reads them: 1 and 1.0, or 0 and false, differ (#230)."""
-    return param_text(a) == param_text(b)
+    return fmt(a) == fmt(b)
 
 
 def changes(old: dict, new: dict) -> list:
