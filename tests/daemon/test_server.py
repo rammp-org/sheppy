@@ -140,6 +140,24 @@ async def test_launch_rejects_bad_spec(tmp_path, monkeypatch):
     await server.close()
 
 
+async def test_launch_rejects_non_string_argv(tmp_path, monkeypatch):
+    # #232: an int in argv must be refused up front in both supervise modes,
+    # not crash the inherit spawn or leave a detached node stuck launching.
+    server = await make_server(tmp_path, monkeypatch)
+    wire = await Wire.connect(str(tmp_path))
+    reply = await wire.request("launch", spec=spec("i", ["sleep", 10]))
+    assert reply["ok"] is False and "'start'" in reply["error"]
+    detached = {"supervise": "detached", "name": "d", "start": ["sleep", 10],
+                "poll": ["true"]}
+    reply = await wire.request("launch", spec={"node": "d", "descriptor": detached})
+    assert reply["ok"] is False and "'start'" in reply["error"]
+    detached = dict(detached, start=["true"], stop=["kill", 1])
+    reply = await wire.request("launch", spec={"node": "d", "descriptor": detached})
+    assert reply["ok"] is False and "'stop'" in reply["error"]
+    assert (await wire.request("status"))["nodes"] == {}
+    await server.close()
+
+
 async def test_logs_op_returns_tail(tmp_path, monkeypatch):
     server = await make_server(tmp_path, monkeypatch)
     wire = await Wire.connect(str(tmp_path))

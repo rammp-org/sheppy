@@ -1,6 +1,10 @@
 """NDJSON framing for the sheppyd socket. stdlib only."""
 import json
 
+# The argv fields of a launch descriptor, each a list of strings.
+ARGV_FIELDS = ("start", "watch", "poll", "alive", "stop", "logs", "stats",
+               "reset")
+
 
 def encode(msg: dict) -> bytes:
     return (json.dumps(msg, separators=(",", ":")) + "\n").encode()
