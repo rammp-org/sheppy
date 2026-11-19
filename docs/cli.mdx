@@ -110,12 +110,19 @@ camera               running    realsense      pid=3948253 up 22s
 
 Exits 1 if `sheppyd` doesn't supervise that node or isn't running.
 
-### `sheppy logs <node> [-n N]`
+### `sheppy logs <node> [-n N | --all]`
 
 Print the last `N` (default 50, must be at least 1) lines of a node's output. `sheppyd` keeps the
 last 300 lines in memory; the full per-run log files are under
 `~/.sheppy/logs/<node>/`. Exits 1 if the node is unknown or the daemon isn't
 running.
+
+With `--all`, print the node's latest run file from the start instead. It reads
+the file from disk (the `log_dir` set in `sheppyd.json`, `~/.sheppy/logs/` by
+default), so it works without `sheppyd` running and for a node it no longer
+supervises, such as one you stopped. `sheppyd` keeps the last `keep_runs`
+(default 5) runs per node.
+`--all` and `-n` can't be used together. Exits 1 if the node has no run files.
 
 ### `sheppy restart <node>`
 
@@ -164,6 +171,7 @@ Find out why a node crashed, then try again:
 ```bash
 sheppy status                  # which node, and its exit code
 sheppy logs camera -n 200      # its last output
+sheppy logs camera --all       # or its whole latest run
 sheppy restart camera
 ```
 
@@ -191,9 +199,10 @@ sheppy up mock
 | Daemon not running — `logs`, `status <node>`, and `restart` with no nodes left running | 1 |
 | `down`, `restart`: the daemon left nodes running and couldn't be started again | 1 |
 | Unknown node (`logs`, `restart`, `status <node>`) | 1 |
+| `logs --all`: the node has no run files | 1 |
 | `up`: manifest/profile failed to load, `sheppyd` couldn't start, a launcher failed to resolve, a selected alternative has manifest errors, `sheppyd` rejected a launch, a selected node isn't running once settled, or settle timeout | 1 |
 | `sheppyd` died mid-command (`sheppy: sheppyd: sheppyd connection lost`) | 1 |
-| Usage error: a missing or unexpected argument, an invalid `-n` (not a positive integer), or an unknown `daemon` action (argparse prints the usage) | 2 |
+| Usage error: a missing or unexpected argument, an invalid `-n` (not a positive integer), `-n` together with `--all`, or an unknown `daemon` action (argparse prints the usage) | 2 |
 | Interrupted with Ctrl-C | 130 |
 
 ## `sheppyd`

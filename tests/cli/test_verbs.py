@@ -589,6 +589,68 @@ def test_daemon_stop_leaves_nodes_running_for_the_next_daemon(site, capsys):
     assert "adopted: camera" in log
 
 
+def _write_runs(log_dir, node, runs: dict) -> None:
+    (log_dir / node).mkdir(parents=True)
+    for name, text in runs.items():
+        (log_dir / node / name).write_text(text)
+
+
+def test_logs_all_prints_the_latest_run_file_without_sheppyd(
+        tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    whole = "".join(f"line {i}\n" for i in range(1000))   # past ring_lines
+    _write_runs(tmp_path / "logs", "camera", {
+        "20261102-090000-999000000.log": whole,
+        "20261102-090000-001000000.log": "same second, earlier\n",
+        "20261101-090000-000000001.log": "older run\n",
+        "zzz.txt": "not a run\n",
+    })
+    assert cli.main(["logs", "camera", "--all"]) == 0
+    assert capsys.readouterr().out == whole
+
+
+def test_logs_all_reads_log_dir_from_sheppyd_json(tmp_path, capsys,
+                                                  monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    (tmp_path / "sheppyd.json").write_text(
+        json.dumps({"log_dir": str(tmp_path / "elsewhere")}))
+    _write_runs(tmp_path / "elsewhere", "camera",
+                {"20261102-090000-000002.log": "from elsewhere\n"})
+    assert cli.main(["logs", "camera", "--all"]) == 0
+    assert capsys.readouterr().out == "from elsewhere\n"
+
+
+def test_logs_all_fails_when_the_node_has_no_run_files(tmp_path, capsys,
+                                                       monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    assert cli.main(["logs", "camera", "--all"]) == 1
+    assert ("camera: no run files in "
+            f"{tmp_path / 'logs' / 'camera'}") in capsys.readouterr().err
+
+
+def test_logs_all_rejects_a_name_outside_log_dir(tmp_path, capsys,
+                                                 monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    _write_runs(tmp_path, "secret", {"20261102-090000-000000001.log": "x\n"})
+    assert cli.main(["logs", "../secret", "--all"]) == 1
+    assert capsys.readouterr().out == ""
+
+
+def test_logs_all_rejects_n(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("SHEPPY_HOME", str(tmp_path))
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["logs", "camera", "--all", "-n", "5"])
+    assert exc.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_logs_all_of_a_supervised_node(site, capsys):
+    cli.main(["up", "broken", "--manifest", str(site / "system.yaml")])
+    capsys.readouterr()
+    assert cli.main(["logs", "flaky", "--all"]) == 0
+    assert capsys.readouterr().out == "no such device\n"
+
+
 def test_down_after_daemon_stop_stops_the_nodes_it_left(site, capsys):
     # #250: `down` with no daemon said "not running" and exited 0 while
     # the nodes `daemon stop` left were still up. It starts sheppyd, which
